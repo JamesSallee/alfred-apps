@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fbf8f2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>Alfred's Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column, like the Ledger. Greeting, today's note in brass, then the three doors out of the study. */
+:root{
+  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
+  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020; color-scheme:dark}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+a:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+
+header{display:flex;flex-direction:column;gap:4px}
+.eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:30px;line-height:1.1}
+.greet{color:var(--muted);font-size:15px}
+
+.note{background:var(--brass-soft);border:1px solid var(--brass);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.note h2{font-size:19px;color:var(--brass)}
+.note ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.note li{display:flex;gap:10px;align-items:baseline}
+.note li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--brass);transform:translateY(-2px)}
+.note a{color:var(--ink);font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
+
+.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rooms{display:flex;flex-direction:column;gap:10px}
+.room{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;color:var(--ink);text-decoration:none;transition:border-color .15s, transform .15s}
+.room:hover{border-color:var(--green);transform:translateY(-1px)}
+.room .mark{width:44px;height:44px;border-radius:12px;background:var(--green-soft);color:var(--green);display:grid;place-items:center;font-family:var(--display);font-size:20px}
+.room.today{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(--brass)}
+.room.today .mark{background:var(--brass-soft);color:var(--brass)}
+.room .txt{min-width:0;display:flex;flex-direction:column;gap:2px}
+.room .name{font-family:var(--display);font-size:18px}
+.room .desc{font-size:13px;color:var(--muted)}
+.room .go{color:var(--green);font-weight:700;font-size:18px}
+.room.today .go{color:var(--brass)}
+.room .tag{display:inline-block;margin-left:6px;font-family:var(--body);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass);vertical-align:2px}
+
+.week{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.week h2{font-size:19px}
+.week .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.week .stat{display:flex;flex-direction:column;gap:2px}
+.week .big{font-family:var(--display);font-size:24px;color:var(--green);font-variant-numeric:tabular-nums}
+.week .sm{font-size:12.5px;color:var(--muted)}
+.week ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.week li{display:flex;justify-content:space-between;gap:12px}
+.week li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
+.week[hidden]{display:none}
+footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:14px}
+@media (prefers-reduced-motion: reduce){.room{transition:none}.room:hover{transform:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow" id="date">Monday 2 November</span>
+    <h1>Alfred's Study</h1>
+    <span class="greet" id="greet">Good afternoon, James. The kettle's on.</span>
+  </header>
+
+  <section class="note" aria-labelledby="noteh">
+    <h2 id="noteh">Today's note</h2>
+    <ul id="notes">
+      <li>Draft day: Wednesday's post wants a first pass in the 8 am Write block.</li>
+      <li>Mara's midday walk, somewhere around lunch.</li>
+    </ul>
+  </section>
+
+  <section class="week" id="week" aria-labelledby="weekh" hidden>
+    <h2 id="weekh">This week</h2>
+    <div class="stats">
+      <div class="stat"><span class="big" id="wk-ticks">0</span><span class="sm">habit ticks</span></div>
+      <div class="stat"><span class="big" id="wk-focus">0</span><span class="sm">focus minutes</span></div>
+      <div class="stat"><span class="big" id="wk-sun">–</span><span class="sm">last shutdown</span></div>
+    </div>
+    <ul id="wk-habits"></ul>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:10px" aria-labelledby="roomsh">
+    <span class="label" id="roomsh">The rooms</span>
+    <nav class="rooms">
+      <a class="room" id="r-ledger" href="ledger.html">
+        <span class="mark" aria-hidden="true">L</span>
+        <span class="txt"><span class="name">The Daily Ledger</span><span class="desc">Tick off today's habits and keep the balance honest.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+      <a class="room" id="r-focus" href="focus.html">
+        <span class="mark" aria-hidden="true">F</span>
+        <span class="txt"><span class="name">The Focus Room</span><span class="desc">A timer and a soundscape for writing, piano or code.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+      <a class="room" id="r-shutdown" href="shutdown.html">
+        <span class="mark" aria-hidden="true">S</span>
+        <span class="txt"><span class="name">Sunday Shutdown</span><span class="desc">Close out the week and set up the next, every Sunday evening.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+    </nav>
+  </section>
+
+  <footer id="foot">Pin this page or add it to your home screen. Everything else is one tap away.</footer>
+</div>
+
+<script type="module">
+import { mountShell } from "./js/shell.js";
+mountShell(null);
+
+// ---------- This week (Monday to today), read from the synced stores ----------
+import { openStore } from "./js/sync.js";
+{
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const days = []; for (let d = new Date(monday); d <= today; d.setDate(d.getDate()+1)) days.push(ymd(d));
+  const ledger = openStore("ledger"), focus = openStore("focus"), shutdown = openStore("shutdown");
+  const fmt = (s) => new Date(s + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const esc = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function renderWeek() {
+    const habits = ledger.list("habits/").map(x => ({ id: x.key.slice(7), ...x.value }))
+      .filter(h => h.active !== false).sort((a,b) => (Number(a.order)||0) - (Number(b.order)||0));
+    let ticks = 0; const per = {};
+    days.forEach(d => { const done = ledger.get("days/" + d)?.done || {}; Object.keys(done).forEach(id => { ticks++; per[id] = (per[id]||0) + 1; }); });
+    const since = monday.getTime();
+    const mins = focus.list("log/").map(x => x.value).filter(e => e.k === "focus" && e.t >= since).reduce((a,e) => a + (e.m||0), 0);
+    const last = shutdown.list("shutdowns/").map(x => x.value).sort((a,b) => a.date < b.date ? 1 : -1)[0];
+    document.getElementById("wk-ticks").textContent = ticks;
+    document.getElementById("wk-focus").textContent = mins;
+    document.getElementById("wk-sun").textContent = last ? fmt(last.date) : "\u2013";
+    document.getElementById("wk-habits").innerHTML = habits.filter(h => h.kind !== "weekly").slice(0, 8)
+      .map(h => `<li><span>${esc(h.name || "Habit")}</span><span>${per[h.id]||0} of ${days.length}</span></li>`).join("")
+      + (last && last.word ? `<li><span>This week's word</span><span>${esc(last.word)}</span></li>` : "");
+    document.getElementById("week").hidden = !(habits.length || mins || last);
+  }
+  [ledger, focus, shutdown].forEach(s => s.subscribe(renderWeek));
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+(function(){
+  const now = new Date();
+  const day = now.getDay();           // 0 Sun … 6 Sat
+  const date = now.getDate();
+  const hr = now.getHours();
+  const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("date").textContent = DAYS[day] + " " + date + " " + MONTHS[now.getMonth()];
+
+  const greet = hr < 5 ? "Still up, James? Bed by eleven was the agreement."
+    : hr < 12 ? "Good morning, James. The kettle's on."
+    : hr < 17 ? "Good afternoon, James. Steady as she goes."
+    : hr < 22 ? "Good evening, James. Mind the unplanned hour."
+    : "Nearly eleven, James. The study is closing.";
+  document.getElementById("greet").textContent = greet;
+
+  // ILKWIM publishes every other Wednesday from 4 Nov 2026.
+  const first = new Date(2026, 10, 4);
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Wednesday of this week (week runs Sun–Sat)
+  const wed = new Date(today0); wed.setDate(today0.getDate() + (3 - day));
+  const weeks = Math.round((wed - first) / (7 * 864e5));
+  const publishWeek = wed >= first && weeks % 2 === 0;
+
+  const notes = [];
+  const shutdown = '<a href="shutdown.html">Sunday Shutdown</a>';
+  if (day === 0) notes.push("Sunday: shutdown tonight. Open the " + shutdown + " after supper.");
+  if (day === 6) notes.push("Saturday: keep half the day unplanned. That is an instruction, not a suggestion.");
+  if (publishWeek && day === 1) notes.push("Draft day: Wednesday's post wants a first pass in the 8 am Write block.");
+  if (publishWeek && day === 3) notes.push("Publish day: final pass in the 8 am Write block, then send it out.");
+  if (day === 3) notes.push("Writing Club this evening.");
+  // Gather on the weekend before a publish Wednesday
+  if (day === 0 && publishWeek) notes.push("Gather notes for Wednesday's post.");
+  if (day === 6) {
+    const nextWed = new Date(today0); nextWed.setDate(today0.getDate() + 4);
+    const nw = Math.round((nextWed - first) / (7 * 864e5));
+    if (nextWed >= first && nw % 2 === 0) notes.push("Gather notes for Wednesday's post.");
+  }
+  if (date === 8) notes.push("Mara's heartworm tablet is due today.");
+  if (day >= 1 && day <= 5) notes.push("Mara's midday walk, somewhere around lunch.");
+  if (day === 5) notes.push("Friday: the week is nearly done. Leave it there at five.");
+  if (!notes.length) notes.push("Nothing pressing. Piano for thirty minutes and an early night would not go amiss.");
+
+  document.getElementById("notes").innerHTML = notes.map(n => "<li><span>" + n + "</span></li>").join("");
+
+  // Highlight the room that matters today
+  const todayRoom = day === 0 ? "r-shutdown" : "r-ledger";
+  const el = document.getElementById(todayRoom);
+  el.classList.add("today");
+  el.querySelector(".name").insertAdjacentHTML("beforeend", '<span class="tag">Today</span>');
+})();
+</script>
