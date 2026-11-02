@@ -1,6 +1,6 @@
 // Offline support: serve the apps from cache, refresh in the background.
 // Database traffic (supabase.co) is never cached; the sync layer handles offline edits.
-const CACHE = "alfred-v1";
+const CACHE = "alfred-v2";
 const SHELL = ["./", "index.html", "ledger.html", "focus.html", "shutdown.html",
   "js/sync.js", "js/shell.js", "js/compat-db.js", "js/config.js", "js/vendor/supabase-2.45.4.js", "manifest.webmanifest", "icon.svg"];
 

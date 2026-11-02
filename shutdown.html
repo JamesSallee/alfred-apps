@@ -213,7 +213,7 @@ const CUES = [
   "Bring your attention to your feet. Then your legs, slowly upwards.",
   "Notice the shoulders. Let them drop a little.",
   "Thoughts about tomorrow will arrive. Let them pass like traffic outside.",
-  "Notice the sounds in the room. The house, the street, perhaps Mara.",
+  "Notice the sounds in the room. The house, the street, the quiet.",
   "Widen your attention to the whole body, sitting here, breathing.",
   "Nothing needs doing in this minute.",
   "When the bell sounds, open your eyes slowly. No rush."
@@ -346,7 +346,7 @@ function viewAhead(){
     <h2>The week to come.</h2>
     <label class="f">What matters most next week?<span class="hint">One or two things. The rest is detail.</span><textarea id="ahead-matters" data-bind="ahead.matters" rows="2">${esc(D.ahead.matters)}</textarea></label>
     <label class="f">One word for the week<span class="hint">Steady. Gentle. Finish. Whatever fits.</span><input type="text" id="ahead-word" data-bind="ahead.word" maxlength="24" value="${esc(D.ahead.word)}"></label>
-    <label class="f">Anything Alfred should know for the plan?<span class="hint">Energy, plans with Maggie, a day you'd like kept light. Personal things only.</span><textarea id="ahead-note" data-bind="ahead.note" rows="2">${esc(D.ahead.note)}</textarea></label>
+    <label class="f">Anything Alfred should know for the plan?<span class="hint">Energy, plans with family or friends, a day you'd like kept light. Personal things only.</span><textarea id="ahead-note" data-bind="ahead.note" rows="2">${esc(D.ahead.note)}</textarea></label>
     ${nav(true,true)}
   </section>`;
 }
