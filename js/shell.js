@@ -1,5 +1,5 @@
 // Shared chrome for every app: a small sync-status pill, plus a sheet for
-// signing in with an emailed code, backups and signing out.
+// signing in with an emailed link, backups and signing out.
 
 import { openStore, STATUS_TEXT, currentUser, sendCode, verifyCode, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
 
@@ -70,13 +70,13 @@ export function mountShell(app) {
         <label class="al-btn">Restore backup<input type="file" accept="application/json" hidden data-a="import"></label></div>
         ${errHtml}<div class="al-row"><button class="al-btn" data-a="signout">Sign out</button><button class="al-btn primary" data-a="close">Done</button></div>`;
     } else if (step === "code") {
-      card.innerHTML = `<h2>Check your email</h2><p>Type the code just sent to ${escapeHtml(email)}.</p>
+      card.innerHTML = `<h2>Check your email</h2><p>Tap the sign-in link just sent to ${escapeHtml(email)}, on this device. If the email shows a code instead, type it here.</p>
         <input inputmode="numeric" autocomplete="one-time-code" placeholder="Code" data-f="code">${errHtml}
         <div class="al-row"><button class="al-btn" data-a="back">Back</button><button class="al-btn primary" data-a="verify">Sign in</button></div>`;
     } else {
       card.innerHTML = `<h2>Sign in to sync</h2><p>Until you sign in, entries are kept on this device only.</p>
         <input type="email" autocomplete="email" placeholder="Email" data-f="email" value="${escapeHtml(email)}">${errHtml}
-        <div class="al-row"><button class="al-btn" data-a="close">Not now</button><button class="al-btn primary" data-a="send">Email me a code</button></div>`;
+        <div class="al-row"><button class="al-btn" data-a="close">Not now</button><button class="al-btn primary" data-a="send">Email me a link</button></div>`;
     }
     card.querySelector("input")?.focus();
   }

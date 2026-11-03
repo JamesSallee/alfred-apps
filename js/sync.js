@@ -8,21 +8,21 @@ const { createClient } = globalThis.supabase;
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
 const TABLE = "app_data";
 const read = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full or blocked: in-memory only */ } };
 
-// ---------- Sign-in (6-digit email code) ----------
+// ---------- Sign-in (emailed link; a code also works if the email template shows one) ----------
 
 export async function currentUser() {
   const { data } = await supabase.auth.getSession();
   return data.session?.user ?? null;
 }
 export async function sendCode(email) {
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: location.href.split("#")[0] } });
   if (error) throw error;
 }
 export async function verifyCode(email, token) {

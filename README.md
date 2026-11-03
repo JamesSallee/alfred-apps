@@ -23,7 +23,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 
 1. Run `supabase/schema.sql` in the Supabase SQL editor (or via the Supabase connector).
 2. Put the project URL and publishable key in `js/config.js`. Both are public by design; never commit the secret key.
-3. Supabase → Authentication → Emails → Magic Link: make the email show `{{ .Token }}` so it carries a code.
+3. Sign-in uses Supabase's standard magic-link email (editing the template needs custom SMTP; if added, include `{{ .Token }}` and the code box works too).
 4. Supabase → Authentication → URL Configuration: Site URL `https://jamessallee.github.io/alfred-apps/`.
 5. GitHub → Settings → Pages: deploy from `main`, root.
 6. After the first sign-in, turn off "Allow new users to sign up".
