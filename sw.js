@@ -1,6 +1,6 @@
-// Offline support: serve the apps from cache, refresh in the background.
+// Offline support: always fetch the latest pages when online, fall back to the cache when not.
 // Database traffic (supabase.co) is never cached; the sync layer handles offline edits.
-const CACHE = "alfred-v3";
+const CACHE = "alfred-v4";
 const SHELL = ["./", "index.html", "ledger.html", "focus.html", "shutdown.html",
   "js/sync.js", "js/shell.js", "js/compat-db.js", "js/config.js", "js/vendor/supabase-2.45.4.js", "manifest.webmanifest", "icon.svg"];
 
@@ -13,13 +13,15 @@ self.addEventListener("activate", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.hostname.endsWith("supabase.co")) return;
+  if (e.request.method !== "GET" || url.origin !== location.origin) return;
+  // Network first, so a new version shows up straight away; the cache is only the offline fallback.
   e.respondWith(caches.open(CACHE).then(async (cache) => {
-    const cached = await cache.match(e.request, { ignoreSearch: true });
-    const fresh = fetch(e.request).then((res) => {
-      if (res.ok || res.type === "opaque") cache.put(e.request, res.clone());
+    try {
+      const res = await fetch(e.request, { cache: "no-cache" });
+      if (res.ok) cache.put(e.request, res.clone());
       return res;
-    }).catch(() => cached);
-    return cached || fresh;
+    } catch {
+      return (await cache.match(e.request, { ignoreSearch: true })) || Response.error();
+    }
   }));
 });
