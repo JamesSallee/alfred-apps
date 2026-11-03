@@ -238,8 +238,8 @@ nav.tabs svg{width:22px;height:22px}
     <label class="sr" for="ask-note">Anything else?</label>
     <input id="ask-note" class="card" placeholder="Anything else? (e.g. Maggie's out, just me)" style="margin-top:10px;width:100%;height:44px;padding:0 14px">
     <div class="two" style="grid-template-columns:3fr 2fr;margin-top:10px">
-      <button class="btn primary big stack" type="button" id="ask-go">Ask Alfred <span class="cost">about 5¢</span></button>
-      <button class="btn big stack" type="button" id="web-go" style="font-size:14px">Search the web <span class="cost">about 10¢</span></button>
+      <button class="btn primary big stack" type="button" id="ask-go">Ask Alfred <span class="cost">about 2¢</span></button>
+      <button class="btn big stack" type="button" id="web-go" style="font-size:14px">Search the web <span class="cost">about 6¢</span></button>
     </div>
     <div class="small muted" id="spend" style="margin-top:6px"></div>
     <div id="ask-body" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
@@ -646,7 +646,7 @@ function renderCookbook() {
         <span class="small">${need.length ? "Need: " + esc(need.join(", ")) + (total - have > 3 ? "…" : "") : "All on hand"}</span>
       </div></a>`;
   }).join("") : `<div class="card empty">${all.length ? "No saved recipe matches that." : "No recipes yet. Paste a link above, share one from your browser, or snap a cookbook page."}</div>`;
-  $("cb-body").insertAdjacentHTML("beforeend", `<button class="btn ghost" type="button" id="cb-web" style="border-color:var(--green);color:var(--green)">Nothing grabs you? Search the web <span class="cost">· ~10¢</span></button>`);
+  $("cb-body").insertAdjacentHTML("beforeend", `<button class="btn ghost" type="button" id="cb-web" style="border-color:var(--green);color:var(--green)">Nothing grabs you? Search the web <span class="cost">· ~6¢</span></button>`);
   $("cb-web").onclick = () => webSearch($("web-body"));
   renderWeb($("web-body"));
 }

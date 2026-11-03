@@ -10,12 +10,12 @@
 //   usage        {}                                                    -> this month's spend and the cap
 //
 // Every paid call is logged in public.ai_usage and refused once the household's monthly cap is reached.
-// Secrets: ANTHROPIC_API_KEY (required), LARDER_MODEL (default claude-opus-5-5), LARDER_MONTHLY_CAP_USD (default 5).
+// Secrets: ANTHROPIC_API_KEY (required), LARDER_MODEL (default claude-sonnet-5-5), LARDER_MONTHLY_CAP_USD (default 5).
 
 import Anthropic from "npm:@anthropic-ai/sdk@1.4.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
-const MODEL = Deno.env.get("LARDER_MODEL") || "claude-opus-5-5";
+const MODEL = Deno.env.get("LARDER_MODEL") || "claude-sonnet-5-5";
 const CAP_USD = Number(Deno.env.get("LARDER_MONTHLY_CAP_USD") || "5");
 
 // $ per million tokens (input, output). Web searches are $10 per 1,000.
@@ -99,7 +99,7 @@ async function monthSpend(ownerId: string): Promise<number> {
 }
 
 function costOf(u: Usage): number {
-  const [pin, pout] = PRICES[MODEL] || PRICES["claude-opus-5-5"];
+  const [pin, pout] = PRICES[MODEL] || PRICES["claude-sonnet-5-5"];
   return (u.input * pin + u.output * pout) / 1e6 + u.searches * SEARCH_USD;
 }
 
