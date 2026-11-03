@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: one narrow column, like the Ledger. Greeting, today's note in brass, then the three doors out of the study. */
+/* Layout: one narrow column, like the Ledger. Greeting, today's note in brass, then the doors out of the study. */
 :root{
   --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
   --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
@@ -109,6 +109,11 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
       <a class="room" id="r-shutdown" href="shutdown.html">
         <span class="mark" aria-hidden="true">S</span>
         <span class="txt"><span class="name">Sunday Shutdown</span><span class="desc">Close out the week and set up the next, every Sunday evening.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+      <a class="room" id="r-larder" href="larder.html">
+        <span class="mark" aria-hidden="true">K</span>
+        <span class="txt"><span class="name">The Larder</span><span class="desc">The shared grocery list, the pantry, the cookbook and dinner ideas.</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>
     </nav>
