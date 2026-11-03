@@ -8,6 +8,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `ledger.html` | The Daily Ledger: habits, points, the store | `ledger` |
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
+| `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
 
 ## How the data works
 
@@ -27,6 +28,46 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 4. Supabase → Authentication → URL Configuration: Site URL `https://jamessallee.github.io/alfred-apps/`.
 5. GitHub → Settings → Pages: deploy from `main`, root.
 6. After the first sign-in, turn off "Allow new users to sign up".
+
+## The Larder
+
+The one app shared with another person. Everything else stays private to its owner.
+
+- **Sharing.** `supabase/larder.sql` adds `household_members` (owner, member, app). A member reads and writes the
+  owner's `larder` rows, and nothing else of theirs. `js/sync.js` treats apps in `SHARED_APPS` this way.
+- **Claude.** `supabase/functions/larder-ai` is the only thing that talks to Claude; the API key is a Supabase
+  secret and never reaches the pages. Every call is logged in `ai_usage`, and calls stop once the month's cap is spent.
+  Recipe links are read for free when the site publishes standard recipe data; Claude only reads the page when it doesn't.
+- **Nothing runs on its own.** Claude is only called when someone presses a button.
+
+### Setting it up
+
+1. Run `supabase/larder.sql` in the SQL editor (after `schema.sql`).
+2. Add the secrets (Supabase → Edge Functions → Secrets): `ANTHROPIC_API_KEY` (from console.anthropic.com).
+   Optional: `LARDER_MONTHLY_CAP_USD` (default `5`), `LARDER_MODEL` (default `claude-opus-5-5`; `claude-sonnet-5-5` roughly halves the cost).
+3. Deploy the function: `supabase functions deploy larder-ai` (or via the Supabase connector).
+4. Open the Larder, tap **House rules** and write down tastes, goals and dislikes. They live in the database, not in this repo.
+
+### Inviting a household member
+
+1. Supabase → Authentication → Users → **Invite user** with their email (works with sign-ups switched off).
+2. Once they've signed in once, link them (replace both emails):
+   ```sql
+   insert into public.household_members (owner_id, member_id, app)
+   select o.id, m.id, 'larder' from auth.users o, auth.users m
+   where o.email = 'OWNER_EMAIL' and m.email = 'MEMBER_EMAIL';
+   ```
+3. They open `larder.html` and add it to the home screen. They'll see the owner's list from then on.
+
+### Saving recipes from the Share menu
+
+- **Android (Chrome):** open the Larder, then menu → **Install app**. "Larder" then appears in the Share menu;
+  sharing a recipe page opens the Larder and saves it.
+- **iPhone:** websites can't join the iOS Share menu, so use a Shortcut. In the Shortcuts app: new shortcut →
+  turn on **Show in Share Sheet** (accepting URLs and Safari web pages) → add **URL** with
+  `https://jamessallee.github.io/alfred-apps/larder.html?url=` followed by the **Shortcut Input** variable → add **Open URLs**.
+  Name it "Save to Larder". It opens in Safari, so sign in to the Larder in Safari once as well; the recipe then
+  syncs to the home-screen app.
 
 ## Updating
 
