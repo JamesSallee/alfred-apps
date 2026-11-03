@@ -45,18 +45,24 @@ export function onAuthChange(fn) {
 
 const stores = new Map();
 
+// Apps whose rows can be shared with a household member (see supabase/larder.sql):
+// a member reads and writes the owner's rows; everyone else uses their own.
+const SHARED_APPS = new Set(["larder"]);
+
 /** Open (or reuse) the synced store for one app. */
-export function openStore(app) {
+export function openStore(app, { shared = SHARED_APPS.has(app) } = {}) {
   if (stores.has(app)) return stores.get(app);
-  const store = new Store(app);
+  const store = new Store(app, shared);
   stores.set(app, store);
   store.start();
   return store;
 }
 
 class Store {
-  constructor(app) {
+  constructor(app, shared = false) {
     this.app = app;
+    this.shared = shared;
+    this.ownerId = null;             // whose rows this store syncs (shared apps only)
     this.cacheKey = `alfred:${app}:cache`;
     this.outboxKey = `alfred:${app}:outbox`;
     const cache = read(this.cacheKey, { rows: {}, since: null });
@@ -115,6 +121,7 @@ class Store {
     if (!navigator.onLine) return this.#setStatus("offline");
     this.#setStatus("syncing");
     try {
+      await this.#resolveOwner(user);
       await this.#flush(user);
       await this.#pull();
       this.#subscribeRealtime();
@@ -125,8 +132,17 @@ class Store {
     }
   }
 
+  async #resolveOwner(user) {
+    if (!this.shared) { this.ownerId = user.id; return; }
+    const { data, error } = await supabase.rpc("shared_owner", { p_app: this.app });
+    if (error) throw error;
+    if (this.ownerId && this.ownerId !== data) { this.since = null; this.#unsubscribe(); } // household changed: re-read everything
+    this.ownerId = data || user.id;
+  }
+
   async #pull() {
     let q = supabase.from(TABLE).select("key,value,deleted,updated_at").eq("app", this.app).order("updated_at");
+    if (this.shared) q = q.eq("user_id", this.ownerId);
     if (this.since) q = q.gt("updated_at", this.since);
     const { data, error } = await q;
     if (error) throw error;
@@ -151,7 +167,7 @@ class Store {
     const entries = Object.entries(this.outbox);
     if (!entries.length) return;
     this.flushing = (async () => {
-      const payload = entries.map(([key, o]) => ({ user_id: user.id, app: this.app, key, value: o.value, deleted: o.deleted }));
+      const payload = entries.map(([key, o]) => ({ user_id: this.ownerId || user.id, app: this.app, key, value: o.value, deleted: o.deleted }));
       const { data, error } = await supabase.from(TABLE).upsert(payload, { onConflict: "user_id,app,key" }).select("key,updated_at");
       if (error) throw error;
       const sent = Object.fromEntries(entries.map(([k, o]) => [k, o.seq]));
@@ -170,6 +186,7 @@ class Store {
       .channel(`app_data:${this.app}`)
       .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: `app=eq.${this.app}` }, (msg) => {
         if (!msg.new?.key) return;
+        if (this.shared && msg.new.user_id !== this.ownerId) return;
         this.#applyRemote(msg.new);
         this.#save();
         this.#emit();
