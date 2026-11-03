@@ -18,7 +18,9 @@ const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 // ---------- Sign-in (emailed link; a code also works if the email template shows one) ----------
 
 export async function currentUser() {
-  const { data } = await supabase.auth.getSession();
+  // Never let a slow token refresh leave the apps stuck on "Opening…".
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("auth timeout")), 8000));
+  const { data } = await Promise.race([supabase.auth.getSession(), timeout]);
   return data.session?.user ?? null;
 }
 export async function sendCode(email) {
@@ -32,7 +34,11 @@ export async function verifyCode(email, token) {
 }
 export async function signOut() { await supabase.auth.signOut(); }
 export function onAuthChange(fn) {
-  return supabase.auth.onAuthStateChange((_event, session) => fn(session?.user ?? null)).data.subscription;
+  // Supabase holds an internal lock while these callbacks run, and calling back into auth
+  // (getSession) from inside one waits on that same lock forever. Run the handler on the next tick.
+  return supabase.auth.onAuthStateChange((_event, session) => {
+    setTimeout(() => fn(session?.user ?? null), 0);
+  }).data.subscription;
 }
 
 // ---------- Stores ----------
@@ -102,7 +108,9 @@ class Store {
   }
 
   async sync() {
-    const user = await currentUser();
+    let user;
+    try { user = await currentUser(); }
+    catch { this.#setStatus(navigator.onLine ? "error" : "offline"); setTimeout(() => this.sync(), 5000); return; }
     if (!user) { this.#unsubscribe(); return this.#setStatus("signed-out"); }
     if (!navigator.onLine) return this.#setStatus("offline");
     this.#setStatus("syncing");
