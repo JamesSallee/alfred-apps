@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fbf8f2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>The Writing Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: two columns on the laptop (the next post, drafts and help on the left; capture, shelf and checklist on the right),
+   one column on the phone with the capture pad first. Same family as the Study. */
+:root{
+  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
+  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
+  --rust:#a4472f; --rust-soft:#f6e1d9; --on-green:#f4f7f2;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
+  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
+  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+header .t{display:flex;flex-direction:column;gap:4px}
+h1{font-size:30px;line-height:1.1}
+.back{color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
+.greet{color:var(--muted)}
+
+.desk{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:820px){
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .col{display:contents}
+  #capture{order:-2} #nextCard{order:-3} #bank{order:-1}
+}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{font-size:19px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--green);background:transparent;color:var(--green);border-radius:10px;padding:7px 12px;font-weight:600;font-size:13.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn.solid{background:var(--green);color:var(--on-green)}
+.btn.brass{border-color:var(--brass);color:var(--brass)}
+.btn.quiet{border-color:var(--line);color:var(--muted)}
+.btn.danger{border-color:var(--rust);color:var(--rust)}
+.btn:disabled{opacity:.5;cursor:default}
+.link{background:none;border:0;padding:0;color:var(--green);font-weight:600;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.muted{color:var(--muted);font-size:13px}
+
+/* Next post */
+.next{background:var(--brass-soft);border-color:var(--brass)}
+.next .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.count{display:flex;flex-direction:column;align-items:flex-end;flex:none;text-align:right}
+.count .big{font-family:var(--display);font-size:40px;line-height:1;color:var(--brass);font-variant-numeric:tabular-nums}
+.count .sm{font-size:12px;color:var(--muted)}
+.next h3{font-size:22px;line-height:1.15}
+.series{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass);font-weight:700}
+.stages{display:flex;gap:4px;flex-wrap:wrap}
+.stage{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 10px;font-size:12.5px;color:var(--muted)}
+.stage.done{background:var(--green-soft);border-color:transparent;color:var(--green)}
+.stage.now{background:var(--brass);border-color:var(--brass);color:var(--paper);font-weight:700}
+.dates{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px;margin:0}
+.dates dt{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dates dd{margin:0}
+.dates .late{color:var(--rust);font-weight:600}
+
+/* Alfred's ask */
+.ask{display:flex;flex-direction:column;gap:6px;background:var(--paper);border:1px solid var(--brass);border-radius:10px;padding:10px 12px;font-size:14px}
+.ask .who{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass)}
+.linkrow{display:flex;gap:6px;flex-wrap:wrap}
+.linkrow input{flex:1 1 180px;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:13.5px;padding:7px 10px}
+
+/* Bank */
+.bank{flex-direction:row;align-items:center;gap:12px}
+.bank .light{flex:none;width:14px;height:14px;border-radius:50%;background:var(--rust);box-shadow:0 0 0 4px var(--rust-soft)}
+.bank.ok .light{background:var(--green);box-shadow:0 0 0 4px var(--green-soft)}
+.bank.half .light{background:var(--brass);box-shadow:0 0 0 4px var(--brass-soft)}
+.bank .txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+
+/* Drafts */
+.drafts{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.drafts a{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);text-decoration:none;font-size:14px}
+.drafts a:hover{border-color:var(--green)}
+.where{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;border-radius:6px;padding:3px 6px;text-align:center}
+.where.st{background:var(--brass-soft);color:var(--brass)}
+.where.gd{background:var(--green-soft);color:var(--green)}
+.where.ot{background:var(--bg);color:var(--muted)}
+.sub{display:block;font-size:12.5px;color:var(--muted)}
+.go{color:var(--green);font-weight:700}
+
+/* Lists */
+.list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.list li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14px;align-items:start}
+.list li:first-child{border-top:0;padding-top:0}
+.when{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+
+/* Stuck */
+.remedy{background:var(--green-soft);border-radius:10px;padding:10px 12px;font-size:14px}
+.remedy .src{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin-bottom:3px}
+
+/* Shelf */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 11px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.ideas{display:flex;flex-direction:column;gap:8px}
+.idea{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;gap:4px}
+.idea .meta{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--muted);align-items:center}
+.kind{letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.kind.ilkwim{color:var(--brass)} .kind.fiction{color:var(--green)} .kind.comedy{color:var(--rust)}
+.stg{border:1px solid var(--line);border-radius:999px;padding:0 7px;font-size:11px;white-space:nowrap}
+.idea .acts{display:flex;gap:14px;flex-wrap:wrap}
+.empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+
+/* Capture */
+#capture textarea{width:100%;box-sizing:border-box;min-height:84px;resize:vertical;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px}
+.saved{font-size:13px;color:var(--green);min-height:1.2em}
+
+/* Checklist */
+.check{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.check label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.check input{margin-top:3px;accent-color:var(--green)}
+.tip{border-top:1px dashed var(--line);padding-top:8px;font-size:13px;color:var(--muted)}
+.tip b{color:var(--brass)}
+
+/* Edit sheet */
+dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% - 24px));width:100%;color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:10px;max-height:85vh;overflow:auto}
+.sheet h2{font-size:20px}
+.f{display:flex;flex-direction:column;gap:4px}
+.f input,.f select,.f textarea{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:14px;min-width:0}
+.f textarea{min-height:64px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+.tick{display:flex;gap:8px;align-items:center;font-size:14px}
+.sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="t">
+      <a class="back" href="./">← The Study</a>
+      <span class="eyebrow" id="date"></span>
+      <h1>The Writing Desk</h1>
+    </div>
+    <span class="greet" id="greet"></span>
+  </header>
+
+  <div class="desk">
+    <div class="col">
+      <article class="card next" id="nextCard" aria-labelledby="nexth"></article>
+      <article class="card bank" id="bank" aria-live="polite"></article>
+
+      <article class="card" id="draftsCard" aria-labelledby="drafth">
+        <div class="head"><h2 id="drafth">Drafts on the go</h2><span class="eyebrow">One tap to open</span></div>
+        <div id="draftAsks" style="display:flex;flex-direction:column;gap:8px"></div>
+        <ul class="drafts" id="drafts"></ul>
+      </article>
+
+      <article class="card" id="stuck" aria-labelledby="stuckh">
+        <div class="head"><h2 id="stuckh">Stuck?</h2><button class="btn" type="button" id="remedyBtn">Another remedy</button></div>
+        <div class="remedy" id="remedy" aria-live="polite"></div>
+      </article>
+
+      <article class="card" aria-labelledby="uph">
+        <div class="head"><h2 id="uph">Coming up</h2><button class="link" type="button" id="addPost">Add a post</button></div>
+        <ul class="list" id="upcoming"></ul>
+      </article>
+    </div>
+
+    <div class="col">
+      <article class="card" id="capture" aria-labelledby="caph">
+        <h2 id="caph">Catch it before it goes</h2>
+        <label class="label" for="capText">The idea, line or bit</label>
+        <textarea id="capText" placeholder="A ranking, a story seed, a line overheard on the LIRR"></textarea>
+        <div class="chips" role="group" aria-label="Where it belongs" id="capKind">
+          <button class="chip" type="button" aria-pressed="true" data-k="ilkwim">ILKWIM</button>
+          <button class="chip" type="button" aria-pressed="false" data-k="fiction">Fiction</button>
+          <button class="chip" type="button" aria-pressed="false" data-k="comedy">Comedy</button>
+        </div>
+        <div class="row"><button class="btn solid" type="button" id="capSave">Put it on the shelf</button></div>
+        <span class="saved" id="capSaved" aria-live="polite"></span>
+      </article>
+
+      <article class="card" aria-labelledby="shelfh">
+        <div class="head"><h2 id="shelfh">The idea shelf</h2><span class="eyebrow" id="shelfCount"></span></div>
+        <div class="chips" role="group" aria-label="Filter the shelf" id="shelfFilter">
+          <button class="chip" type="button" aria-pressed="true" data-f="all">All</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="ilkwim">ILKWIM</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="fiction">Fiction</button>
+          <button class="chip" type="button" aria-pressed="false" data-f="comedy">Comedy</button>
+        </div>
+        <div class="ideas" id="shelf"></div>
+      </article>
+
+      <article class="card" id="pubCard" aria-labelledby="pubh">
+        <h2 id="pubh">Publish-day checklist</h2>
+        <ul class="check" id="checklist"></ul>
+        <p class="tip" id="tip" hidden></p>
+      </article>
+    </div>
+  </div>
+</div>
+
+<dialog id="editor" aria-labelledby="edh">
+  <form class="sheet" method="dialog" id="edForm">
+    <h2 id="edh">Edit piece</h2>
+    <div class="f"><label class="label" for="edTitle">Title</label><input id="edTitle" required></div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="edTrack">Kind</label>
+        <select id="edTrack"><option value="ilkwim">ILKWIM</option><option value="fiction">Fiction</option><option value="comedy">Comedy</option></select></div>
+      <div class="f"><label class="label" for="edStage">Stage</label><select id="edStage"></select></div>
+    </div>
+    <div class="f" id="edSeriesF"><label class="label" for="edSeries">Series</label>
+      <input id="edSeries" list="seriesList" placeholder="Stacks of Slaps, BlockWalkin', A Slight Detour, Wildcards">
+      <datalist id="seriesList"><option value="Stacks of Slaps"><option value="BlockWalkin'"><option value="A Slight Detour"><option value="Wildcards"></datalist></div>
+    <div class="f"><label class="label" for="edLink">Draft link (Substack or Google Docs)</label><input id="edLink" type="url" placeholder="https://"></div>
+    <div id="edDates">
+      <div class="grid2">
+        <div class="f"><label class="label" for="edPublish">Publish on</label><input id="edPublish" type="date"></div>
+        <div class="f"><label class="label" for="edGather">Gather by</label><input id="edGather" type="date"></div>
+        <div class="f"><label class="label" for="edDraft">Draft on</label><input id="edDraft" type="date"></div>
+        <div class="f"><label class="label" for="edDue">Schedule in Substack by</label><input id="edDue" type="date"></div>
+      </div>
+    </div>
+    <label class="tick" id="edBankedF"><input type="checkbox" id="edBanked"> This is the banked post</label>
+    <div class="f"><label class="label" for="edNotes">Notes</label><textarea id="edNotes"></textarea></div>
+    <div class="foot">
+      <button class="btn danger" type="button" id="edDelete">Delete</button>
+      <div class="row"><button class="btn quiet" type="button" id="edCancel">Cancel</button><button class="btn solid" type="submit" id="edSave">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<script type="module">
+import { mountShell } from "./js/shell.js";
+import { openStore } from "./js/sync.js";
+mountShell("desk");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+// ---------- Data ----------
+// Store "desk":
+//   pieces/<id>  { title, track: ilkwim|fiction|comedy, series, stage, link, publish, gather, draft, due,
+//                  banked, notes, checks: {i: true}, askSnooze: "YYYY-MM-DD", created }
+//   settings     { remedies: [..], checklist: [..], tips: [..], greeting: ".." }
+// Personal content lives in the database, never in this public file.
+const store = openStore("desk");
+const STAGES = {
+  ilkwim: ["Idea", "Gather", "Draft", "Polish", "Scheduled", "Out"],
+  fiction: ["Sketch", "Outline", "Draft", "Revise", "Done"],
+  comedy: ["Sketch", "Outline", "Draft", "Revise", "Done"],
+};
+const TRACK = { ilkwim: "ILKWIM", fiction: "Fiction", comedy: "Comedy" };
+const DEFAULTS = {
+  remedies: [
+    "Cut it in half and publish the half that's done.",
+    "Ship the smallest possible thing: 300 words, one block, or a quick ranking.",
+    "Rank something mundane: 5 to 10 entries, worst to best, one-line verdicts and one bracketed aside.",
+    "Try another format: Dos and Don'ts, an FAQ, or a letter from Past You.",
+    "Missed one? Publish the banked post and carry on. No apology opener.",
+  ],
+  checklist: ["A title with a hook", "End on a question", "Subscribe button midway and at the end", "Tags", "A Substack Note with one funny line"],
+  tips: [],
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const parse = (s) => new Date(s + "T00:00");
+const daysTo = (s) => Math.round((parse(s) - today0()) / 864e5);
+const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const dm = (s) => parse(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+const settings = () => ({ ...DEFAULTS, ...(store.get("settings") || {}) });
+const pieces = () => store.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value }));
+const stagesOf = (p) => STAGES[p.track] || STAGES.ilkwim;
+const stageIdx = (p) => Math.max(0, stagesOf(p).indexOf(p.stage));
+const isFinished = (p) => stageIdx(p) === stagesOf(p).length - 1;
+const savePiece = (p) => { const { id, ...v } = p; store.set("pieces/" + id, v); };
+
+function linkKind(url) {
+  if (!url) return null;
+  if (/substack\.com|shadycheez/i.test(url)) return ["st", "Substack"];
+  if (/docs\.google\.com/i.test(url)) return ["gd", "Docs"];
+  return ["ot", "Link"];
+}
+function nextPost(all) {
+  const t = ymd(today0());
+  return all.filter((p) => p.track === "ilkwim" && p.publish && p.publish >= t && !isFinished(p) && p.stage !== "Skipped")
+    .sort((a, b) => a.publish.localeCompare(b.publish))[0];
+}
+
+// ---------- Header ----------
+{
+  const now = new Date();
+  $("date").textContent = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}
+
+// ---------- Render ----------
+let shelfFilter = "all";
+let remedyAt = Math.floor(Math.random() * 5);
+
+function render() {
+  const all = pieces();
+  const next = nextPost(all);
+  renderNext(next);
+  renderBank(all);
+  renderDrafts(all, next);
+  renderUpcoming(all, next);
+  renderShelf(all);
+  renderChecklist(next);
+  renderRemedy();
+  renderGreeting(next, all);
+}
+
+function renderGreeting(next, all) {
+  const banked = all.some((p) => p.banked && !isFinished(p));
+  const g = settings().greeting;
+  let line = g || "Pull up a chair.";
+  if (next) {
+    const d = daysTo(next.publish);
+    line = d === 0 ? "Publish day. Kettle, final pass, send." : d === 1 ? "Out tomorrow. Nearly there." : d <= 7 ? `Out in ${d} days.` : `Next one's in ${d} days.`;
+    if (!banked) line += d <= 7 ? " The bank is empty, but first things first." : " The bank, however, is empty.";
+  }
+  $("greet").textContent = line;
+}
+
+function renderNext(p) {
+  const el = $("nextCard");
+  if (!p) {
+    el.innerHTML = `<h2 id="nexth">Next post</h2><p class="empty">Nothing on the schedule yet. Sign in to load the plan, or add a post with a publish date.</p>
+      <div class="row"><button class="btn solid" type="button" data-new="ilkwim">Add a post</button></div>`;
+    return;
+  }
+  const st = stagesOf(p), i = stageIdx(p), d = daysTo(p.publish);
+  const t = ymd(today0());
+  const steps = [
+    p.gather && ["Gather", p.gather], p.draft && ["Draft", p.draft], p.due && ["Schedule in Substack", p.due], ["Publish", p.publish],
+  ].filter(Boolean);
+  const stepIdx = { "Gather": 1, "Draft": 2, "Schedule in Substack": 4, "Publish": 5 };
+  const lk = linkKind(p.link);
+  const askNow = !p.link && i >= st.indexOf("Draft") && p.askSnooze !== t;
+  el.innerHTML = `
+    <div class="top">
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+        <span class="series">${esc(p.series || "ILKWIM")}</span>
+        <h3 id="nexth">${esc(p.title)}</h3>
+      </div>
+      <div class="count"><span class="big">${d}</span><span class="sm">${d === 1 ? "day" : "days"} · ${esc(short(p.publish))}</span></div>
+    </div>
+    <div class="stages" role="list" aria-label="Stage">${st.map((s, k) =>
+      `<span class="stage ${k < i ? "done" : k === i ? "now" : ""}" role="listitem"${k === i ? ' aria-current="step"' : ""}>${s}</span>`).join("")}</div>
+    <dl class="dates">${steps.map(([lab, date]) => {
+      const late = date < t && i < stepIdx[lab];
+      return `<dt>${esc(short(date))}</dt><dd class="${late ? "late" : ""}">${lab}${late ? " (overdue)" : ""}</dd>`;
+    }).join("")}</dl>
+    ${p.notes ? `<p class="muted">${esc(p.notes)}</p>` : ""}
+    ${askNow ? askHtml(p) : ""}
+    <div class="row">
+      ${lk ? `<a class="btn solid" href="${esc(p.link)}" target="_blank" rel="noopener">Open the draft ↗</a>` : ""}
+      ${i > 0 ? `<button class="btn quiet" type="button" data-back="${p.id}" aria-label="Back a stage">←</button>` : ""}
+      ${i < st.length - 1 ? `<button class="btn brass" type="button" data-adv="${p.id}">Move to ${st[i + 1]}</button>` : ""}
+      <button class="link" type="button" data-edit="${p.id}">Edit</button>
+    </div>`;
+}
+
+function askHtml(p) {
+  const where = p.track === "ilkwim" ? "the Substack link" : "the Doc link";
+  return `<div class="ask" data-ask="${p.id}"><span class="who">Alfred</span>
+    <span>${esc(p.title)} is at ${esc(p.stage)}. Got ${where}? Paste it and it goes on the desk.</span>
+    <div class="linkrow"><input type="url" placeholder="Paste ${where}" aria-label="Draft link for ${esc(p.title)}" data-linkin="${p.id}">
+    <button class="btn solid" type="button" data-linksave="${p.id}">Save</button>
+    <button class="btn quiet" type="button" data-snooze="${p.id}">Not yet</button></div></div>`;
+}
+
+function renderBank(all) {
+  const el = $("bank");
+  const banked = all.filter((p) => p.banked && !isFinished(p));
+  const ready = banked.find((p) => ["Polish", "Scheduled"].includes(p.stage));
+  el.className = "card bank " + (ready ? "ok" : banked.length ? "half" : "");
+  if (ready) el.innerHTML = `<span class="light" aria-hidden="true"></span><div class="txt"><span><b>Banked:</b> ${esc(ready.title)}.</span><span class="muted">Ready if a fortnight goes sideways.</span></div>`;
+  else if (banked.length) el.innerHTML = `<span class="light" aria-hidden="true"></span><div class="txt"><span><b>Bank: in progress.</b> ${esc(banked[0].title)} is at ${esc(banked[0].stage)}.</span><span class="muted">It counts once it's polished.</span></div>`;
+  else el.innerHTML = `<span class="light" aria-hidden="true"></span><div class="txt"><span><b>Bank: empty.</b></span><span class="muted">Tick "This is the banked post" on any piece to fill it.</span></div>`;
+}
+
+function renderDrafts(all, next) {
+  // Pieces past Draft with no link yet (other than the next post, which asks on its own card).
+  const t = ymd(today0());
+  const missing = all.filter((p) => !p.link && !isFinished(p) && p.id !== next?.id && p.publish
+    && stageIdx(p) >= stagesOf(p).indexOf("Draft") && p.askSnooze !== t);
+  $("draftAsks").innerHTML = missing.map(askHtml).join("");
+  const list = all.filter((p) => p.link && !isFinished(p)).sort((a, b) => (a.publish || "9").localeCompare(b.publish || "9"));
+  $("drafts").innerHTML = list.length ? list.map((p) => {
+    const [cls, lab] = linkKind(p.link);
+    const meta = [TRACK[p.track], p.stage, p.publish ? "out " + dm(p.publish) : ""].filter(Boolean).join(" · ");
+    return `<li><a href="${esc(p.link)}" target="_blank" rel="noopener"><span class="where ${cls}">${lab}</span><span style="min-width:0">${esc(p.title)}<span class="sub">${esc(meta)}</span></span><span class="go" aria-hidden="true">↗</span></a></li>`;
+  }).join("") : `<li class="empty">No draft links yet. When a piece reaches Draft, Alfred asks for its link.</li>`;
+}
+
+function renderUpcoming(all, next) {
+  const t = ymd(today0());
+  const list = all.filter((p) => p.track === "ilkwim" && p.publish && p.publish >= t && !isFinished(p) && p !== next && p.id !== next?.id)
+    .sort((a, b) => a.publish.localeCompare(b.publish)).slice(0, 6);
+  $("upcoming").innerHTML = list.length ? list.map((p) =>
+    `<li><span class="when">${esc(dm(p.publish))}</span><span>${esc(p.title)}<span class="sub">${esc([p.series, p.stage, p.notes].filter(Boolean).join(" · "))}</span></span><button class="link" type="button" data-edit="${p.id}">Edit</button></li>`).join("")
+    : `<li class="empty" style="display:block">Nothing else scheduled.</li>`;
+}
+
+function renderShelf(all) {
+  const shelf = all.filter((p) => !p.publish && !isFinished(p) && (shelfFilter === "all" || p.track === shelfFilter))
+    .sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+  $("shelfCount").textContent = shelf.length + (shelf.length === 1 ? " piece" : " pieces");
+  $("shelf").innerHTML = shelf.length ? shelf.map((p) => {
+    const st = stagesOf(p), i = stageIdx(p);
+    const kind = TRACK[p.track] + (p.series ? " · " + p.series : "");
+    const acts = [];
+    if (p.link) acts.push(`<a class="link" href="${esc(p.link)}" target="_blank" rel="noopener">Open ↗</a>`);
+    if (i < st.length - 1) acts.push(`<button class="link" type="button" data-adv="${p.id}">Move to ${st[i + 1]}</button>`);
+    if (p.track === "ilkwim") acts.push(`<button class="link" type="button" data-edit="${p.id}" data-slot="1">Give it a date</button>`);
+    acts.push(`<button class="link" type="button" data-edit="${p.id}">Edit</button>`);
+    const ask = !p.link && i >= st.indexOf("Draft") && p.askSnooze !== ymd(today0());
+    return `<div class="idea"><div class="meta"><span class="kind ${p.track}">${esc(kind)}</span><span class="stg">${esc(p.stage)}</span></div>
+      <span>${esc(p.title)}</span>${p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ""}
+      ${ask ? askHtml(p) : ""}<div class="acts">${acts.join("")}</div></div>`;
+  }).join("") : `<p class="empty">The shelf is clear. Catch an idea above and it lands here.</p>`;
+}
+
+function renderChecklist(next) {
+  const s = settings();
+  const show = next && ["Polish", "Scheduled"].includes(next.stage) || (next && daysTo(next.publish) <= 2);
+  $("pubCard").hidden = !next;
+  if (!next) return;
+  const checks = next.checks || {};
+  $("pubh").textContent = show ? `Publish-day checklist · ${next.title}` : "Publish-day checklist";
+  $("checklist").innerHTML = s.checklist.map((c, i) =>
+    `<li><label><input type="checkbox" data-check="${i}" ${checks[i] ? "checked" : ""}><span>${esc(c)}</span></label></li>`).join("");
+  const tips = s.tips || [];
+  if (tips.length) {
+    const fortnight = Math.floor(today0() / (14 * 864e5));
+    $("tip").innerHTML = `<b>This fortnight's tip:</b> ${esc(tips[fortnight % tips.length])}`;
+    $("tip").hidden = false;
+  } else $("tip").hidden = true;
+}
+
+function renderRemedy() {
+  const r = settings().remedies;
+  $("remedy").innerHTML = `<span class="src">From the plan</span>${esc(r[remedyAt % r.length])}`;
+}
+
+store.subscribe(render);
+
+// ---------- Actions ----------
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  const get = (id) => pieces().find((p) => p.id === id);
+  if (t.dataset.adv) {
+    const p = get(t.dataset.adv); const st = stagesOf(p); const i = stageIdx(p);
+    if (i < st.length - 1) { p.stage = st[i + 1]; savePiece(p); }
+  } else if (t.dataset.back) {
+    const p = get(t.dataset.back); const i = stageIdx(p);
+    if (i > 0) { p.stage = stagesOf(p)[i - 1]; savePiece(p); }
+  } else if (t.dataset.linksave) {
+    const p = get(t.dataset.linksave);
+    const v = document.querySelector(`[data-linkin="${t.dataset.linksave}"]`).value.trim();
+    if (!/^https?:\/\//i.test(v)) { document.querySelector(`[data-linkin="${t.dataset.linksave}"]`).focus(); return; }
+    p.link = v; savePiece(p);
+  } else if (t.dataset.snooze) {
+    const p = get(t.dataset.snooze); p.askSnooze = ymd(today0()); savePiece(p);
+  } else if (t.dataset.edit) {
+    openEditor(get(t.dataset.edit), t.dataset.slot === "1");
+  } else if (t.dataset.new) {
+    openEditor(null);
+  }
+});
+$("addPost").addEventListener("click", () => openEditor(null));
+$("remedyBtn").addEventListener("click", () => { remedyAt++; renderRemedy(); });
+$("checklist").addEventListener("change", (e) => {
+  const i = e.target.dataset.check; if (i == null) return;
+  const next = nextPost(pieces()); if (!next) return;
+  next.checks = { ...(next.checks || {}), [i]: e.target.checked }; savePiece(next);
+});
+$("shelfFilter").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-f]"); if (!b) return;
+  shelfFilter = b.dataset.f;
+  $("shelfFilter").querySelectorAll("[data-f]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+});
+
+// Capture
+let capK = "ilkwim";
+$("capKind").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-k]"); if (!b) return;
+  capK = b.dataset.k;
+  $("capKind").querySelectorAll("[data-k]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+});
+$("capSave").addEventListener("click", () => {
+  const text = $("capText").value.trim();
+  if (!text) { $("capSaved").textContent = "Type the idea first."; $("capText").focus(); return; }
+  savePiece({ id: newId(), title: text, track: capK, stage: STAGES[capK][0], created: new Date().toISOString() });
+  $("capText").value = "";
+  $("capSaved").textContent = `On the shelf under ${TRACK[capK]}.`;
+  setTimeout(() => { $("capSaved").textContent = ""; }, 4000);
+});
+
+// ---------- Editor ----------
+const ed = $("editor");
+let editing = null;
+function fillStages(track, current) {
+  $("edStage").innerHTML = STAGES[track].map((s) => `<option${s === current ? " selected" : ""}>${s}</option>`).join("");
+}
+function syncEditorFields() {
+  const il = $("edTrack").value === "ilkwim";
+  $("edSeriesF").hidden = !il; $("edDates").hidden = !il; $("edBankedF").hidden = !il;
+}
+function openEditor(p, focusDate = false) {
+  editing = p ? { ...p } : { id: newId(), track: "ilkwim", stage: "Idea", created: new Date().toISOString() };
+  $("edh").textContent = p ? "Edit piece" : "New post";
+  $("edTitle").value = editing.title || "";
+  $("edTrack").value = editing.track;
+  fillStages(editing.track, editing.stage);
+  $("edSeries").value = editing.series || "";
+  $("edLink").value = editing.link || "";
+  $("edPublish").value = editing.publish || "";
+  $("edGather").value = editing.gather || "";
+  $("edDraft").value = editing.draft || "";
+  $("edDue").value = editing.due || "";
+  $("edBanked").checked = !!editing.banked;
+  $("edNotes").value = editing.notes || "";
+  $("edDelete").hidden = !p; $("edDelete").textContent = "Delete"; delete $("edDelete").dataset.armed;
+  syncEditorFields();
+  ed.showModal();
+  (focusDate ? $("edPublish") : $("edTitle")).focus();
+}
+$("edTrack").addEventListener("change", () => {
+  const t = $("edTrack").value;
+  const i = STAGES[editing.track].indexOf($("edStage").value);
+  fillStages(t, STAGES[t][Math.min(Math.max(i, 0), STAGES[t].length - 1)]);
+  syncEditorFields();
+});
+$("edCancel").addEventListener("click", () => ed.close());
+$("edForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const title = $("edTitle").value.trim(); if (!title) { $("edTitle").focus(); return; }
+  const il = $("edTrack").value === "ilkwim";
+  const link = $("edLink").value.trim();
+  const p = { ...editing, title, track: $("edTrack").value, stage: $("edStage").value, link: link || null,
+    series: il ? $("edSeries").value.trim() || null : null,
+    publish: il ? $("edPublish").value || null : null, gather: il ? $("edGather").value || null : null,
+    draft: il ? $("edDraft").value || null : null, due: il ? $("edDue").value || null : null,
+    banked: il && $("edBanked").checked, notes: $("edNotes").value.trim() || null };
+  if (p.banked) pieces().filter((x) => x.banked && x.id !== p.id).forEach((x) => { x.banked = false; savePiece(x); });
+  savePiece(p);
+  ed.close();
+});
+$("edDelete").addEventListener("click", () => {
+  const b = $("edDelete");
+  if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Tap again to delete"; return; }
+  store.remove("pieces/" + editing.id);
+  ed.close();
+});
+</script>
+</html>

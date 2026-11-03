@@ -8,6 +8,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `ledger.html` | The Daily Ledger: habits, points, the store | `ledger` |
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
+| `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
 
 ## How the data works
 

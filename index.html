@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: one narrow column, like the Ledger. Greeting, today's note in brass, then the three doors out of the study. */
+/* Layout: one narrow column, like the Ledger. Greeting, today's note in brass, then the doors out of the study. */
 :root{
   --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
   --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
@@ -111,6 +111,11 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
         <span class="txt"><span class="name">Sunday Shutdown</span><span class="desc">Close out the week and set up the next, every Sunday evening.</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>
+      <a class="room" id="r-desk" href="desk.html">
+        <span class="mark" aria-hidden="true">W</span>
+        <span class="txt"><span class="name">The Writing Desk</span><span class="desc">The next post, the bank, draft links and the idea shelf.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
     </nav>
   </section>
 
@@ -189,9 +194,26 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     const notes = (N.rules || []).filter(r =>
       (!r.days || r.days.includes(day)) && (r.dom == null || r.dom === date) && (!r.publish || pub[r.publish]))
       .map(r => esc(r.text).replace("{shutdown}", link));
+    notes.push(...deskNotes());
     if (!notes.length) notes.push(esc(N.fallback || (N.rules ? "Nothing pressing today." : "Sign in to see today's note.")));
     document.getElementById("notes").innerHTML = notes.map(n => "<li><span>" + n + "</span></li>").join("");
   }
+  // The Writing Desk adds its own lines: publish day, draft day, and an empty bank (Sundays and Mondays).
+  const deskStore = openStore("desk");
+  function deskNotes() {
+    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
+    const ps = deskStore.list("pieces/").map(x => x.value);
+    const last = { ilkwim: "Out", fiction: "Done", comedy: "Done" };
+    const open = ps.filter(p => p.stage !== last[p.track]);
+    const next = open.filter(p => p.track === "ilkwim" && p.publish && p.publish >= t).sort((a,b) => a.publish.localeCompare(b.publish))[0];
+    const desk = '<a href="desk.html">Writing Desk</a>';
+    const out = [];
+    if (next && next.publish === t) out.push("Publish day: " + esc(next.title) + ". Final pass at the " + desk + ".");
+    else if (next && next.draft === t) out.push("Draft day: " + esc(next.title) + ". The link's on the " + desk + ".");
+    if ((day === 0 || day === 1) && ps.length && !open.some(p => p.banked)) out.push("The bank is empty. One finished post in reserve, when you can.");
+    return out;
+  }
+  deskStore.subscribe(renderNote);
   studyStore.subscribe(renderNote);
 
   // Highlight the room that matters today
