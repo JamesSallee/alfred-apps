@@ -45,7 +45,7 @@ The one app shared with another person. Everything else stays private to its own
 
 1. Run `supabase/larder.sql` in the SQL editor (after `schema.sql`).
 2. Add the secrets (Supabase → Edge Functions → Secrets): `ANTHROPIC_API_KEY` (from console.anthropic.com).
-   Optional: `LARDER_MONTHLY_CAP_USD` (default `5`), `LARDER_MODEL` (default `claude-opus-5-5`; `claude-sonnet-5-5` roughly halves the cost).
+   Optional: `LARDER_MONTHLY_CAP_USD` (default `5`), `LARDER_MODEL` (default `claude-sonnet-5-5`; `claude-opus-5-5` is about twice the cost).
 3. Deploy the function: `supabase functions deploy larder-ai` (or via the Supabase connector).
 4. Open the Larder, tap **House rules** and write down tastes, goals and dislikes. They live in the database, not in this repo.
 
