@@ -9,6 +9,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
+| `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
 
 ## How the data works
 
