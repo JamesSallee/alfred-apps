@@ -957,6 +957,12 @@ function sharedLink() {
   if (p.toString()) history.replaceState(null, "", location.pathname + "#cookbook");
   return m ? m[0] : null;
 }
+// Arriving from a sign-in email, the address carries the session (#access_token=… or ?code=…).
+// Let Supabase read it before the tab routing or the Share handler rewrites the address.
+if (/access_token=|error_description=/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
+  try { await supabase.auth.getSession(); } catch { /* the sign-in sheet will say what went wrong */ }
+  if (/access_token=|error_description=/.test(location.hash)) history.replaceState(null, "", location.pathname + "#list");
+}
 const shared = sharedLink();
 store.subscribe(() => { if (!dragging) render(); });
 fromHash();
