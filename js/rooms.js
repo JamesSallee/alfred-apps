@@ -109,6 +109,52 @@ export function linkWorkoutsToLedger(onTick = () => {}) {
   return { ledger, training };
 }
 
+// ---------- Focus Room -> Ledger ----------
+// A Writing session ticks that day's "write" habit, once. Each session is marked "ticked/<t>" in the
+// focus store, so an untick in the Ledger sticks. A day already ticked is left alone.
+
+/** Tick the Ledger's write habit for any new Writing sessions. Returns [{ day }] for the days it ticked. */
+export function tickWriting(ledger, focus) {
+  if (!fresh(ledger) || !fresh(focus)) return [];
+  const habit = ledger.get("habits/write");
+  if (!habit || habit.active === false) return [];
+  const today = ymd(new Date());
+  const earliest = [addDays(today, -WINDOW_DAYS), habit.created || ""].sort().at(-1);
+  const byDay = {};
+  for (const { value: e } of focus.list("log/")) {
+    if (!e || e.k !== "focus" || e.label !== "Writing" || focus.get(`ticked/${e.t}`)) continue;
+    const day = ymd(new Date(e.t));
+    if (day < earliest || day > today) continue;
+    (byDay[day] ||= []).push(e);
+  }
+  const ticked = [];
+  for (const [day, list] of Object.entries(byDay)) {
+    const rec = ledger.get(`days/${day}`) || {};
+    const done = rec.done || {};
+    if (!done.write) {
+      ledger.set(`days/${day}`, { ...rec, done: { ...done, write: true }, rest: !!rec.rest });
+      ticked.push({ day, minutes: list.reduce((a, e) => a + (e.m || 0), 0) });
+    }
+    const at = new Date().toISOString();
+    list.forEach((e) => focus.set(`ticked/${e.t}`, { day, at }));
+  }
+  return ticked;
+}
+
+/** Keep the Ledger's write habit in step with the Focus Room while a page is open. */
+export function linkWritingToLedger(onTick = () => {}) {
+  const ledger = openStore("ledger"), focus = openStore("focus");
+  let busy = false;
+  const run = () => {
+    if (busy) return;
+    busy = true;
+    try { const t = tickWriting(ledger, focus); if (t.length) onTick(t); } finally { busy = false; }
+  };
+  ledger.subscribe(run); focus.subscribe(run);
+  ledger.onStatus(run); focus.onStatus(run);
+  return { ledger, focus };
+}
+
 /** Ask Peloton for new classes if the last fetch is over 30 minutes old (used by the Ledger too). */
 export async function fetchPelotonIfStale(training = openStore("training")) {
   const s = training.get("sync/last");

@@ -246,7 +246,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { openIlkwim, nextPost } from "./js/rooms.js";
+import { openIlkwim, nextPost, linkWritingToLedger } from "./js/rooms.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -281,6 +281,8 @@ function renderDesk(){
 }
 $("#deskPiece").onchange=e=>{ S.deskPiece=e.target.value; save(); };
 deskStore.subscribe(renderDesk);
+// A Writing session also ticks the Ledger's Write habit for its day (see js/rooms.js).
+linkWritingToLedger(()=>say("Writing ticked in the Ledger. The page is less blank than it was."));
 function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const entry={t:Date.now(),k,m:mins,label:label||""};
   if(k==="focus"&&label==="Writing"&&S.deskPiece!=="none"){ const p=deskPick(); if(p){ entry.piece=p.id; entry.pieceTitle=p.title; } } LOG.push(entry); focusStore.set("log/"+entry.t,entry); renderTally(); if(!$("#v-log").hidden) renderLog(); }
 

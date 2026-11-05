@@ -83,6 +83,7 @@ The one app shared with another person. Everything else stays private to its own
   Peloton on open (at most every 30 minutes).
 - **Focus Room → Writing Desk.** A session labelled Writing is logged with the ILKWIM post it was for
   (`piece` on the focus log entry): the next post by default, or another chosen under the labels. The Desk adds it up per post.
+  The same session ticks the Ledger's Write habit for its day, once (marked `focus` / `ticked/<t>`, so an untick sticks).
 - **Ledger → Sunday Shutdown.** The Shutdown opens with the week in figures (habits, workout mix, focus and
   writing time, lifts whose best this week beat their last weight), adds them to the note for Alfred and saves them with the record.
 - **The Study.** Each door shows one live figure in place of its arrow.
