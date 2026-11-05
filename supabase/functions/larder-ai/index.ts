@@ -210,16 +210,30 @@ Also write "note": one sentence from Alfred about tonight's choice.`,
     const { text, usage } = await ask({
       content: `${context(b)}
 
-Search the web for 3 real, well-reviewed recipes from reputable recipe sites that suit the above,
-using as much of what is on hand as possible. Only include recipes whose page you actually found.
+Find 3 real recipes on the web that suit the above. Work in two steps:
+
+1. Plan before searching. Look at everything on hand together and choose 3 different dishes, each
+   using as many of the fresh ingredients and proteins as it sensibly can (prioritise "use soon").
+   Ignore ready meals, snacks, drinks and condiments when planning; they are not ingredients to cook with.
+2. Search once per dish, naming the dish and its main ingredients (e.g. "chicken thigh spinach chickpea
+   tray bake recipe"). Never search for a single ingredient on its own. Prefer reputable recipe sites.
+   If a search finds nothing suitable, you may try one different wording for that dish.
+
+Only give a url for a recipe page you actually found. If a dish has no good page, still include it,
+with "url": "" plus your own short "ingredients" and "steps", so they still get the idea.
 Answer with only a JSON object, no other prose:
 {"note": "<one sentence from Alfred>", "recipes": [{"title": "", "url": "", "site": "", "minutes": 0,
-"protein_g": 0, "why": "<one line>", "need": ["<ingredients they would need to buy>"]}]}`,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+"protein_g": 0, "why": "<one line: which of their ingredients it uses>", "need": ["<ingredients they would need to buy>"],
+"ingredients": ["<only when url is empty>"], "steps": ["<only when url is empty>"]}]}`,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 6 }],
       effort: "medium",
     });
     const out = parseJson(text);
-    out.recipes = (out.recipes || []).filter((r: { url?: string }) => /^https?:\/\//.test(r.url || "")).slice(0, 3);
+    // Keep found pages, plus Alfred's own version of any dish whose search came up empty.
+    out.recipes = (out.recipes || [])
+      .map((r: { url?: string }) => ({ ...r, url: /^https?:\/\//.test(r.url || "") ? r.url : "" }))
+      .filter((r: { url: string; steps?: unknown[] }) => r.url || (Array.isArray(r.steps) && r.steps.length))
+      .slice(0, 3);
     return { result: out, usage };
   },
 
