@@ -2,6 +2,7 @@
 // signing in with an emailed link, backups and signing out.
 
 import { openStore, STATUS_TEXT, currentUser, sendCode, signInWithPassword, setPassword, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
+import { iconSvg } from "./icons.js";
 
 const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk", "wardrobe", "training"];
 
@@ -22,6 +23,8 @@ const CSS = `
 .al-btn{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--al-line);background:transparent;color:inherit;cursor:pointer}
 .al-btn.primary{background:var(--al-ink);color:var(--al-bg);border-color:var(--al-ink)}
 .al-err{color:#b3261e}
+.al-mark{display:inline-block;width:.95em;height:.95em;margin-right:.32em;vertical-align:-.08em;color:var(--green,currentColor)}
+.al-mark svg{display:block;width:100%;height:100%}
 .al-pill,.al-card{--al-bg:var(--paper,#fbf8f2);--al-ink:var(--ink,#22201c);--al-soft:var(--muted,#6b655b);--al-line:var(--line,#d9d2c5)}
 `;
 
@@ -32,6 +35,16 @@ export function mountShell(app) {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.appendChild(style);
+
+  // The room's icon beside each header title, matching its door in the Study.
+  const icon = iconSvg(app);
+  if (icon) for (const h1 of document.querySelectorAll("header h1")) {
+    if (h1.querySelector(".al-mark")) continue;
+    const mark = document.createElement("span");
+    mark.className = "al-mark";
+    mark.innerHTML = icon;
+    h1.prepend(mark);
+  }
 
   const spacer = document.createElement("div"); // keeps the pill clear of the page's last line
   spacer.style.height = "56px";
