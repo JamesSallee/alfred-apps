@@ -1,4 +1,4 @@
-// The Larder's only route to Claude. The API key lives here, as a Supabase secret, never in the pages.
+// The Larder's and the Wardrobe's only route to Claude. The API key lives here, as a Supabase secret, never in the pages.
 //
 // POST { action, ... } with the signed-in user's token (supabase.functions.invoke does this).
 //   suggest      { pantry, soon, pins, moods, note, rules, cookbook }  -> 3 meal ideas
@@ -9,14 +9,18 @@
 //   recipe_photo { image, media_type }                                 -> a recipe from a cookbook page photo
 //   usage        {}                                                    -> this month's spend and the cap
 //
+// The Wardrobe (private to its owner; see wardrobe.ts) adds the w_* actions: w_tag, w_outfit, w_fit,
+// w_gap, w_before_buy, w_style, w_occasion. They share the same budget and usage log.
+//
 // Every paid call is logged in public.ai_usage and refused once the household's monthly cap is reached.
-// Secrets: ANTHROPIC_API_KEY (required), LARDER_MODEL (default claude-sonnet-5-5), LARDER_MONTHLY_CAP_USD (default 5).
+// Secrets: ANTHROPIC_API_KEY (required), LARDER_MODEL (default claude-sonnet-5-5), LARDER_MONTHLY_CAP_USD (default 10).
 
 import Anthropic from "npm:@anthropic-ai/sdk@1.4.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { wardrobeHandlers } from "./wardrobe.ts";
 
 const MODEL = Deno.env.get("LARDER_MODEL") || "claude-sonnet-5-5";
-const CAP_USD = Number(Deno.env.get("LARDER_MONTHLY_CAP_USD") || "5");
+const CAP_USD = Number(Deno.env.get("LARDER_MONTHLY_CAP_USD") || "10");
 
 // $ per million tokens (input, output). Web searches are $10 per 1,000.
 const PRICES: Record<string, [number, number]> = {
@@ -61,6 +65,8 @@ Deno.serve(async (req) => {
 
     const handler = HANDLERS[body.action as string];
     if (!handler) throw new HttpError(400, "Unknown action.");
+    // The Wardrobe is private: only someone spending their own budget (not a Larder household member) may use it.
+    if (String(body.action).startsWith("w_") && ownerId !== user.id) throw new HttpError(403, "The Wardrobe is private to its owner.");
     const guard = () => {
       if (spent >= CAP_USD) {
         throw new HttpError(402, `This month's Claude budget ($${CAP_USD.toFixed(2)}) is spent. It resets on the 1st.`);
@@ -125,11 +131,12 @@ async function ask(params: {
   tools?: Anthropic.Beta.BetaToolUnion[];
   effort?: "low" | "medium" | "high";
   maxTokens?: number;
+  system?: string;
 }): Promise<{ text: string; usage: Usage }> {
   const msg = await anthropic.beta.messages.create({
     model: MODEL,
     max_tokens: params.maxTokens ?? 16000,
-    system: ALFRED,
+    system: params.system ?? ALFRED,
     messages: [{ role: "user", content: params.content }],
     output_config: {
       effort: params.effort ?? "low",
@@ -186,6 +193,7 @@ type Result = { result: Record<string, unknown>; usage?: Usage };
 // `guard` throws once the month's budget is spent; call it before anything that costs money.
 type Handler = (b: Record<string, unknown>, guard: () => void) => Promise<Result>;
 const HANDLERS: Record<string, Handler> = {
+  ...wardrobeHandlers({ ask, parseJson, photoOf, fail: (status: number, msg: string) => new HttpError(status, msg) }),
   async suggest(b, guard) {
     guard();
     const cookbook = Array.isArray(b.cookbook) ? b.cookbook.slice(0, 60) : [];
@@ -210,16 +218,30 @@ Also write "note": one sentence from Alfred about tonight's choice.`,
     const { text, usage } = await ask({
       content: `${context(b)}
 
-Search the web for 3 real, well-reviewed recipes from reputable recipe sites that suit the above,
-using as much of what is on hand as possible. Only include recipes whose page you actually found.
+Find 3 real recipes on the web that suit the above. Work in two steps:
+
+1. Plan before searching. Look at everything on hand together and choose 3 different dishes, each
+   using as many of the fresh ingredients and proteins as it sensibly can (prioritise "use soon").
+   Ignore ready meals, snacks, drinks and condiments when planning; they are not ingredients to cook with.
+2. Search once per dish, naming the dish and its main ingredients (e.g. "chicken thigh spinach chickpea
+   tray bake recipe"). Never search for a single ingredient on its own. Prefer reputable recipe sites.
+   If a search finds nothing suitable, you may try one different wording for that dish.
+
+Only give a url for a recipe page you actually found. If a dish has no good page, still include it,
+with "url": "" plus your own short "ingredients" and "steps", so they still get the idea.
 Answer with only a JSON object, no other prose:
 {"note": "<one sentence from Alfred>", "recipes": [{"title": "", "url": "", "site": "", "minutes": 0,
-"protein_g": 0, "why": "<one line>", "need": ["<ingredients they would need to buy>"]}]}`,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+"protein_g": 0, "why": "<one line: which of their ingredients it uses>", "need": ["<ingredients they would need to buy>"],
+"ingredients": ["<only when url is empty>"], "steps": ["<only when url is empty>"]}]}`,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 6 }],
       effort: "medium",
     });
     const out = parseJson(text);
-    out.recipes = (out.recipes || []).filter((r: { url?: string }) => /^https?:\/\//.test(r.url || "")).slice(0, 3);
+    // Keep found pages, plus Alfred's own version of any dish whose search came up empty.
+    out.recipes = (out.recipes || [])
+      .map((r: { url?: string }) => ({ ...r, url: /^https?:\/\//.test(r.url || "") ? r.url : "" }))
+      .filter((r: { url: string; steps?: unknown[] }) => r.url || (Array.isArray(r.steps) && r.steps.length))
+      .slice(0, 3);
     return { result: out, usage };
   },
 

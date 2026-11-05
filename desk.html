@@ -153,6 +153,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .tick{display:flex;gap:8px;align-items:center;font-size:14px}
 .sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+.desktime{margin:0;font-size:14px}
 </style>
 
 <div class="wrap">
@@ -254,6 +255,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
+import { writingTime, fmtMins } from "./js/rooms.js";
 mountShell("desk");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -264,6 +266,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 //   settings     { remedies: [..], checklist: [..], tips: [..], greeting: ".." }
 // Personal content lives in the database, never in this public file.
 const store = openStore("desk");
+const focusStore = openStore("focus"); // writing sessions from the Focus Room, logged against a piece
 const STAGES = {
   ilkwim: ["Idea", "Gather", "Draft", "Polish", "Scheduled", "Out"],
   fiction: ["Sketch", "Outline", "Draft", "Revise", "Done"],
@@ -376,6 +379,7 @@ function renderNext(p) {
       return `<dt>${esc(short(date))}</dt><dd class="${late ? "late" : ""}">${lab}${late ? " (overdue)" : ""}</dd>`;
     }).join("")}</dl>
     ${p.notes ? `<p class="muted">${esc(p.notes)}</p>` : ""}
+    ${timeLine(p)}
     ${askNow ? askHtml(p) : ""}
     <div class="row">
       ${lk ? `<a class="btn solid" href="${esc(p.link)}" target="_blank" rel="noopener">Open the draft ↗</a>` : ""}
@@ -423,7 +427,7 @@ function renderUpcoming(all, next) {
   const list = all.filter((p) => p.track === "ilkwim" && p.publish && p.publish >= t && !isFinished(p) && p !== next && p.id !== next?.id)
     .sort((a, b) => a.publish.localeCompare(b.publish)).slice(0, 6);
   $("upcoming").innerHTML = list.length ? list.map((p) =>
-    `<li><span class="when">${esc(dm(p.publish))}</span><span>${esc(p.title)}<span class="sub">${esc([p.series, p.stage, p.notes].filter(Boolean).join(" · "))}</span></span><button class="link" type="button" data-edit="${p.id}">Edit</button></li>`).join("")
+    `<li><span class="when">${esc(dm(p.publish))}</span><span>${esc(p.title)}<span class="sub">${esc([p.series, p.stage, writingTime(focusStore, p.id).minutes ? fmtMins(writingTime(focusStore, p.id).minutes) + " written" : "", p.notes].filter(Boolean).join(" · "))}</span></span><button class="link" type="button" data-edit="${p.id}">Edit</button></li>`).join("")
     : `<li class="empty" style="display:block">Nothing else scheduled.</li>`;
 }
 
@@ -469,6 +473,12 @@ function renderRemedy() {
 }
 
 store.subscribe(render);
+focusStore.subscribe(render);
+function timeLine(p) {
+  const w = writingTime(focusStore, p.id);
+  if (!w.sessions) return `<p class="muted desktime">No Focus Room time on this one yet. Pick <b>Writing</b> there and it lands here.</p>`;
+  return `<p class="desktime"><b>${fmtMins(w.minutes)}</b> at the desk over ${w.sessions} ${w.sessions === 1 ? "session" : "sessions"}<span class="muted">, last ${esc(new Date(w.last).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }))}</span></p>`;
+}
 
 // ---------- Actions ----------
 document.addEventListener("click", (e) => {

@@ -102,6 +102,22 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 /* pantry */
 .soon-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;background:none;padding:2px 0;text-align:left;width:100%}
 .soon-row b{font-weight:600}
+.ptools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+details.place{display:block}
+details.place>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0;font-family:var(--display,inherit);font-size:20px}
+details.place>summary::-webkit-details-marker{display:none}
+details.place>summary::before{content:"▸";font-size:13px;color:var(--muted);transition:transform .15s}
+details.place[open]>summary::before{transform:rotate(90deg)}
+details.place>summary .count{font-family:var(--body);font-size:12px;font-weight:700;color:var(--muted);background:var(--rule);border-radius:999px;padding:2px 8px}
+details.place[open]>.group{margin-top:10px}
+.prow{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:8px 12px;border:0;border-top:1px solid var(--rule);background:none;text-align:left;font:inherit;color:inherit}
+.prow:first-child{border-top:0}
+.prow .pn{flex:1;min-width:0;overflow-wrap:anywhere}
+.prow .tick{pointer-events:none}
+.keep{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+.keep.soon{color:var(--brass-ink)}
+.keep.gone{color:#b3261e}
+.tidybar{position:sticky;bottom:calc(124px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr 2fr;gap:8px;padding:8px;background:var(--bg);border-radius:14px}
 .soon-row span{font-size:12px;font-weight:700;color:var(--brass-ink)}
 
 /* cookbook + meals */
@@ -152,9 +168,13 @@ nav.tabs svg{width:22px;height:22px}
 .empty{padding:18px 14px;text-align:center;color:var(--muted);font-size:14px}
 .err{color:var(--danger);font-size:14px}
 @media (prefers-reduced-motion: reduce){.busy{animation:none}}
+.back{display:inline-block;color:var(--green);font-weight:600;text-decoration:none;font-size:14px;margin-bottom:6px}
+.back[hidden]{display:none}
 </style>
 
 <div class="wrap">
+  <!-- Only the Larder's owner sees the way back to the Study; household members (Maggie) don't. -->
+  <a class="back" id="study-link" href="./" hidden>← The Study</a>
 
   <!-- ===================== LIST ===================== -->
   <section id="v-list" data-view="list">
@@ -381,7 +401,9 @@ function fromHash() {
 }
 
 // ---------- render ----------
+function showStudyLink() { $("study-link").hidden = !(me.id && store.ownerId === me.id); }
 function render() {
+  showStudyLink();
   if (view === "list") renderList();
   if (view === "pantry") renderPantry();
   if (view === "cookbook") renderCookbook();
@@ -538,24 +560,80 @@ $("list-body").addEventListener("pointerup", endDrag);
 $("list-body").addEventListener("pointercancel", endDrag);
 
 // ===================== PANTRY =====================
+// Pantry layout: place (fridge, cupboard, freezer) → food type → rows, sorted by the chosen order.
+const PLACES = ["fridge", "cupboard", "freezer"];
+// The cupboard is where things pile up, so it gets finer groups than the shop's aisles.
+const CUPBOARD_TYPES = [
+  ["Rice, pasta & grains", /\b(rice|pasta|spaghetti|penne|noodle|oat|porridge|flour|quinoa|couscous|bulgur|polenta|cereal|granola|cracker)/i],
+  ["Tins & jars", /\b(tin|tinned|can\b|canned|bean|chickpea|lentil|passata|chopped tomato|coconut milk|sweetcorn|olives|jar|jam|peanut butter)/i],
+  ["Sauces, oils & spices", /\b(oil|vinegar|sauce|soy|miso|stock|broth|paste|pesto|harissa|mustard|ketchup|mayo|honey|syrup|sugar|salt|pepper|spice|paprika|cumin|curry|chilli|seasoning|herbs|dried)/i],
+  ["Snacks & treats", /\b(crisp|chip|chocolate|biscuit|cookie|sweet|nut|seed|almond|popcorn|bar\b|snack)/i],
+];
+const TYPE_ORDER = ["Produce", "Meat & fish", "Dairy & eggs", "Bakery", ...CUPBOARD_TYPES.map(([t]) => t), "Frozen", "Drinks", "Household", "Everything else"];
+function foodType(name) {
+  if (/\b(frozen|ice cream)/i.test(name)) return "Frozen";
+  const a = aisleOf(name);
+  if (a === "Cupboard" || a === "Other") return (CUPBOARD_TYPES.find(([, re]) => re.test(name)) || ["Everything else"])[0];
+  return a;
+}
+const pref = (k, d) => { try { return JSON.parse(localStorage.getItem("larder:" + k)) ?? d; } catch { return d; } };
+const savePref = (k, v) => { try { localStorage.setItem("larder:" + k, JSON.stringify(v)); } catch {} };
+let pantrySort = pref("pantrySort", "soon");          // soon | az | new
+let pantryShut = pref("pantryShut", []);              // collapsed places
+let tidying = false, tidyPicked = new Set();
+const SORTS = { soon: "Use soonest", az: "A–Z", new: "Newest" };
+function sortPantry(list) {
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  if (pantrySort === "az") return list.sort(byName);
+  if (pantrySort === "new") return list.sort((a, b) => (b.added || 0) - (a.added || 0) || byName(a, b));
+  return list.sort((a, b) => (a.useBy ? 0 : 1) - (b.useBy ? 0 : 1) || (a.useBy || "").localeCompare(b.useBy || "") || byName(a, b));
+}
+function keepLabel(p) {
+  if (!p.useBy) return "";
+  const d = daysUntil(p.useBy);
+  const text = d < 0 ? "past its date" : d === 0 ? "today" : d === 1 ? "tomorrow" : d + " days";
+  return `<span class="keep ${d < 0 ? "gone" : d <= 2 ? "soon" : ""}">${text}</span>`;
+}
 function renderPantry() {
   const ps = pantry();
   const soon = ps.filter((p) => p.useBy && daysUntil(p.useBy) <= 3).sort((a, b) => a.useBy < b.useBy ? -1 : 1);
   let html = "";
-  if (soon.length) html += `<div class="note"><span class="label">Use it before it turns</span>${soon.map((p) => {
+  if (soon.length && !tidying) html += `<div class="note"><span class="label">Use it before it turns</span>${soon.map((p) => {
     const d = daysUntil(p.useBy);
     return `<button type="button" class="soon-row" data-p="${esc(p.id)}"><b>${esc(p.name)}</b><span>${d < 0 ? "past its date" : d === 0 ? "today" : d === 1 ? "tomorrow" : d + " days"}</span></button>`;
   }).join("")}</div>`;
-  ["fridge", "cupboard", "freezer"].forEach((w) => {
-    const here = ps.filter((p) => (p.where || "cupboard") === w).sort((a, b) => a.name.localeCompare(b.name));
+  if (ps.length) html += `<div class="ptools">
+      <div class="chips" role="group" aria-label="Sort the pantry">${Object.entries(SORTS).map(([k, v]) =>
+        `<button class="chip" type="button" data-psort="${k}" aria-pressed="${pantrySort === k}">${v}</button>`).join("")}</div>
+      <button class="chip${tidying ? " on" : ""}" type="button" data-tidy aria-pressed="${tidying}">${tidying ? "Done tidying" : "Tidy up"}</button>
+    </div>`;
+  if (tidying) html += `<span class="small muted">Tick everything that's gone, then clear them in one go.</span>`;
+  PLACES.forEach((w) => {
+    const here = ps.filter((p) => (p.where || "cupboard") === w);
     if (!here.length) return;
-    html += `<div class="group"><span class="label">${w[0].toUpperCase() + w.slice(1)}</span><div class="chips">${here.map((p) =>
-      `<button type="button" class="chip" data-p="${esc(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>`;
+    const types = {};
+    here.forEach((p) => (types[foodType(p.name)] ||= []).push(p));
+    const open = tidying || !pantryShut.includes(w);
+    html += `<details class="place" data-place="${w}" ${open ? "open" : ""}>
+      <summary><span class="pname">${w[0].toUpperCase() + w.slice(1)}</span><span class="count">${here.length}</span></summary>
+      ${TYPE_ORDER.filter((a) => types[a]).map((a) => `<div class="group"><span class="label">${esc(a)}</span>
+        <div class="card rows">${sortPantry(types[a]).map((p) => tidying
+          ? `<button type="button" class="prow" data-pick="${esc(p.id)}" aria-pressed="${tidyPicked.has(p.id)}"><span class="tick${tidyPicked.has(p.id) ? " done" : ""}" aria-hidden="true">${tidyPicked.has(p.id) ? "✓" : ""}</span><span class="pn">${esc(p.name)}</span>${keepLabel(p)}</button>`
+          : `<button type="button" class="prow" data-p="${esc(p.id)}"><span class="pn">${esc(p.name)}</span>${keepLabel(p)}</button>`).join("")}</div></div>`).join("")}
+    </details>`;
   });
+  if (tidying) html += `<div class="tidybar"><button class="btn" type="button" data-tidy>Cancel</button><button class="btn primary" type="button" data-clear ${tidyPicked.size ? "" : "disabled"}>${tidyPicked.size ? `Mark ${plural(tidyPicked.size, "item", "items")} used up` : "Tick what's gone"}</button></div>`;
   if (!ps.length) html += `<div class="card empty">The larder is bare. Snap the fridge, add a few things by hand, or tick off groceries and they'll land here.</div>`;
-  else html += `<span class="small muted">Ticked groceries land here automatically. Tap anything to set a use-by date or mark it used up.</span>`;
+  else if (!tidying) html += `<span class="small muted">Ticked groceries land here automatically. Tap anything to set a use-by date or mark it used up.</span>`;
   $("pantry-body").innerHTML = html;
 }
+// Remember which places are folded away.
+$("pantry-body").addEventListener("toggle", (e) => {
+  const d = e.target; if (!d.matches?.("details.place") || tidying) return;
+  const w = d.dataset.place;
+  pantryShut = d.open ? pantryShut.filter((x) => x !== w) : [...new Set([...pantryShut, w])];
+  savePref("pantryShut", pantryShut);
+}, true);
 $("pantry-add-open").onclick = () => { $("add-pantry").hidden = !$("add-pantry").hidden; if (!$("add-pantry").hidden) $("add-pantry-name").focus(); };
 $("add-pantry-name").addEventListener("input", (e) => { $("add-pantry-where").value = whereOf(e.target.value); });
 $("add-pantry").addEventListener("submit", (e) => {
@@ -566,6 +644,17 @@ $("add-pantry").addEventListener("submit", (e) => {
   $("add-pantry-name").value = ""; $("add-pantry-name").focus();
 });
 $("pantry-body").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-psort],[data-tidy],[data-pick],[data-clear]");
+  if (t?.dataset.psort) { pantrySort = t.dataset.psort; savePref("pantrySort", pantrySort); return renderPantry(); }
+  if (t?.hasAttribute("data-tidy")) { tidying = !tidying; tidyPicked = new Set(); return renderPantry(); }
+  if (t?.dataset.pick) { const id = t.dataset.pick; tidyPicked.has(id) ? tidyPicked.delete(id) : tidyPicked.add(id); return renderPantry(); }
+  if (t?.hasAttribute("data-clear")) {
+    const keys = [...tidyPicked].map((id) => "pantry/" + id);
+    const n = keys.length;
+    tidying = false; tidyPicked = new Set();
+    undoable(`${plural(n, "item", "items")} used up.`, keys, () => keys.forEach((k) => store.remove(k)));
+    return renderPantry();
+  }
   const b = e.target.closest("[data-p]"); if (!b) return;
   const p = pantry().find((x) => x.id === b.dataset.p); if (!p) return;
   openSheet(`<h2>${esc(p.name)}</h2>
@@ -917,17 +1006,24 @@ function renderWeb(target) {
   target.innerHTML = `<span class="label">From the web · ${ago(w.at)}</span>
     ${w.note ? `<p class="small muted" style="margin:0;font-style:italic">“${esc(w.note)}” · Alfred</p>` : ""}
     ${w.recipes.map((r, n) => {
-      const saved = recipes().find((x) => x.url === r.url);
+      const saved = r.url ? recipes().find((x) => x.url === r.url) : r.cookbook_id && recipes().find((x) => x.id === r.cookbook_id);
       return `<div class="card meal">
         <div class="head"><span class="t">${esc(r.title)}</span>${r.protein_g ? `<span class="badge">~${r.protein_g} g protein</span>` : ""}</div>
-        <a class="small muted" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.site || new URL(r.url).hostname)}${r.minutes ? " · " + r.minutes + " min" : ""} ↗</a>
+        ${r.url ? `<a class="small muted" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.site || new URL(r.url).hostname)}${r.minutes ? " · " + r.minutes + " min" : ""} ↗</a>`
+          : `<span class="small muted">Alfred's idea, no good page found${r.minutes ? " · " + r.minutes + " min" : ""}</span>`}
         <span class="small">${esc(r.why || "")}</span>
         ${r.need?.length ? `<span class="small">Need: <b>${esc(r.need.join(", "))}</b></span>` : ""}
         <div class="acts">${saved ? `<a class="btn" href="#recipe/${esc(saved.id)}">Open saved recipe</a>` : `<button class="btn primary" type="button" data-wsave="${n}">Save to cookbook</button>`}</div>
       </div>`;
     }).join("")}
     <span class="small muted">${w.cost ? "That search cost " + cents(w.cost) + "." : ""}</span>`;
-  target.querySelectorAll("[data-wsave]").forEach((b) => (b.onclick = () => importUrl(w.recipes[+b.dataset.wsave].url)));
+  target.querySelectorAll("[data-wsave]").forEach((b) => (b.onclick = () => {
+    const r = w.recipes[+b.dataset.wsave];
+    if (r.url) return importUrl(r.url);
+    r.cookbook_id = saveRecipe({ title: r.title, site: "Alfred's idea", servings: 2, minutes: r.minutes, protein_g: r.protein_g, ingredients: r.ingredients || [], steps: r.steps || [] });
+    store.set("suggestions/web", w);
+    renderWeb(target);
+  }));
 }
 
 // ---------- talking to the server ----------
@@ -965,6 +1061,12 @@ if (/access_token=|error_description=/.test(location.hash) || new URLSearchParam
 }
 const shared = sharedLink();
 store.subscribe(() => { if (!dragging) render(); });
+// Whose Larder this is is only known once the store has checked the household, so look again on each sync.
+store.onStatus(async (st) => {
+  if (st === "signed-out") me = { id: null, initial: "" };
+  else if (!me.id) { const u = await currentUser().catch(() => null); if (u) me = { id: u.id, initial: (u.email || "?")[0].toUpperCase() }; }
+  showStudyLink();
+});
 fromHash();
 if (shared) { go("cookbook"); importUrl(shared); }
 </script>

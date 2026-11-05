@@ -86,6 +86,7 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .check{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
 .check input{width:18px;height:18px;accent-color:var(--green)}
+select.piece{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:6px 10px;max-width:100%}
 input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:6px 10px;min-width:0;width:160px}
 .step{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--bg)}
 .step button{border:0;background:var(--paper);border-radius:7px;width:30px;height:30px;font-size:17px}
@@ -209,6 +210,10 @@ input[type=range]{width:auto;accent-color:var(--green)}
           <button class="chip" id="addLabelOk">Add</button>
           <button class="chip" id="addLabelCancel">Cancel</button>
         </div>
+        <div class="field" id="deskRow" hidden>
+          <span class="small">Writing time goes on the Writing Desk, against</span>
+          <select class="piece" id="deskPiece" aria-label="Which post this writing is for"></select>
+        </div>
       </div>
       <label class="check"><input type="checkbox" id="settle"> Settle in for 2 minutes before the clock starts</label>
     </div>
@@ -245,6 +250,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
+import { openIlkwim, nextPost, linkWritingToLedger } from "./js/rooms.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -266,7 +272,23 @@ const S=Object.assign({vol:.7,duck:true,settle:false,plan:{focus:50,brk:10,round
 function save(){store.set("settings",S);}
 let LOG=readLog();
 focusStore.subscribe(()=>{ const next=readLog(); if(next.length!==LOG.length||next.some((x,i)=>x.t!==LOG[i].t)){ LOG=next; renderTally(); if(!$("#v-log").hidden) renderLog(); } const remote=focusStore.get("settings"); if(remote) Object.assign(S,remote); });
-function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const entry={t:Date.now(),k,m:mins,label:label||""}; LOG.push(entry); focusStore.set("log/"+entry.t,entry); renderTally(); if(!$("#v-log").hidden) renderLog(); }
+// Writing sessions are logged against an ILKWIM post: the next one, unless another is picked (S.deskPiece).
+const deskStore=openStore("desk");
+function deskPick(){ const open=openIlkwim(deskStore); const next=nextPost(deskStore); return (S.deskPiece&&open.find(p=>p.id===S.deskPiece))||next||null; }
+function renderDesk(){
+  const row=$("#deskRow"); const open=openIlkwim(deskStore); row.hidden=S.label!=="Writing"||!open.length; if(row.hidden) return;
+  const next=nextPost(deskStore), pick=deskPick();
+  const rest=open.filter(p=>p.id!==next?.id).sort((a,b)=>(a.publish||"9").localeCompare(b.publish||"9"));
+  $("#deskPiece").innerHTML=`<option value="">${next?"The next post: "+esc(next.title):"No post picked"}</option>`
+    +rest.map(p=>`<option value="${esc(p.id)}"${pick&&pick.id===p.id&&S.deskPiece?" selected":""}>${esc(p.title)}${p.banked?" (the bank)":""}</option>`).join("")
+    +`<option value="none"${S.deskPiece==="none"?" selected":""}>Something else</option>`;
+}
+$("#deskPiece").onchange=e=>{ S.deskPiece=e.target.value; save(); };
+deskStore.subscribe(renderDesk);
+// A Writing session also ticks the Ledger's Write habit for its day (see js/rooms.js).
+linkWritingToLedger(()=>say("Writing ticked in the Ledger. The page is less blank than it was."));
+function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const entry={t:Date.now(),k,m:mins,label:label||""};
+  if(k==="focus"&&label==="Writing"&&S.deskPiece!=="none"){ const p=deskPick(); if(p){ entry.piece=p.id; entry.pieceTitle=p.title; } } LOG.push(entry); focusStore.set("log/"+entry.t,entry); renderTally(); if(!$("#v-log").hidden) renderLog(); }
 
 /* ---------- audio engine ---------- */
 let ctx=null, master=null, duckG=null, BAG=null;
@@ -426,6 +448,7 @@ $("#rMinus").onclick=()=>bump("rounds",-1,1,8); $("#rPlus").onclick=()=>bump("ro
 function renderLabels(){
   $("#labels").innerHTML=S.labels.map(l=>`<span class="chip" aria-pressed="${l===S.label}" role="button" tabindex="0" data-label="${esc(l)}">${esc(l)}${DEF_LABELS.includes(l)?"":`<button class="x" data-del="${esc(l)}" aria-label="Remove ${esc(l)}">×</button>`}</span>`).join("")
     +`<button class="chip" id="addLabel">+ Label</button>`;
+  renderDesk();
   if(!run.running) renderIdle();
 }
 $("#labels").addEventListener("click",e=>{
@@ -490,7 +513,7 @@ function reset(){ run.running=false; run.paused=false; run.i=-1; setDuck(false);
 function complete(){
   const total=run.focusSecs; reset();
   $("#alfred").textContent="";
-  $("#breakSlot").innerHTML=`<div class="donecard"><h3>Session complete</h3><p>${fmtM(total/60)} of ${esc(S.label||"focus")} logged. Now leave it alone for a while; it will still be there.</p></div>`;
+  $("#breakSlot").innerHTML=`<div class="donecard"><h3>Session complete</h3><p>${fmtM(total/60)} of ${esc(S.label||"focus")} logged${S.label==="Writing"&&S.deskPiece!=="none"&&deskPick()?`, on the Writing Desk against ${esc(deskPick().title)}`:""}. Now leave it alone for a while; it will still be there.</p></div>`;
 }
 function togglePause(){
   if(!run.running){ begin(); return; }

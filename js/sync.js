@@ -15,7 +15,7 @@ const TABLE = "app_data";
 const read = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full or blocked: in-memory only */ } };
 
-// ---------- Sign-in (emailed link; a code also works if the email template shows one) ----------
+// ---------- Sign-in (emailed link, or a password once one is set) ----------
 
 export async function currentUser() {
   // Never let a slow token refresh leave the apps stuck on "Opening…".
@@ -31,6 +31,17 @@ export async function verifyCode(email, token) {
   const { data, error } = await supabase.auth.verifyOtp({ email, token: token.trim(), type: "email" });
   if (error) throw error;
   return data.user;
+}
+export async function signInWithPassword(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(/invalid/i.test(error.message)
+    ? "That email and password don't match. If you haven't set a password yet, use the emailed link first."
+    : error.message);
+}
+export async function setPassword(password) {
+  if (password.length < 8) throw new Error("Use at least 8 characters.");
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
 }
 export async function signOut() { await supabase.auth.signOut(); }
 export function onAuthChange(fn) {

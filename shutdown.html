@@ -125,6 +125,17 @@ textarea{resize:vertical;min-height:64px}
 .cue.fade{opacity:0}
 
 /* Close */
+.figs{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.figs h3{font-family:var(--display);font-weight:400;font-size:17px;margin:0}
+.figs .top3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.figs .top3 b{display:block;font-family:var(--display);font-weight:400;font-size:22px;color:var(--green);font-variant-numeric:tabular-nums}
+.figs .top3 span{font-size:12px;color:var(--muted)}
+.figs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px}
+.figs li{display:flex;justify-content:space-between;gap:12px}
+.figs li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.figs li.mx{padding-left:14px;font-size:13px}
+.figs li.up span:last-child{color:var(--green);font-weight:600}
+.figs .lb{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sum{display:flex;flex-direction:column;gap:12px}
 .sum h3{font-size:16px}
 .copybox{display:flex;flex-direction:column;gap:8px}
@@ -181,6 +192,8 @@ textarea{resize:vertical;min-height:64px}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
+import { openStore } from "./js/sync.js";
+import { weekTally, liftsUp, mondayOf, addDays, fmtMins } from "./js/rooms.js";
 mountShell('shutdown');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -237,6 +250,47 @@ const LOCAL_HIST = "sunday-shutdown-history", LOCAL_PARK = "sunday-shutdown-park
 function localGet(k, dflt){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : dflt; } catch(e){ return dflt; } }
 function localSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 
+// ---------- The week in figures (from the Ledger, the Training Room and the Focus Room) ----------
+const ledgerStore = openStore("ledger"), trainingStore = openStore("training"), focusStore = openStore("focus");
+/** The week being closed: Monday to the shutdown's date, or last week when it's done on a Monday. */
+function weekRange(){
+  const day = parse(D.date).getDay();
+  if (day === 1) { const from = addDays(D.date, -7); return { from, to: addDays(from, 6) }; }
+  return { from: mondayOf(D.date), to: D.date };
+}
+function figures(){
+  const { from, to } = weekRange();
+  const T = weekTally(ledgerStore, from, to);
+  const lifts = liftsUp(trainingStore, from, to);
+  const t0 = parse(from).getTime(), t1 = parse(addDays(to, 1)).getTime();
+  const focus = focusStore.list("log/").map(x=>x.value).filter(e => e.k === "focus" && e.t >= t0 && e.t < t1);
+  const focusMins = focus.reduce((a,e)=>a+(e.m||0),0);
+  const writeMins = focus.filter(e => e.label === "Writing").reduce((a,e)=>a+(e.m||0),0);
+  return { from, to, T, lifts, focusMins, writeMins };
+}
+function figuresHtml(F, compact){
+  if (!F.T.rows.length && !F.lifts.length && !F.focusMins) return "";
+  const kept = F.T.rows.filter(r => !r.weekly), done = kept.reduce((a,r)=>a+Math.min(r.n,r.of),0), of = kept.reduce((a,r)=>a+r.of,0);
+  const pct = of ? Math.round(done/of*100) : 0;
+  return `<div class="figs">
+    <h3>The week in figures <span class="muted small" style="font-family:var(--body)">${esc(fmtShort(F.from))} to ${esc(fmtShort(F.to))}</span></h3>
+    <div class="top3"><div><b>${pct}%</b><span>of daily habits kept</span></div><div><b>${F.focusMins ? esc(fmtMins(F.focusMins)) : "0"}</b><span>in the Focus Room</span></div><div><b>${F.lifts.length}</b><span>${F.lifts.length===1?"lift":"lifts"} went up</span></div></div>
+    ${compact ? "" : `<span class="lb">Habits</span><ul>${F.T.rows.map(r=>`<li><span>${esc(r.name)}</span><span>${r.n} of ${r.of}${r.weekly?" (target)":""}</span></li>`).join("")}
+      ${F.T.workoutMix.map(m=>`<li class="mx"><span>${esc(m.label)}</span><span>${m.n} of ${m.target}</span></li>`).join("")}
+      ${F.writeMins ? `<li><span>Writing in the Focus Room</span><span>${esc(fmtMins(F.writeMins))}</span></li>` : ""}
+      ${F.T.rest ? `<li><span>Rest days</span><span>${F.T.rest}</span></li>` : ""}</ul>`}
+    ${F.lifts.length ? `<span class="lb">Lifts that went up</span><ul>${F.lifts.slice(0, compact?3:8).map(l=>`<li class="up"><span>${esc(l.move)} <span class="muted small">${esc(l.tier)}</span></span><span>${l.from} → ${l.to} lb</span></li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+function figuresText(F){
+  const L = [`The week (${fmtShort(F.from)} to ${fmtShort(F.to)}):`];
+  F.T.rows.forEach(r => L.push(`- ${r.name}: ${r.n} of ${r.of}${r.weekly?" (target)":""}`));
+  if (F.T.workoutMix.length) L.push(`- Workout mix: ${F.T.workoutMix.map(m=>`${m.label} ${m.n}/${m.target}`).join(", ")}`);
+  if (F.focusMins) L.push(`- Focus Room: ${fmtMins(F.focusMins)}${F.writeMins?`, of which writing ${fmtMins(F.writeMins)}`:""}`);
+  if (F.lifts.length) L.push(`- Lifts up: ${F.lifts.map(l=>`${l.move} (${l.tier}) ${l.from} to ${l.to} lb`).join("; ")}`);
+  return F.T.rows.length || F.lifts.length || F.focusMins ? L.join("\n") : "";
+}
+
 // ---------- Rendering ----------
 function renderSteps(){
   $("#steps").innerHTML = STEPS.map((s,i) => `<li class="${i<D.step?'done':''} ${i===D.step?'on':''}"><span class="bar"></span><span class="nm">${esc(s.short||s.n)}</span></li>`).join("");
@@ -264,6 +318,7 @@ function viewIntro(){
   return `<section class="sheet">
     <div class="eyebrow">Sunday evening</div>
     <h2>Put the weekend away.</h2>
+    ${figuresHtml(figures(), false)}
     <p class="lede">Six short steps. Empty your head, look back, look ahead, sit for a few minutes, and close. I'll take the notes.</p>
     <ul class="plan">
       ${STEPS.map((x,i)=>`<li><span class="n">${i+1}</span><span>${esc(x.n)}</span><span class="m num">${x.k==="sit"?"3–10 min":x.min?x.min+" min":"done"}</span></li>`).join("")}
@@ -337,6 +392,7 @@ function viewBack(){
   return `<section class="sheet">
     <div class="eyebrow">Step 3 · Look back</div>
     <h2>How was the week, really?</h2>
+    ${figuresHtml(figures(), true)}
     ${f("well","What went well?","Small counts. A good walk, a paragraph, a decent sleep.")}
     ${f("drained","What drained you?","Name it so we can plan around it.")}
     ${f("grateful","One thing you're grateful for","Someone, something, a moment.")}
@@ -458,6 +514,7 @@ function alfredText(){
   if (todos().length) L.push(`To-dos to file in Tasks:\n` + todos().map(t=>"- "+t).join("\n"));
   if (worries().length) L.push(`Parked worries: ${worries().map(w=>w.text).join("; ")}`);
   L.push(`Sat for: ${D.sit.secs ? mins(D.sit.secs)+" ("+D.sit.mode+")" : "skipped"}`);
+  const ft = figuresText(figures()); if (ft) L.push(ft);
   return L.join("\n");
 }
 function viewClose(){
@@ -492,7 +549,11 @@ function record(){
   return { date:D.date, word:D.ahead.word.trim(), matters:D.ahead.matters.trim(), note:D.ahead.note.trim(),
     well:D.back.well.trim(), drained:D.back.drained.trim(), grateful:D.back.grateful.trim(),
     todos:todos(), worries:worries().map(w=>w.text.trim()), letgo:D.items.filter(i=>i.tag==="letgo").length,
-    sitMode:D.sit.mode, sitSecs:D.sit.secs, savedAt:new Date().toISOString() };
+    sitMode:D.sit.mode, sitSecs:D.sit.secs, savedAt:new Date().toISOString(), figures:figuresSaved() };
+}
+function figuresSaved(){
+  const F = figures();
+  return { from:F.from, to:F.to, habits:F.T.rows.map(r=>({ id:r.id, name:r.name, n:r.n, of:r.of })), mix:F.T.workoutMix, focusMins:F.focusMins, writeMins:F.writeMins, lifts:F.lifts };
 }
 async function closeWeekend(){
   const rec = record();
@@ -563,6 +624,7 @@ document.addEventListener("input", e => {
 // ---------- Boot ----------
 history = localGet(LOCAL_HIST, []); parked = (localGet(LOCAL_PARK, {items:[]}).items)||[];
 render(); renderHistory();
+[ledgerStore, trainingStore, focusStore].forEach(st => st.subscribe(() => { if (D.step < 0) render(); }));
 (async () => {
   db = openDb("shutdown");
   if (!db) return;
