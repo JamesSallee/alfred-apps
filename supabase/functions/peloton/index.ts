@@ -99,18 +99,24 @@ async function sync(db: SupabaseClient, userId: string) {
     .eq("user_id", userId).eq("app", "training").like("key", "workouts/%");
   if (error) throw error;
   const have = new Set((rows || []).map((r) => r.key.slice("workouts/".length)));
+  // Until the whole history is in, keep walking back past pages that are already saved.
+  const { data: last } = await db.from("app_data").select("value")
+    .eq("user_id", userId).eq("app", "training").eq("key", "sync/last").maybeSingle();
+  const backfilling = last?.value?.more !== false;
 
   const token = await login();
   const me = await get(token, "/api/me");
 
-  // Walk back through the history (newest first) until a page is all saved already, or we have enough.
+  // Walk back through the history (newest first) until we have enough, or (once the backfill is done)
+  // a page is all saved already.
   const fresh: any[] = [];
-  for (let page = 0; page < 10 && fresh.length < PER_SYNC; page++) {
+  for (let page = 0; page < 40 && fresh.length <= PER_SYNC; page++) {
     const list = await get(token, `/api/user/${me.id}/workouts?joins=ride,ride.instructor&limit=50&page=${page}&sort_by=-created`);
     const data = list.data || [];
     const unseen = data.filter((w: any) => w.status === "COMPLETE" && !have.has(w.id));
     fresh.push(...unseen);
-    if (!data.length || unseen.length === 0 || page + 1 >= (list.page_count ?? 1)) break;
+    if (!data.length || page + 1 >= (list.page_count ?? 1)) break;
+    if (unseen.length === 0 && !backfilling) break;
   }
   const batch = fresh.slice(0, PER_SYNC);
   const more = fresh.length > PER_SYNC;
