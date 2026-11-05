@@ -1,7 +1,7 @@
 // Shared chrome for every app: a small sync-status pill, plus a sheet for
 // signing in with an emailed link, backups and signing out.
 
-import { openStore, STATUS_TEXT, currentUser, sendCode, verifyCode, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
+import { openStore, STATUS_TEXT, currentUser, sendCode, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
 
 const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk"];
 
@@ -59,6 +59,11 @@ export function mountShell(app) {
 
   pill.onclick = async () => { await renderSheet(); sheet.hidden = false; };
   onAuthChange(() => { if (!sheet.hidden) renderSheet(); });
+  // The emailed link signs in wherever it opens, usually a new tab. When you come back to this one,
+  // check again so the "check your email" card turns into "Signed in" by itself.
+  const recheck = () => { if (!sheet.hidden && document.visibilityState === "visible") renderSheet(); };
+  document.addEventListener("visibilitychange", recheck);
+  window.addEventListener("focus", recheck);
 
   let email = "";
   async function renderSheet(step = null, err = "") {
@@ -69,10 +74,9 @@ export function mountShell(app) {
         <div class="al-row"><button class="al-btn" data-a="export">Export backup</button>
         <label class="al-btn">Restore backup<input type="file" accept="application/json" hidden data-a="import"></label></div>
         ${errHtml}<div class="al-row"><button class="al-btn" data-a="signout">Sign out</button><button class="al-btn primary" data-a="close">Done</button></div>`;
-    } else if (step === "code") {
-      card.innerHTML = `<h2>Check your email</h2><p>Tap the sign-in link just sent to ${escapeHtml(email)}, on this device. If the email shows a code instead, type it here.</p>
-        <input inputmode="numeric" autocomplete="one-time-code" placeholder="Code" data-f="code">${errHtml}
-        <div class="al-row"><button class="al-btn" data-a="back">Back</button><button class="al-btn primary" data-a="verify">Sign in</button></div>`;
+    } else if (step === "sent") {
+      card.innerHTML = `<h2>Check your email</h2><p>We've sent a sign-in link to ${escapeHtml(email)}. Open it on this device and you'll be signed in. You can close this.</p>
+        ${errHtml}<div class="al-row"><button class="al-btn" data-a="back">Use a different email</button><button class="al-btn primary" data-a="close">Done</button></div>`;
     } else {
       card.innerHTML = `<h2>Sign in to sync</h2><p>Until you sign in, entries are kept on this device only.</p>
         <input type="email" autocomplete="email" placeholder="Email" data-f="email" value="${escapeHtml(email)}">${errHtml}
@@ -87,12 +91,11 @@ export function mountShell(app) {
     try {
       if (a === "close") sheet.hidden = true;
       if (a === "back") renderSheet();
-      if (a === "send") { email = card.querySelector('[data-f="email"]').value.trim(); await sendCode(email); renderSheet("code"); }
-      if (a === "verify") { await verifyCode(email, card.querySelector('[data-f="code"]').value); sheet.hidden = true; }
+      if (a === "send") { email = card.querySelector('[data-f="email"]').value.trim(); await sendCode(email); renderSheet("sent"); }
       if (a === "signout") { await signOut(); renderSheet(); }
       if (a === "export") exportBackup(ALL_APPS);
     } catch (err) {
-      renderSheet(a === "verify" ? "code" : null, err.message || "Something went wrong. Try again.");
+      renderSheet(null, err.message || "Something went wrong. Try again.");
     }
   });
   card.addEventListener("change", async (e) => {
