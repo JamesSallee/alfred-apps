@@ -10,6 +10,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
 | `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
+| `wardrobe.html` | The Wardrobe: today's outfit, the rail, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 
 ## How the data works
 
@@ -45,7 +46,7 @@ The one app shared with another person. Everything else stays private to its own
 
 1. Run `supabase/larder.sql` in the SQL editor (after `schema.sql`).
 2. Add the secrets (Supabase → Edge Functions → Secrets): `ANTHROPIC_API_KEY` (from console.anthropic.com).
-   Optional: `LARDER_MONTHLY_CAP_USD` (default `5`), `LARDER_MODEL` (default `claude-sonnet-5-5`; `claude-opus-5-5` is about twice the cost).
+   Optional: `LARDER_MONTHLY_CAP_USD` (default `10`, shared with the Wardrobe), `LARDER_MODEL` (default `claude-sonnet-5-5`; `claude-opus-5-5` is about twice the cost).
 3. Deploy the function: `supabase functions deploy larder-ai` (or via the Supabase connector).
 4. Open the Larder, tap **House rules** and write down tastes, goals and dislikes. They live in the database, not in this repo.
 
@@ -73,3 +74,22 @@ The one app shared with another person. Everything else stays private to its own
 ## Updating
 
 Bump `CACHE` in `sw.js` when changing files so devices pick up the new version on the next open.
+
+## The Wardrobe
+
+Private to its owner, like every room except the Larder. Built for a changing size: measurements once a month,
+a fit verdict on every piece, a tailoring list, and a buying plan that waits on anything worth investing in.
+
+- **Photos.** Each piece's 480 px thumbnail goes to a private Storage bucket (`wardrobe/<user id>/<piece id>.jpg`),
+  readable only by its owner, and is cached on the device so the rail works offline. The bigger photo sent to
+  Claude for tagging is not kept.
+- **Claude.** The `w_*` actions live in `supabase/functions/larder-ai/wardrobe.ts` and share the Larder's key,
+  usage log and monthly cap. Household members can't call them.
+- **Weather** comes from Open-Meteo (no key), for the town chosen on the Today tab.
+- **Work stays out.** Occasions are a date and a dress level (Casual, Family holiday, Business casual, Formal); nothing else is asked.
+
+### Setting it up
+
+1. Run `supabase/wardrobe.sql` in the SQL editor (it creates the private `wardrobe` bucket and its policies).
+2. Redeploy the function: `supabase functions deploy larder-ai` (it now includes `wardrobe.ts`).
+3. If `LARDER_MONTHLY_CAP_USD` is set as a secret, change it to `10`; if not, the new default is `10`.

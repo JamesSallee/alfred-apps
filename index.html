@@ -121,6 +121,11 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
         <span class="txt"><span class="name">The Writing Desk</span><span class="desc">The next post, the bank, draft links and the idea shelf.</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>
+      <a class="room" id="r-wardrobe" href="wardrobe.html">
+        <span class="mark" aria-hidden="true">R</span>
+        <span class="txt"><span class="name">The Wardrobe</span><span class="desc">What to wear today, what still fits, the tailor and the formal kit.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
     </nav>
   </section>
 
@@ -200,6 +205,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
       (!r.days || r.days.includes(day)) && (r.dom == null || r.dom === date) && (!r.publish || pub[r.publish]))
       .map(r => esc(r.text).replace("{shutdown}", link));
     notes.push(...deskNotes());
+    notes.push(...wardrobeNotes());
     if (!notes.length) notes.push(esc(N.fallback || (N.rules ? "Nothing pressing today." : "Sign in to see today's note.")));
     document.getElementById("notes").innerHTML = notes.map(n => "<li><span>" + n + "</span></li>").join("");
   }
@@ -218,6 +224,22 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     if ((day === 0 || day === 1) && ps.length && !open.some(p => p.banked)) out.push("The bank is empty. One finished post in reserve, when you can.");
     return out;
   }
+  // The Wardrobe adds a line when an occasion is close, the tailor is ready, or it's time to measure.
+  const wardrobeStore = openStore("wardrobe");
+  function wardrobeNotes() {
+    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
+    const days = (s) => Math.round((new Date(s + "T12:00") - new Date(t + "T12:00")) / 864e5);
+    const w = '<a href="wardrobe.html">Wardrobe</a>';
+    const out = [];
+    const occ = wardrobeStore.list("occasions/").map(x => x.value).filter(o => o.date >= t && days(o.date) <= 3).sort((a,b) => a.date.localeCompare(b.date))[0];
+    if (occ) out.push((occ.kind === "trip" ? "A trip" : esc(occ.level) + " occasion") + (days(occ.date) === 0 ? " today" : days(occ.date) === 1 ? " tomorrow" : " in " + days(occ.date) + " days") + (occ.plan ? ". The outfit's in the " : ". Plan it in the ") + w + ".");
+    if (wardrobeStore.list("tailoring/").some(x => x.value.status === "At the tailor" && x.value.ready && x.value.ready <= t)) out.push("The tailor should have your things ready. See the " + w + ".");
+    const ms = wardrobeStore.list("measures/").map(x => x.key.slice(9)).sort();
+    const every = (wardrobeStore.get("settings") || {}).remeasureDays || 30;
+    if (ms.length && days(ms.at(-1)) <= -every && day === 0) out.push("Time for the tape measure. Log it in the " + w + ".");
+    return out;
+  }
+  wardrobeStore.subscribe(renderNote);
   deskStore.subscribe(renderNote);
   studyStore.subscribe(renderNote);
 
