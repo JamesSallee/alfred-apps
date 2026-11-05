@@ -1,7 +1,7 @@
 // Offline support: always fetch the latest pages when online, fall back to the cache when not.
 // Database traffic (supabase.co) is never cached; the sync layer handles offline edits.
-const CACHE = "alfred-v8";
-const SHELL = ["./", "index.html", "ledger.html", "focus.html", "shutdown.html", "larder.html", "larder.webmanifest", "desk.html", "wardrobe.html", "wardrobe.webmanifest",
+const CACHE = "alfred-v9";
+const SHELL = ["./", "index.html", "ledger.html", "focus.html", "shutdown.html", "larder.html", "larder.webmanifest", "desk.html", "wardrobe.html", "wardrobe.webmanifest", "training.html",
   "js/sync.js", "js/shell.js", "js/compat-db.js", "js/config.js", "js/vendor/supabase-2.45.4.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) => {

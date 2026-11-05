@@ -11,6 +11,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
 | `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
+| `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works
 
@@ -94,9 +95,23 @@ a fit verdict on every piece, a tailoring list, and a buying plan that waits on 
 2. Redeploy the function: `supabase functions deploy larder-ai` (it now includes `wardrobe.ts`).
 3. If `LARDER_MONTHLY_CAP_USD` is set as a secret, change it to `10`; if not, the new default is `10`.
 
-## The Training Room (in progress)
+## The Training Room
 
-Step 1 is a test of Peloton's unofficial API (there is no public one), to see whether it gives each strength class's
-list of moves. `supabase/functions/peloton` logs in with `PELOTON_USERNAME` and `PELOTON_PASSWORD` (Supabase secrets;
-use a password used nowhere else) and is private to the owner. `peloton-test.html` runs it and saves the result to
-`app_data` (`training` / `peloton/probe`). Both are temporary until the real page is built.
+Peloton classes come in on their own; James only confirms the weights.
+
+- **Peloton.** There's no public API, so `supabase/functions/peloton` uses the unofficial one (it may break
+  without warning). It logs in with the `PELOTON_USERNAME` and `PELOTON_PASSWORD` secrets (a password used
+  nowhere else), and only the owner can call it (Larder household members are refused). The password is never
+  logged, returned or stored.
+- **What's fetched.** Each new workout is saved as `training` / `workouts/<id>`: the class, and for strength
+  classes every weighted move with its tier (light, medium, heavy) and time, from the class plan. Heart rate
+  comes along when a monitor was connected, and rides add total output, average watts and time in each power zone.
+- **What James adds.** `log/<workout id>`: the weight (and, optionally, reps) per move and tier, pre-filled
+  from last time. `settings.kit` holds the dumbbells he owns.
+- **Fetching.** On opening the page (at most every 30 minutes) or with **Fetch from Peloton**; 30 new workouts
+  per fetch, newest first.
+
+### Setting it up
+
+1. Add the secrets (Supabase → Edge Functions → Secrets): `PELOTON_USERNAME`, `PELOTON_PASSWORD`.
+2. Deploy the function: `supabase functions deploy peloton` (or via the Supabase connector).
