@@ -2,7 +2,7 @@
 // (the same one the Peloton website uses), so it may break without warning.
 //
 // POST { action: "sync" } with the signed-in user's token (supabase.functions.invoke does this).
-//   Reads the last 14 days of workouts, and for each one not yet saved: the class plan (every move with its weight tier
+//   Reads the last 14 days of workouts (cardio only when it's a spin class), and for each one not yet saved: the class plan (every move with its weight tier
 //   and time), heart rate if Peloton has it, Peloton's muscle-group scores, and for rides the output and time in each power zone.
 //   Each workout is saved to app_data as "training" / "workouts/<id>"; the page reads them from there.
 //   -> { added, more, latest, debug }
@@ -19,6 +19,10 @@ const TOKEN_URL = "https://auth.onepeloton.com/oauth/token";
 const CLIENT_ID = "mgsmWCD0A8Qn6uz6mmqI6qeBNHH9IPwS";
 const NO_CLASS = "00000000000000000000000000000000"; // "just ride" sessions
 const WINDOW_DAYS = 14; // how far back a sync looks
+// Cardio is only worth keeping when it's a spin class: walks, swims, runs and outdoor rides are left out.
+const CARDIO = new Set(["cycling", "bike_bootcamp", "running", "walking", "cardio", "rowing", "caesar", "caesar_bootcamp", "outdoor"]);
+const wanted = (w: any) => !CARDIO.has(w.fitness_discipline)
+  || (["cycling", "bike_bootcamp"].includes(w.fitness_discipline) && !!w.ride?.id && w.ride.id !== NO_CLASS);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -113,7 +117,7 @@ async function sync(db: SupabaseClient, userId: string) {
     const data = list.data || [];
     for (const w of data) {
       if ((w.start_time ?? 0) < since) { done = true; break; }
-      if (w.status === "COMPLETE" && !have.has(w.id)) fresh.push(w);
+      if (w.status === "COMPLETE" && wanted(w) && !have.has(w.id)) fresh.push(w);
     }
     if (!data.length || page + 1 >= (list.page_count ?? 1)) break;
   }
