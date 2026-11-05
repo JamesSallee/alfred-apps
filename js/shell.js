@@ -1,7 +1,7 @@
 // Shared chrome for every app: a small sync-status pill, plus a sheet for
 // signing in with an emailed link, backups and signing out.
 
-import { openStore, STATUS_TEXT, currentUser, sendCode, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
+import { openStore, STATUS_TEXT, currentUser, sendCode, signInWithPassword, setPassword, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
 
 const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk"];
 
@@ -57,7 +57,7 @@ export function mountShell(app) {
   };
   openStore(app || "study").onStatus(show);
 
-  pill.onclick = async () => { await renderSheet(); sheet.hidden = false; };
+  pill.onclick = async () => { flash = ""; await renderSheet(); sheet.hidden = false; };
   onAuthChange(() => { if (!sheet.hidden) renderSheet(); });
   // The emailed link signs in wherever it opens, usually a new tab. When you come back to this one,
   // check again so the "check your email" card turns into "Signed in" by itself.
@@ -66,21 +66,28 @@ export function mountShell(app) {
   window.addEventListener("focus", recheck);
 
   let email = "";
+  let flash = ""; // a short confirmation that survives re-renders until the sheet changes step or closes
   async function renderSheet(step = null, err = "") {
     const user = await currentUser();
-    const errHtml = err ? `<p class="al-err">${escapeHtml(err)}</p>` : "";
-    if (user) {
+    const errHtml = (err ? `<p class="al-err">${escapeHtml(err)}</p>` : "") + (flash ? `<p>${escapeHtml(flash)}</p>` : "");
+    if (user && step === "password") {
+      card.innerHTML = `<h2>Set a password</h2><p>Then you can sign in on any device with ${escapeHtml(user.email || "your email")} and this password, no email needed.</p>
+        <input type="password" autocomplete="new-password" placeholder="New password (8+ characters)" data-f="newpw">${errHtml}
+        <div class="al-row"><button class="al-btn" data-a="back">Cancel</button><button class="al-btn primary" data-a="setpw">Save password</button></div>`;
+    } else if (user) {
       card.innerHTML = `<h2>Signed in</h2><p>${escapeHtml(user.email || "")}. Everything saves automatically and syncs to your other devices.</p>
         <div class="al-row"><button class="al-btn" data-a="export">Export backup</button>
         <label class="al-btn">Restore backup<input type="file" accept="application/json" hidden data-a="import"></label></div>
+        <div class="al-row"><button class="al-btn" data-a="password">Set or change password</button></div>
         ${errHtml}<div class="al-row"><button class="al-btn" data-a="signout">Sign out</button><button class="al-btn primary" data-a="close">Done</button></div>`;
     } else if (step === "sent") {
       card.innerHTML = `<h2>Check your email</h2><p>We've sent a sign-in link to ${escapeHtml(email)}. Open it on this device and you'll be signed in. You can close this.</p>
         ${errHtml}<div class="al-row"><button class="al-btn" data-a="back">Use a different email</button><button class="al-btn primary" data-a="close">Done</button></div>`;
     } else {
       card.innerHTML = `<h2>Sign in to sync</h2><p>Until you sign in, entries are kept on this device only.</p>
-        <input type="email" autocomplete="email" placeholder="Email" data-f="email" value="${escapeHtml(email)}">${errHtml}
-        <div class="al-row"><button class="al-btn" data-a="close">Not now</button><button class="al-btn primary" data-a="send">Email me a link</button></div>`;
+        <input type="email" autocomplete="email" placeholder="Email" data-f="email" value="${escapeHtml(email)}">
+        <input type="password" autocomplete="current-password" placeholder="Password (leave blank for an emailed link)" data-f="pw">${errHtml}
+        <div class="al-row"><button class="al-btn" data-a="close">Not now</button><button class="al-btn primary" data-a="send">Sign in</button></div>`;
     }
     card.querySelector("input")?.focus();
   }
@@ -88,22 +95,33 @@ export function mountShell(app) {
   card.addEventListener("click", async (e) => {
     const a = e.target.closest("[data-a]")?.dataset.a;
     if (!a || a === "import") return;
+    flash = "";
     try {
       if (a === "close") sheet.hidden = true;
       if (a === "back") renderSheet();
-      if (a === "send") { email = card.querySelector('[data-f="email"]').value.trim(); await sendCode(email); renderSheet("sent"); }
+      if (a === "send") {
+        email = card.querySelector('[data-f="email"]').value.trim();
+        const pw = card.querySelector('[data-f="pw"]').value;
+        if (pw) { await signInWithPassword(email, pw); sheet.hidden = true; }
+        else { await sendCode(email); renderSheet("sent"); }
+      }
+      if (a === "password") renderSheet("password");
+      if (a === "setpw") { await setPassword(card.querySelector('[data-f="newpw"]').value); flash = "Password saved."; await renderSheet(); }
       if (a === "signout") { await signOut(); renderSheet(); }
       if (a === "export") exportBackup(ALL_APPS);
     } catch (err) {
-      renderSheet(null, err.message || "Something went wrong. Try again.");
+      renderSheet(a === "setpw" ? "password" : null, err.message || "Something went wrong. Try again.");
     }
+  });
+  // Enter in any box presses the card's main button.
+  card.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); card.querySelector(".al-btn.primary")?.click(); }
   });
   card.addEventListener("change", async (e) => {
     if (e.target.dataset.a !== "import" || !e.target.files[0]) return;
-    try { await importBackup(e.target.files[0]); renderSheet(null, ""); alertSoft("Backup restored."); }
+    try { await importBackup(e.target.files[0]); flash = "Backup restored."; await renderSheet(null, ""); }
     catch { renderSheet(null, "That file isn't an Alfred backup."); }
   });
-  function alertSoft(msg) { const p = document.createElement("p"); p.textContent = msg; card.appendChild(p); }
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
