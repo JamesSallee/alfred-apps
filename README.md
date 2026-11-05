@@ -93,3 +93,10 @@ a fit verdict on every piece, a tailoring list, and a buying plan that waits on 
 1. Run `supabase/wardrobe.sql` in the SQL editor (it creates the private `wardrobe` bucket and its policies).
 2. Redeploy the function: `supabase functions deploy larder-ai` (it now includes `wardrobe.ts`).
 3. If `LARDER_MONTHLY_CAP_USD` is set as a secret, change it to `10`; if not, the new default is `10`.
+
+## The Training Room (in progress)
+
+Step 1 is a test of Peloton's unofficial API (there is no public one), to see whether it gives each strength class's
+list of moves. `supabase/functions/peloton` logs in with `PELOTON_USERNAME` and `PELOTON_PASSWORD` (Supabase secrets;
+use a password used nowhere else) and is private to the owner. `peloton-test.html` runs it and saves the result to
+`app_data` (`training` / `peloton/probe`). Both are temporary until the real page is built.
