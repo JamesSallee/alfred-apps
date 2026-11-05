@@ -161,6 +161,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
+import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
 mountShell('ledger');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -495,6 +496,14 @@ render();
   db.collection("days").onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data()); S.days=o; settle(s); render(); }, fail);
   db.collection("store").onSnapshot(s=>{ S.store=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
   db.collection("spends").onSnapshot(s=>{ S.spends=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
+  // A Peloton class ticks the workout on its own: fetch new classes (at most every 30 minutes) and tick their days.
+  const KL = { strength:"Strength", cardio:"Cardio", yoga:"Yoga or stretch" };
+  const { training } = linkWorkoutsToLedger(ticked => say(ticked.length===1
+    ? `${KL[ticked[0].kind]||"A workout"} ${ticked[0].day===today()?"today":"on "+fmtLong(ticked[0].day).split(" ")[0]}, from Peloton. Ticked for you.`
+    : `${ticked.length} Peloton classes ticked for you. The bike reports in.`));
+  linkWritingToLedger(ticked => say(ticked.length===1 && ticked[0].day===today()
+    ? `Write ticked from the Focus Room: ${ticked[0].minutes} min at the desk.` : `Write ticked for ${ticked.length} day${ticked.length===1?"":"s"} from the Focus Room.`));
+  setTimeout(() => fetchPelotonIfStale(training).catch(()=>{}), 1500);
   db.doc("settings/main").onSnapshot(s=>{ if (s.exists) S.settings={streakMode:"grace",...s.data()}; render(); }, fail);
 })();
 })();

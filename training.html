@@ -152,6 +152,7 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
       <a class="back" href="index.html">← The Study</a>
       <h1>The Training Room</h1>
       <p class="muted" id="syncline">Your Peloton classes arrive here. You only confirm the weights.</p>
+      <p class="muted" id="ledgerline" hidden></p>
     </div>
     <div class="row">
       <button class="btn quiet" id="kitBtn" type="button">Dumbbells</button>
@@ -184,6 +185,7 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
+import { KIND, isSpin, linkWorkoutsToLedger } from "./js/rooms.js";
 
 const store = openStore("training");
 mountShell("training");
@@ -195,8 +197,6 @@ const TIERS = ["heavy", "medium", "light"];
 const TIER_VAR = { light: "var(--t-light)", medium: "var(--t-medium)", heavy: "var(--t-heavy)" };
 const DEFAULT_KIT = { fixed: [5, 8, 15, 20], adjMin: 25, adjMax: 55, adjStep: 2.5 };
 const TARGET = { strength: 4, cardio: 2, yoga: 1 };
-const KIND = (d) => d === "strength" ? "strength" : ["yoga", "stretching"].includes(d) ? "yoga"
-  : ["cycling", "running", "walking", "cardio", "bike_bootcamp", "caesar", "caesar_bootcamp", "rowing"].includes(d) ? "cardio" : "other";
 const KIND_LABEL = { strength: "S", cardio: "C", yoga: "Y", other: "·" };
 const fmtSecs = (s) => s >= 60 ? `${Math.floor(s / 60)}m${s % 60 ? ` ${s % 60}s` : ""}` : `${s}s`;
 const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -213,8 +213,6 @@ function weightsOwned() {
 }
 const WINDOW = 14 * 864e5; // only the last two weeks ask for weights
 const recent = (w) => Date.now() - new Date(w.start).getTime() <= WINDOW;
-// Cardio counts only when it's a spin class (older fetches also brought in walks, swims and outdoor rides).
-const isSpin = (w) => ["cycling", "bike_bootcamp"].includes(w.discipline) && !!w.class_id;
 const workouts = () => store.list("workouts/").map((x) => x.value).filter((w) => w?.start && (KIND(w.discipline) !== "cardio" || isSpin(w))).sort((a, b) => b.start.localeCompare(a.start));
 const logOf = (id) => store.get(`log/${id}`);
 
@@ -587,6 +585,13 @@ function renderSyncLine() {
 function render() { renderWeek(); renderMuscles(); renderAlfred(); renderLog(); renderLifts(); renderRides(); }
 store.subscribe(render);
 renderSyncLine();
+
+// New classes tick the Ledger's workout habit on their own (see js/rooms.js).
+const DAY = (s) => new Date(s + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
+linkWorkoutsToLedger((ticked) => {
+  $("ledgerline").textContent = `Ticked in the Ledger: ${ticked.map((t) => `${t.kind} on ${DAY(t.day)}`).join(", ")}.`;
+  $("ledgerline").hidden = false;
+});
 
 // Fetch on open, at most every 30 minutes, once signed in.
 setTimeout(() => {

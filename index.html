@@ -58,6 +58,10 @@ h1{font-size:30px;line-height:1.1}
 .room .desc{font-size:13px;color:var(--muted)}
 .room .go{color:var(--green);font-weight:700;font-size:18px}
 .room.today .go{color:var(--brass)}
+/* A door's live figure takes the arrow's place. */
+.room .go.fig{display:flex;flex-direction:column;align-items:flex-end;gap:1px;text-align:right;max-width:9.5em}
+.room .go .fv{font-family:var(--display);font-weight:400;font-size:18px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.room .go .fc{font-family:var(--body);font-weight:500;font-size:11px;line-height:1.2;color:var(--muted)}
 .room .tag{display:inline-block;margin-left:6px;font-family:var(--body);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass);vertical-align:2px}
 
 .week{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
@@ -143,7 +147,29 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
+import { doorFigures } from "./js/rooms.js";
 mountShell(null);
+
+// ---------- One live figure on each door ----------
+{
+  const names = ["ledger", "focus", "shutdown", "larder", "desk", "training", "wardrobe"];
+  const stores = Object.fromEntries(names.map(n => [n, openStore(n)]));
+  const escF = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  let queued = false;
+  const paint = () => {
+    queued = false;
+    const F = doorFigures(stores);
+    names.forEach(n => {
+      const go = document.querySelector(`#r-${n} .go`); if (!go) return;
+      const f = F[n];
+      go.classList.toggle("fig", !!f);
+      go.setAttribute("aria-hidden", f ? "false" : "true");
+      go.innerHTML = f ? `<span class="fv">${escF(f.v)}</span><span class="fc">${escF(f.c)}</span>` : "→";
+    });
+  };
+  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };
+  Object.values(stores).forEach(s => s.subscribe(schedule));
+}
 
 // ---------- This week (Monday to today), read from the synced stores ----------
 {
