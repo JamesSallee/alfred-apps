@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>Peloton test</title>
+<style>
+/* A throwaway page for step 1 of the Training Room: does the unofficial Peloton API give us what we need? */
+:root{--bg:#eef1ec;--paper:#f8faf6;--ink:#1d2b24;--muted:#5d6b63;--line:#d3dbd4;--green:#1f4d3a;--green-ink:#f4f7f2;--bad:#9b2c2c;
+  --al-bg:var(--paper);--al-ink:var(--ink);--al-soft:var(--muted);--al-line:var(--line);--al-dot:var(--green)}
+@media (prefers-color-scheme:dark){:root{--bg:#141a17;--paper:#1c2420;--ink:#e6ece8;--muted:#9aa8a0;--line:#33403a;--green:#7fbf9f;--green-ink:#10201a;--bad:#f19a9a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:680px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:24px;margin:0 0 4px}
+p{margin:0 0 12px;color:var(--muted)}
+button{font:inherit;font-weight:600;padding:12px 18px;border-radius:12px;border:0;background:var(--green);color:var(--green-ink);cursor:pointer}
+button:disabled{opacity:.6}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+.card h2{font-size:16px;margin:0 0 2px}
+.meta{font-size:13px;color:var(--muted)}
+ul{margin:8px 0 0;padding-left:18px;font-size:14px}
+.verdict{font-weight:600}
+.bad{color:var(--bad)}
+details{margin-top:16px}
+pre{white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto}
+</style>
+<main>
+  <h1>Peloton test</h1>
+  <p>Sign in with the pill at the bottom right first, then run the test. It reads your last 10 workouts and the move list of each strength class. Alfred can read the result once it has run.</p>
+  <button id="run" type="button">Run the test</button>
+  <div id="out" aria-live="polite"></div>
+</main>
+<script type="module">
+import { mountShell } from "./js/shell.js";
+import { supabase } from "./js/sync.js";
+mountShell("training");
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (s) => (s == null ? "" : s >= 60 ? `${Math.floor(s / 60)}m${s % 60 ? ` ${s % 60}s` : ""}` : `${s}s`);
+
+$("run").addEventListener("click", async () => {
+  $("run").disabled = true;
+  $("out").innerHTML = `<p>Asking Peloton…</p>`;
+  const { data, error } = await supabase.functions.invoke("peloton", { body: { action: "probe" } });
+  $("run").disabled = false;
+  let res = data;
+  if (error) {
+    try { res = await error.context.json(); } catch { res = { error: error.message }; }
+  }
+  if (!res || res.error) {
+    $("out").innerHTML = `<div class="card"><p class="verdict bad">It didn't work: ${esc(res?.error || "no answer")}</p></div>`;
+    return;
+  }
+  const strength = res.workouts.filter((w) => w.discipline === "strength");
+  const withMoves = strength.filter((w) => w.moves?.length);
+  const verdict = !strength.length ? "Logged in, but none of your last 10 workouts were strength classes."
+    : withMoves.length ? `Logged in, and ${withMoves.length} of ${strength.length} strength classes came with a move list.`
+    : "Logged in, but the strength classes came back without a move list.";
+  $("out").innerHTML = `
+    <div class="card"><p class="verdict">${esc(verdict)}</p>
+      <p class="meta">${res.saved ? "Saved for Alfred to read." : "Couldn't save for Alfred: " + esc(res.save_error)}</p></div>
+    ${res.workouts.map((w) => `
+      <div class="card">
+        <h2>${esc(w.title || "(no class)")}</h2>
+        <div class="meta">${esc((w.date || "").slice(0, 10))} · ${esc(w.discipline)} · ${esc(w.instructor || "")} · ${esc(w.class_minutes ?? "?")} min</div>
+        ${w.details_error ? `<p class="bad">${esc(w.details_error)}</p>` : ""}
+        ${w.moves?.length ? `<ul>${w.moves.map((m) => `<li>${esc(m.name)} ${m.seconds ? `· ${fmt(m.seconds)}` : ""}</li>`).join("")}</ul>` : ""}
+      </div>`).join("")}
+    <details><summary>Raw result</summary><pre>${esc(JSON.stringify(res, null, 2))}</pre></details>`;
+});
+</script>
