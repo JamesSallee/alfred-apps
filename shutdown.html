@@ -130,6 +130,7 @@ textarea{resize:vertical;min-height:64px}
 .figs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px}
 .figs li{display:flex;justify-content:space-between;gap:12px}
 .figs li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.figs li.mx{padding-left:14px;font-size:13px}
 .figs li.up span:last-child{color:var(--green);font-weight:600}
 .figs .lb{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sum{display:flex;flex-direction:column;gap:12px}
@@ -268,10 +269,10 @@ function figuresHtml(F, compact){
   const kept = F.T.rows.filter(r => !r.weekly), done = kept.reduce((a,r)=>a+Math.min(r.n,r.of),0), of = kept.reduce((a,r)=>a+r.of,0);
   const pct = of ? Math.round(done/of*100) : 0;
   return `<div class="figs">
-    <h3>The week in figures · ${esc(fmtShort(F.from))} to ${esc(fmtShort(F.to))}</h3>
+    <h3>The week in figures <span class="muted small" style="font-family:var(--body)">${esc(fmtShort(F.from))} to ${esc(fmtShort(F.to))}</span></h3>
     <div class="top3"><div><b>${pct}%</b><span>of daily habits kept</span></div><div><b>${F.focusMins ? esc(fmtMins(F.focusMins)) : "0"}</b><span>in the Focus Room</span></div><div><b>${F.lifts.length}</b><span>${F.lifts.length===1?"lift":"lifts"} went up</span></div></div>
     ${compact ? "" : `<span class="lb">Habits</span><ul>${F.T.rows.map(r=>`<li><span>${esc(r.name)}</span><span>${r.n} of ${r.of}${r.weekly?" (target)":""}</span></li>`).join("")}
-      ${F.T.workoutMix.length ? `<li><span>Workout mix</span><span>${F.T.workoutMix.map(m=>`${esc(m.label)} ${m.n}/${m.target}`).join(" · ")}</span></li>` : ""}
+      ${F.T.workoutMix.map(m=>`<li class="mx"><span>${esc(m.label)}</span><span>${m.n} of ${m.target}</span></li>`).join("")}
       ${F.writeMins ? `<li><span>Writing in the Focus Room</span><span>${esc(fmtMins(F.writeMins))}</span></li>` : ""}
       ${F.T.rest ? `<li><span>Rest days</span><span>${F.T.rest}</span></li>` : ""}</ul>`}
     ${F.lifts.length ? `<span class="lb">Lifts that went up</span><ul>${F.lifts.slice(0, compact?3:8).map(l=>`<li class="up"><span>${esc(l.move)} <span class="muted small">${esc(l.tier)}</span></span><span>${l.from} → ${l.to} lb</span></li>`).join("")}</ul>` : ""}

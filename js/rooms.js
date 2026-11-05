@@ -203,7 +203,8 @@ export function doorFigures(stores) {
   }
   if (training) {
     const from = mondayOf(t);
-    const n = workoutsOf(training).filter((w) => { const d = ymd(new Date(w.start)); return d >= from && d <= t && KIND(w.discipline) !== "other"; }).length;
+    const n = new Set(workoutsOf(training).filter((w) => KIND(w.discipline) !== "other").map((w) => ymd(new Date(w.start)))
+      .filter((d) => d >= from && d <= t)).size; // days with a class, as the 7-a-week habit counts them
     out.training = { v: `${n}/7`, c: "this week" };
   }
   if (wardrobe) {
