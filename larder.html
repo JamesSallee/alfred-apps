@@ -152,9 +152,13 @@ nav.tabs svg{width:22px;height:22px}
 .empty{padding:18px 14px;text-align:center;color:var(--muted);font-size:14px}
 .err{color:var(--danger);font-size:14px}
 @media (prefers-reduced-motion: reduce){.busy{animation:none}}
+.back{display:inline-block;color:var(--green);font-weight:600;text-decoration:none;font-size:14px;margin-bottom:6px}
+.back[hidden]{display:none}
 </style>
 
 <div class="wrap">
+  <!-- Only the Larder's owner sees the way back to the Study; household members (Maggie) don't. -->
+  <a class="back" id="study-link" href="./" hidden>← The Study</a>
 
   <!-- ===================== LIST ===================== -->
   <section id="v-list" data-view="list">
@@ -381,7 +385,9 @@ function fromHash() {
 }
 
 // ---------- render ----------
+function showStudyLink() { $("study-link").hidden = !(me.id && store.ownerId === me.id); }
 function render() {
+  showStudyLink();
   if (view === "list") renderList();
   if (view === "pantry") renderPantry();
   if (view === "cookbook") renderCookbook();
@@ -972,6 +978,12 @@ if (/access_token=|error_description=/.test(location.hash) || new URLSearchParam
 }
 const shared = sharedLink();
 store.subscribe(() => { if (!dragging) render(); });
+// Whose Larder this is is only known once the store has checked the household, so look again on each sync.
+store.onStatus(async (st) => {
+  if (st === "signed-out") me = { id: null, initial: "" };
+  else if (!me.id) { const u = await currentUser().catch(() => null); if (u) me = { id: u.id, initial: (u.email || "?")[0].toUpperCase() }; }
+  showStudyLink();
+});
 fromHash();
 if (shared) { go("cookbook"); importUrl(shared); }
 </script>
