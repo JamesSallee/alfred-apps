@@ -105,7 +105,7 @@ Peloton classes come in on their own; James only confirms the weights.
   logged, returned or stored.
 - **What's fetched.** Each new workout is saved as `training` / `workouts/<id>`: the class, and for strength
   classes every weighted move with its tier (light, medium, heavy) and time, from the class plan. Heart rate
-  comes along when a monitor was connected (the Pixel Watch reaches Peloton, so no Strava), and rides add total output, average watts and time in each power zone.
+  comes along when a monitor was connected (the Pixel Watch reaches Peloton, so no Strava). Cardio is kept only when it is a spin class (no walks, swims, runs or outdoor rides), and rides add total output, average watts and time in each power zone.
 - **What James adds.** `log/<workout id>`: the weight (and, optionally, reps) per move and tier, pre-filled
   from last time. `settings.kit` holds the dumbbells he owns.
 - **Fetching.** On opening the page (at most every 30 minutes) or with **Fetch from Peloton**. Only the last

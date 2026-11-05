@@ -213,7 +213,9 @@ function weightsOwned() {
 }
 const WINDOW = 14 * 864e5; // only the last two weeks ask for weights
 const recent = (w) => Date.now() - new Date(w.start).getTime() <= WINDOW;
-const workouts = () => store.list("workouts/").map((x) => x.value).filter((w) => w?.start).sort((a, b) => b.start.localeCompare(a.start));
+// Cardio counts only when it's a spin class (older fetches also brought in walks, swims and outdoor rides).
+const isSpin = (w) => ["cycling", "bike_bootcamp"].includes(w.discipline) && !!w.class_id;
+const workouts = () => store.list("workouts/").map((x) => x.value).filter((w) => w?.start && (KIND(w.discipline) !== "cardio" || isSpin(w))).sort((a, b) => b.start.localeCompare(a.start));
 const logOf = (id) => store.get(`log/${id}`);
 
 /** A class's weighted moves, grouped: one entry per move, with each tier's total time and number of sets. */
