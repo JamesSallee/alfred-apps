@@ -917,17 +917,24 @@ function renderWeb(target) {
   target.innerHTML = `<span class="label">From the web · ${ago(w.at)}</span>
     ${w.note ? `<p class="small muted" style="margin:0;font-style:italic">“${esc(w.note)}” · Alfred</p>` : ""}
     ${w.recipes.map((r, n) => {
-      const saved = recipes().find((x) => x.url === r.url);
+      const saved = r.url ? recipes().find((x) => x.url === r.url) : r.cookbook_id && recipes().find((x) => x.id === r.cookbook_id);
       return `<div class="card meal">
         <div class="head"><span class="t">${esc(r.title)}</span>${r.protein_g ? `<span class="badge">~${r.protein_g} g protein</span>` : ""}</div>
-        <a class="small muted" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.site || new URL(r.url).hostname)}${r.minutes ? " · " + r.minutes + " min" : ""} ↗</a>
+        ${r.url ? `<a class="small muted" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.site || new URL(r.url).hostname)}${r.minutes ? " · " + r.minutes + " min" : ""} ↗</a>`
+          : `<span class="small muted">Alfred's idea, no good page found${r.minutes ? " · " + r.minutes + " min" : ""}</span>`}
         <span class="small">${esc(r.why || "")}</span>
         ${r.need?.length ? `<span class="small">Need: <b>${esc(r.need.join(", "))}</b></span>` : ""}
         <div class="acts">${saved ? `<a class="btn" href="#recipe/${esc(saved.id)}">Open saved recipe</a>` : `<button class="btn primary" type="button" data-wsave="${n}">Save to cookbook</button>`}</div>
       </div>`;
     }).join("")}
     <span class="small muted">${w.cost ? "That search cost " + cents(w.cost) + "." : ""}</span>`;
-  target.querySelectorAll("[data-wsave]").forEach((b) => (b.onclick = () => importUrl(w.recipes[+b.dataset.wsave].url)));
+  target.querySelectorAll("[data-wsave]").forEach((b) => (b.onclick = () => {
+    const r = w.recipes[+b.dataset.wsave];
+    if (r.url) return importUrl(r.url);
+    r.cookbook_id = saveRecipe({ title: r.title, site: "Alfred's idea", servings: 2, minutes: r.minutes, protein_g: r.protein_g, ingredients: r.ingredients || [], steps: r.steps || [] });
+    store.set("suggestions/web", w);
+    renderWeb(target);
+  }));
 }
 
 // ---------- talking to the server ----------
