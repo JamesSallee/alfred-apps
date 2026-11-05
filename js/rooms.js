@@ -199,7 +199,7 @@ export function doorFigures(stores) {
   if (desk) {
     const p = nextPost(desk);
     const d = p && daysBetween(t, p.publish);
-    out.desk = p ? { v: d === 0 ? "Today" : d === 1 ? "Tomorrow" : shortDate(p.publish), c: d > 1 ? `next post · ${d} days` : "next post" } : null;
+    out.desk = p ? { v: d === 0 ? "Today" : d === 1 ? "Tomorrow" : shortDate(p.publish), c: d > 1 ? `next post, in ${d} days` : "next post" } : null;
   }
   if (training) {
     const from = mondayOf(t);
@@ -209,7 +209,7 @@ export function doorFigures(stores) {
   if (wardrobe) {
     const o = wardrobe.list("occasions/").map((x) => x.value).filter((x) => x.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
     const d = o && daysBetween(t, o.date);
-    out.wardrobe = o ? { v: d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`, c: o.kind === "trip" ? "to the next trip" : "to the next occasion" } : null;
+    out.wardrobe = o ? { v: d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`, c: o.kind === "trip" ? "to the trip" : "to the occasion" } : null;
   }
   return out;
 }

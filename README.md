@@ -72,6 +72,21 @@ The one app shared with another person. Everything else stays private to its own
   Name it "Save to Larder". It opens in Safari, so sign in to the Larder in Safari once as well; the recipe then
   syncs to the home-screen app.
 
+## How the rooms connect
+
+`js/rooms.js` holds the joins; each room still owns its own store.
+
+- **Training Room → Ledger.** A Peloton class from the last 14 days ticks that day's workout habit
+  (strength wins a day with two classes, then cardio, then yoga). A day already ticked by hand is left alone,
+  and each class is marked `training` / `ticked/<workout id>`, so unticking it in the Ledger sticks.
+  It runs in the Ledger and the Training Room, only after both have synced; the Ledger also fetches from
+  Peloton on open (at most every 30 minutes).
+- **Focus Room → Writing Desk.** A session labelled Writing is logged with the ILKWIM post it was for
+  (`piece` on the focus log entry): the next post by default, or another chosen under the labels. The Desk adds it up per post.
+- **Ledger → Sunday Shutdown.** The Shutdown opens with the week in figures (habits, workout mix, focus and
+  writing time, lifts whose best this week beat their last weight), adds them to the note for Alfred and saves them with the record.
+- **The Study.** Each door shows one live figure in place of its arrow.
+
 ## Updating
 
 Bump `CACHE` in `sw.js` when changing files so devices pick up the new version on the next open.
