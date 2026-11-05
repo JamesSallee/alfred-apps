@@ -3,7 +3,7 @@
 
 import { openStore, STATUS_TEXT, currentUser, sendCode, signInWithPassword, setPassword, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
 
-const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk"];
+const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk", "wardrobe"];
 
 const CSS = `
 .al-pill{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9999;display:flex;align-items:center;gap:6px;

@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f4d3a">
+<link rel="manifest" href="wardrobe.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wardrobe">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>The Wardrobe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* The Wardrobe: James's clothes while his size changes. Today (what to wear), the Rail (everything he owns),
+   Fit (measurements, sizes, tailoring), Plan (style brief, buying list, before-you-buy) and Occasions
+   (formal kit, events, packing). Same paper, green and brass as the Study. Private to its owner. */
+:root{
+  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4; --rule:#e3e9e4;
+  --green:#1f4d3a; --green-ink:#f4f7f2; --green-soft:#dce8e0; --brass:#a87a1f; --brass-ink:#7a5810; --brass-soft:#f3e7c8;
+  --danger:#9b3b2e; --danger-soft:#f4dfdb;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tabs:72px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33; --rule:#22302a;
+  --green:#7fbf9d; --green-ink:#10201a; --green-soft:#21352c; --brass:#d9ad55; --brass-ink:#e6c27a; --brass-soft:#3a3020;
+  --danger:#e08a7b; --danger-soft:#3a2420; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33; --rule:#22302a;
+  --green:#7fbf9d; --green-ink:#10201a; --green-soft:#21352c; --brass:#d9ad55; --brass-ink:#e6c27a; --brass-soft:#3a3020;
+  --danger:#e08a7b; --danger-soft:#3a2420; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);margin:0}
+body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent;
+  padding:0 max(16px, env(safe-area-inset-left, 0px)) calc(var(--tabs) + 72px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:600px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-top:20px}
+section[data-view]{display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:19px}
+h3{font-size:16px}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+[hidden]{display:none !important}
+.back{display:inline-block;color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
+header.top{display:flex;flex-direction:column;gap:4px}
+header.top .row,.row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px}
+.pad{padding:14px;display:flex;flex-direction:column;gap:10px}
+.note{background:var(--brass-soft);border:1px solid var(--brass);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.note .label{color:var(--brass-ink);font-weight:700}
+.note ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.note li{display:flex;gap:10px;align-items:baseline;justify-content:space-between}
+.note li button{flex:none}
+.quote{font-style:italic;color:var(--muted);font-size:14px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{font-size:13px;font-weight:600;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);min-height:34px;display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+.chip.dash{border-style:dashed;background:transparent;color:var(--muted)}
+.scroller{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -16px;padding:0 16px}
+.scroller::-webkit-scrollbar{display:none}
+.scroller .chip{flex:none}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--paper);font-weight:600;font-size:14px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+.btn.brass{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
+.btn.ghost{background:transparent}
+.btn.sm{height:34px;font-size:13px;padding:0 10px;border-radius:10px}
+.btn.big{height:52px;font-size:16px;border-radius:14px}
+.btn.stack{flex-direction:column;gap:0;line-height:1.2}
+.btn .cost{font-weight:500;opacity:.8;font-size:12px}
+.btn[disabled]{opacity:.55;cursor:default}
+.linkbtn{border:0;background:none;padding:6px 0;color:var(--green);font-weight:600;font-size:13px}
+.linkbtn.danger{color:var(--danger)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+
+input[type=text],input[type=number],input[type=date],input[type=search],select,textarea{height:44px;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:0 12px;width:100%;min-width:0}
+textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+.field span.hint{font-size:12px}
+
+/* the rail */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.piece{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:0;overflow:hidden;text-align:left;display:flex;flex-direction:column;position:relative}
+.thumb{aspect-ratio:4/5;width:100%;background:var(--rule);display:grid;place-items:center;color:var(--muted);font-size:26px;font-family:var(--display);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.piece .cap{padding:6px 8px 8px;display:flex;flex-direction:column;gap:1px}
+.piece .nm{font-size:12.5px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.piece .sz{font-size:11.5px;color:var(--muted)}
+.flag{position:absolute;top:6px;left:6px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--paper);border:1px solid var(--line)}
+.flag.tailor{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
+.flag.big,.flag.small{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
+.flag.go{background:var(--rule);color:var(--muted)}
+.strip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.strip .piece{flex:none;width:92px}
+
+/* rows */
+.rows{overflow:hidden}
+.rowi{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--rule);min-height:52px}
+.rowi:first-child{border-top:0}
+.rowi .grow{flex:1;min-width:0;display:flex;flex-direction:column}
+.rowi .t{font-weight:600;overflow-wrap:anywhere}
+.rowi .s{font-size:12.5px;color:var(--muted)}
+.tick{flex:none;width:30px;height:30px;border-radius:9px;border:2px solid var(--green);background:transparent;display:grid;place-items:center;padding:0;color:var(--green-ink)}
+.tick.done{background:var(--green)}
+.rowi.isdone .t{text-decoration:line-through;color:var(--muted)}
+.badge{flex:none;font-size:12px;font-weight:700;color:var(--green);background:var(--green-soft);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.badge.brass{color:var(--brass-ink);background:var(--brass-soft)}
+.badge.danger{color:var(--danger);background:var(--danger-soft)}
+
+/* fit */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{padding:10px 12px;display:flex;flex-direction:column}
+.stat b{font-family:var(--display);font-weight:400;font-size:22px;color:var(--green)}
+.stat span{font-size:12px;color:var(--muted)}
+.spark{width:100%;height:64px;display:block}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+table.hist{width:100%;border-collapse:collapse;font-size:13px}
+table.hist th,table.hist td{text-align:right;padding:6px 4px;border-top:1px solid var(--rule);white-space:nowrap}
+table.hist th:first-child,table.hist td:first-child{text-align:left}
+table.hist th{font-weight:600;color:var(--muted);border-top:0}
+.tablewrap{overflow-x:auto}
+.kit{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--rule);font-size:14px}
+.kit:first-child{border-top:0}
+.kit .ok{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--green);color:var(--green-ink)}
+.kit .ok.no{background:var(--danger-soft);color:var(--danger)}
+.kit .ok.meh{background:var(--brass-soft);color:var(--brass-ink)}
+.kit .grow{flex:1;min-width:0}
+.palette{display:flex;flex-wrap:wrap;gap:8px}
+.swatch{display:flex;flex-direction:column;gap:2px;font-size:12.5px;max-width:170px}
+.swatch b{font-weight:600}
+ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+
+/* tabs, sheet, toast */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--muted)}
+nav.tabs button[aria-current="page"]{color:var(--green)}
+nav.tabs svg{width:22px;height:22px}
+.al-pill{bottom:calc(var(--tabs) + 10px + env(safe-area-inset-bottom)) !important}
+.sheet{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
+.sheet .panel{width:min(600px,100%);background:var(--paper);border-radius:16px 16px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
+.sheet .hero{width:100%;max-height:320px;object-fit:contain;border-radius:12px;background:var(--rule)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabs) + 56px + env(safe-area-inset-bottom));z-index:70;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.toast button{border:0;background:none;color:var(--brass);font-weight:700;padding:4px 0}
+.busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.busy{animation:none}}
+.empty{padding:18px 14px;text-align:center;color:var(--muted);font-size:14px}
+.err{color:var(--danger);font-size:14px}
+.wx{display:flex;gap:12px;align-items:center}
+.wx b{font-family:var(--display);font-weight:400;font-size:28px;color:var(--green)}
+.outfit{padding:14px;display:flex;flex-direction:column;gap:10px}
+.outfit .t{font-family:var(--display);font-size:18px;line-height:1.2}
+</style>
+
+<div class="wrap">
+  <a class="back" href="./">← Alfred's Study</a>
+
+  <!-- ===================== TODAY ===================== -->
+  <section id="v-today" data-view="today">
+    <header class="top">
+      <span class="eyebrow" id="today-date">The Wardrobe</span>
+      <h1>What shall I wear?</h1>
+    </header>
+    <div class="card pad" id="weather"></div>
+    <div>
+      <span class="label">Today is</span>
+      <div class="chips" id="levels" style="margin-top:6px"></div>
+    </div>
+    <label class="sr" for="today-note">Anything else?</label>
+    <input type="text" id="today-note" placeholder="Anything else? (e.g. lots of walking, dinner out)">
+    <button class="btn primary big stack" type="button" id="dress-go">Dress me, Alfred <span class="cost">about 1¢</span></button>
+    <div id="today-body" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="note" id="today-notes" hidden><span class="label">Alfred's notes</span><ul id="today-list"></ul></div>
+    <div class="small muted" id="spend"></div>
+  </section>
+
+  <!-- ===================== RAIL ===================== -->
+  <section id="v-rail" data-view="rail" hidden>
+    <header class="top">
+      <span class="eyebrow" id="rail-count">The Wardrobe</span>
+      <div class="row"><h1>The rail</h1></div>
+    </header>
+    <div class="two">
+      <label class="btn primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        Add by photo
+        <input type="file" accept="image/*" multiple class="sr" id="add-photos">
+      </label>
+      <button class="btn" type="button" id="add-hand">+ Add by hand</button>
+    </div>
+    <span class="small muted">Pick several photos at once to catalogue a drawer in one go. Alfred tags each one for about 1¢.</span>
+    <div id="tag-progress"></div>
+    <label class="sr" for="rail-search">Search the rail</label>
+    <input type="search" id="rail-search" placeholder="Search: navy, linen, wool…">
+    <div class="chips scroller" id="rail-filters"></div>
+    <div class="chips scroller" id="rail-cats"></div>
+    <div id="rail-body"></div>
+  </section>
+
+  <!-- ===================== FIT ===================== -->
+  <section id="v-fit" data-view="fit" hidden>
+    <header class="top">
+      <span class="eyebrow">The Wardrobe</span>
+      <div class="row"><h1>Fit</h1><button class="linkbtn" type="button" id="target-open">Target</button></div>
+    </header>
+    <div id="fit-progress"></div>
+    <button class="btn primary" type="button" id="measure-open">+ Log measurements</button>
+    <div id="fit-trend"></div>
+    <div class="card pad" id="sizes"></div>
+    <div id="fit-advice" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="tailoring" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div id="fit-history"></div>
+  </section>
+
+  <!-- ===================== PLAN ===================== -->
+  <section id="v-plan" data-view="plan" hidden>
+    <header class="top">
+      <span class="eyebrow">The Wardrobe</span>
+      <h1>The plan</h1>
+    </header>
+    <div>
+      <span class="label">Where I am</span>
+      <div class="chips" id="phase" style="margin-top:6px"></div>
+      <p class="small muted" id="phase-help" style="margin-top:6px"></p>
+    </div>
+    <div id="style" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="buy" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="card pad" id="before">
+      <h2>Before you buy</h2>
+      <p class="small muted">Describe it or snap it in the shop. Alfred checks it against the rail and your size phase.</p>
+      <label class="sr" for="bb-text">What is it?</label>
+      <input type="text" id="bb-text" placeholder="e.g. Charcoal wool blazer">
+      <div class="two">
+        <label class="field">Price ($)<input type="number" id="bb-price" inputmode="decimal" min="0"></label>
+        <label class="field">Size<input type="text" id="bb-size" placeholder="e.g. 40R"></label>
+      </div>
+      <div class="two">
+        <label class="btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span id="bb-photo-label">Add a photo</span>
+          <input type="file" accept="image/*" capture="environment" class="sr" id="bb-photo">
+        </label>
+        <button class="btn primary stack" type="button" id="bb-go">Should I? <span class="cost">about 2¢</span></button>
+      </div>
+      <div id="bb-body"></div>
+    </div>
+  </section>
+
+  <!-- ===================== OCCASIONS ===================== -->
+  <section id="v-occ" data-view="occ" hidden>
+    <header class="top">
+      <span class="eyebrow">The Wardrobe</span>
+      <h1>Occasions</h1>
+    </header>
+    <div class="two">
+      <button class="btn primary" type="button" id="occ-add">+ An occasion</button>
+      <button class="btn" type="button" id="trip-add">+ A trip</button>
+    </div>
+    <span class="small muted">Just the date and how formal. No need to say what it is.</span>
+    <div id="occ-body" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="kit"></div>
+    <div id="care"></div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="Rooms">
+  <button type="button" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>Today</button>
+  <button type="button" data-tab="rail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6a2 2 0 1 1 2-2"/><path d="M12 6v2l9 7a1 1 0 0 1-.6 1.8H3.6A1 1 0 0 1 3 15l9-7"/></svg>Rail</button>
+  <button type="button" data-tab="fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="8" width="20" height="8" rx="1.5"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/></svg>Fit</button>
+  <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>Plan</button>
+  <button type="button" data-tab="occ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Occasions</button>
+</nav>
+
+<div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="sheet-panel"></div></div>
+<div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
+
+<script type="module">
+import { mountShell } from "./js/shell.js";
+import { openStore, supabase, currentUser } from "./js/sync.js";
+
+// Private to its owner: "wardrobe" is not one of sync.js's shared apps.
+const store = openStore("wardrobe");
+mountShell("wardrobe");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+// ---------- small helpers ----------
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 10);
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const d = new Date(s + "T12:00"); d.setDate(d.getDate() + n); return ymd(d); };
+const daysBetween = (a, b) => Math.round((new Date(b + "T12:00") - new Date(a + "T12:00")) / 864e5);
+const daysUntil = (s) => daysBetween(today(), s);
+const fmtDate = (s) => new Date(s + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const cents = (usd) => usd < 0.995 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)}¢` : `$${usd.toFixed(2)}`;
+const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+const money = (n) => `$${Math.round(Number(n) || 0)}`;
+const strip = (o) => { const { id, ...rest } = o; return rest; };
+const when = (n) => n === 0 ? "today" : n === 1 ? "tomorrow" : n < 0 ? `${-n} days ago` : `in ${n} days`;
+
+// ---------- words ----------
+const CATEGORIES = ["Suit", "Blazer", "Jacket", "Coat", "Dress shirt", "Casual shirt", "Polo", "T-shirt", "Knitwear",
+  "Trousers", "Chinos", "Jeans", "Shorts", "Shoes", "Tie", "Belt", "Accessory", "Activewear", "Swimwear", "Other"];
+const FORMALITY = ["Casual", "Smart casual", "Business casual", "Formal"];
+const LEVELS = ["Casual", "Family holiday", "Business casual", "Formal"];
+const VERDICTS = ["Fits", "Tailor", "Too big", "Too small", "Retire", "Donate"];
+const CARE = ["Machine wash", "Hand wash", "Dry clean", "Polish", "Spot clean"];
+const WEARABLE = new Set(["Fits", "Tailor"]);
+const FLAG = { Tailor: "tailor", "Too big": "big", "Too small": "small", Retire: "go", Donate: "go" };
+const MEASURES = [
+  ["weight", "Weight", "lb"], ["neck", "Neck", "in"], ["chest", "Chest", "in"], ["waist", "Waist", "in"],
+  ["hips", "Seat", "in"], ["inseam", "Inseam", "in"], ["sleeve", "Sleeve", "in"], ["shoe", "Shoe", "US"],
+];
+const HOW = {
+  weight: "Same scale, first thing in the morning.",
+  neck: "Round the neck where a shirt collar sits, one finger under the tape.",
+  chest: "Round the fullest part, under the arms, breathing normally.",
+  waist: "Where your trousers sit, not where you'd like them to.",
+  hips: "Round the fullest part of the seat.",
+  inseam: "Crotch to the floor, in socks, or measure a pair that's right.",
+  sleeve: "Centre back of the neck, over the shoulder, to the wrist bone.",
+  shoe: "Your usual US size.",
+};
+const GARMENTS = ["Dress shirt", "Casual shirt", "T-shirt / knitwear", "Trousers", "Jeans", "Jacket / suit", "Coat", "Shoes", "Belt"];
+/** Map Claude's garment wording ("Suit jacket", "Chinos") onto one of ours, or keep it as its own line. */
+function garmentOf(name) {
+  const words = String(name).toLowerCase().split(/[^a-z-]+/).filter(Boolean);
+  const alias = { chinos: "Trousers", suit: "Jacket / suit", blazer: "Jacket / suit", sweater: "T-shirt / knitwear", knitwear: "T-shirt / knitwear", polo: "Casual shirt", shirt: "Dress shirt", overcoat: "Coat", shoe: "Shoes" };
+  if (words.includes("dress") && words.some((w) => w.startsWith("shirt"))) return "Dress shirt";
+  if (words.includes("casual") && words.some((w) => w.startsWith("shirt"))) return "Casual shirt";
+  const hit = GARMENTS.find((g) => g.toLowerCase().split(/[ /]+/).some((w) => words.includes(w)));
+  if (hit) return hit;
+  for (const w of words) if (alias[w]) return alias[w];
+  return String(name);
+}
+const sizeKeys = (sizes) => [...GARMENTS.filter((g) => sizes[g]), ...Object.keys(sizes).filter((k) => !GARMENTS.includes(k) && sizes[k])];
+const PHASES = {
+  Losing: "Still losing. Alfred favours cheap, second-hand and tailorable pieces, and waits on anything worth investing in.",
+  "Holding steady": "Weight has settled for now. Buy to last, but nothing extravagant until the target is reached.",
+  "Target reached": "At the target. Time to invest in the pieces you'll wear for years.",
+};
+// What a formal or official occasion needs, and how to spot it on the rail.
+const KIT = [
+  { name: "Dark suit (navy or charcoal)", n: 1, match: (p) => p.category === "Suit" },
+  { name: "Dress shirts (white or pale blue)", n: 3, match: (p) => p.category === "Dress shirt" },
+  { name: "Ties (plain or quiet pattern)", n: 2, match: (p) => p.category === "Tie" },
+  { name: "Dark dress shoes (Oxfords or Derbies)", n: 1, match: (p) => p.category === "Shoes" && p.formality === "Formal" },
+  { name: "Leather belt to match the shoes", n: 1, match: (p) => p.category === "Belt" && p.formality !== "Casual" },
+  { name: "Overcoat", n: 1, match: (p) => p.category === "Coat" && p.formality !== "Casual" },
+  { name: "Dark dress socks", n: 3, basic: true },
+  { name: "Pocket square and cufflinks", n: 1, match: (p) => p.category === "Accessory" && p.formality === "Formal", optional: true },
+];
+
+// ---------- data ----------
+const pieces = () => store.list("pieces/").map(({ key, value }) => ({ id: key.slice(7), ...value }));
+const piece = (id) => { const v = store.get("pieces/" + id); return v ? { id, ...v } : null; };
+const savePiece = (p) => store.set("pieces/" + p.id, strip(p));
+const measures = () => store.list("measures/").map(({ key, value }) => ({ date: key.slice(9), ...value })).sort((a, b) => b.date.localeCompare(a.date));
+const tailoring = () => store.list("tailoring/").map(({ key, value }) => ({ id: key.slice(10), ...value }));
+const buys = () => store.list("buy/").map(({ key, value }) => ({ id: key.slice(4), ...value }));
+const occasions = () => store.list("occasions/").map(({ key, value }) => ({ id: key.slice(10), ...value })).sort((a, b) => a.date.localeCompare(b.date));
+const settings = () => store.get("settings") || {};
+const setSettings = (patch) => store.set("settings", { ...settings(), ...patch });
+const lastWorn = (p) => (p.wears || []).at(-1) || null;
+const wearable = (p) => WEARABLE.has(p.verdict || "Fits");
+
+/** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn. */
+function railLines(filter = () => true) {
+  return pieces().filter(filter).map((p) => [p.id, p.name, p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
+    (p.wears || []).length, lastWorn(p) || "never"].join(" | "));
+}
+function measureLines() {
+  return measures().slice(0, 4).map((m) => `${m.date}: ` + MEASURES.filter(([k]) => m[k]).map(([k, l, u]) => `${l} ${m[k]}${u === "US" ? "" : " " + u}`).join(", "));
+}
+const sizesLine = () => Object.entries(settings().sizes || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("; ");
+const targetLine = () => { const s = settings(); return [s.targetWeight ? `${s.targetWeight} lb` : "", s.targetNote || ""].filter(Boolean).join(", "); };
+const styleLine = () => { const st = store.get("style"); if (!st) return ""; return [st.summary, `Palette: ${(st.palette || []).map((c) => c.colour).join(", ")}`, `Avoid: ${(st.avoid || []).join(", ")}`, `Fits: ${(st.fits || []).join("; ")}`].join(" "); };
+function aboutMe() {
+  return { measures: measureLines(), target: targetLine(), sizes: sizesLine(), phase: settings().phase || "Losing", style: styleLine() };
+}
+
+// ---------- undo toast ----------
+let toastTimer, undoFn = null;
+function toast(text, undo = null) {
+  $("toast-text").textContent = text;
+  undoFn = undo; $("toast-undo").hidden = !undo; $("toast").hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; undoFn = null; }, undo ? 6000 : 3500);
+}
+$("toast-undo").onclick = () => { if (undoFn) undoFn(); $("toast").hidden = true; undoFn = null; };
+function undoable(text, keys, change) {
+  const before = keys.map((k) => [k, store.get(k)]);
+  change();
+  toast(text, () => before.forEach(([k, v]) => v === undefined ? store.remove(k) : store.set(k, v)));
+}
+
+// ---------- sheet ----------
+let sheetOpen = null;
+function openSheet(html, wire) {
+  $("sheet-panel").innerHTML = html; $("sheet").hidden = false; sheetOpen = true;
+  wire?.($("sheet-panel"));
+  hydratePhotos($("sheet-panel"));
+  $("sheet-panel").querySelector("input:not([type=file]),textarea,select,button")?.focus();
+}
+const closeSheet = () => { $("sheet").hidden = true; sheetOpen = null; };
+$("sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+// ---------- talking to the server ----------
+async function ai(action, body) {
+  if (!navigator.onLine) throw new Error("You're offline. Alfred needs a connection for this.");
+  if (!(await currentUser().catch(() => null))) throw new Error("Sign in first (tap the status pill at the bottom).");
+  const { data, error } = await supabase.functions.invoke("larder-ai", { body: { action, ...body } });
+  if (error) {
+    let msg = "Alfred couldn't be reached. Try again in a moment.";
+    try { const j = await error.context?.json?.(); if (j?.error) msg = j.error; } catch {}
+    throw new Error(msg);
+  }
+  if (data?.error) throw new Error(data.error);
+  showSpend(data);
+  return data;
+}
+function showSpend(res) { if (res?.cap) $("spend").textContent = `Claude this month: ${cents(res.spent || 0)} of $${Number(res.cap).toFixed(2)} (shared with the Larder).`; }
+async function refreshSpend() { try { if (navigator.onLine && (await currentUser())) await ai("usage", {}); } catch { /* only a nicety */ } }
+const spinner = (text) => `<div class="card empty"><span class="busy" aria-hidden="true"></span> ${esc(text)}</div>`;
+const errBox = (e) => `<div class="card pad"><span class="err">${esc(e.message || e)}</span></div>`;
+
+// ---------- photos ----------
+// Thumbnails live in a private Storage bucket (wardrobe/<user id>/<piece id>.jpg) and are cached on the device,
+// so the rail works offline and the shared on-device store stays small.
+const PHOTO_CACHE = "alfred-wardrobe-photos";
+const photoKey = (p) => `./__wardrobe-photo/${p.id}?v=${p.photo}`;
+const urls = new Map();       // cache key -> object URL
+const loading = new Map();    // cache key -> promise
+let myId = null;
+async function photoUrl(p) {
+  if (!p?.photo) return null;
+  const k = photoKey(p);
+  if (urls.has(k)) return urls.get(k);
+  if (loading.has(k)) return loading.get(k);
+  const job = (async () => {
+    let blob = null;
+    try { const hit = await (await caches.open(PHOTO_CACHE)).match(k); if (hit) blob = await hit.blob(); } catch {}
+    if (!blob && navigator.onLine && myId) {
+      const { data } = await supabase.storage.from("wardrobe").download(`${myId}/${p.id}.jpg`).catch(() => ({ data: null }));
+      if (data) { blob = data; try { await (await caches.open(PHOTO_CACHE)).put(k, new Response(data, { headers: { "Content-Type": "image/jpeg" } })); } catch {} }
+    }
+    if (!blob) return null;
+    const u = URL.createObjectURL(blob); urls.set(k, u); return u;
+  })();
+  loading.set(k, job);
+  try { return await job; } finally { loading.delete(k); }
+}
+function thumbHtml(p) {
+  const init = esc((p.name || p.category || "?").trim()[0] || "?");
+  return p.photo ? `<span class="thumb" data-photo="${esc(p.id)}">${init}</span>` : `<span class="thumb">${init}</span>`;
+}
+async function hydratePhotos(root = document) {
+  const els = [...root.querySelectorAll("[data-photo]:not([data-done])")];
+  for (const el of els) {
+    el.dataset.done = "1";
+    const p = piece(el.dataset.photo);
+    photoUrl(p).then((u) => { if (u) el.innerHTML = `<img src="${u}" alt="" loading="lazy">`; else delete el.dataset.done; });
+  }
+}
+async function shrink(file, max, quality = 0.82) {
+  const img = await createImageBitmap(file).catch(() => null);
+  if (!img) throw new Error("That photo wouldn't open.");
+  const scale = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", quality));
+  const b64 = c.toDataURL("image/jpeg", quality).split(",")[1];
+  return { blob, b64 };
+}
+/** Keep a piece's thumbnail on the device now, and upload it when we can. */
+async function storePhoto(p, blob) {
+  const v = Date.now();
+  p.photo = v; p.photoPending = true;
+  try { await (await caches.open(PHOTO_CACHE)).put(photoKey(p), new Response(blob, { headers: { "Content-Type": "image/jpeg" } })); } catch {}
+  savePiece(p);
+  uploadPending();
+}
+let uploading = false;
+async function uploadPending() {
+  if (uploading || !navigator.onLine || !myId) return;
+  uploading = true;
+  try {
+    for (const p of pieces().filter((x) => x.photoPending)) {
+      let hit = null;
+      try { hit = await (await caches.open(PHOTO_CACHE)).match(photoKey(p)); } catch {}
+      if (!hit) { savePiece({ ...p, photoPending: false }); continue; }
+      const { error } = await supabase.storage.from("wardrobe").upload(`${myId}/${p.id}.jpg`, await hit.blob(), { upsert: true, contentType: "image/jpeg" });
+      if (error) { console.warn("[wardrobe] photo upload", error); break; }
+      const now = piece(p.id); if (now) savePiece({ ...now, photoPending: false });
+    }
+  } finally { uploading = false; }
+}
+async function removePhoto(p) {
+  if (!p.photo || !myId) return;
+  supabase.storage.from("wardrobe").remove([`${myId}/${p.id}.jpg`]).catch(() => {});
+}
+window.addEventListener("online", uploadPending);
+
+// ---------- routing ----------
+const VIEWS = ["today", "rail", "fit", "plan", "occ"];
+let view = "today";
+function go(v) {
+  view = VIEWS.includes(v) ? v : "today";
+  document.querySelectorAll("[data-view]").forEach((s) => (s.hidden = s.dataset.view !== view));
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-current", b.dataset.tab === view ? "page" : "false"));
+  if (location.hash !== "#" + view) history.replaceState(null, "", "#" + view);
+  render();
+  window.scrollTo(0, 0);
+  if (view === "today") refreshSpend();
+}
+document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => go(b.dataset.tab)));
+window.addEventListener("hashchange", () => go(location.hash.slice(1)));
+
+function render() {
+  if (view === "today") renderToday();
+  if (view === "rail") renderRail();
+  if (view === "fit") renderFit();
+  if (view === "plan") renderPlan();
+  if (view === "occ") renderOcc();
+  hydratePhotos();
+}
+
+// ===================== TODAY =====================
+let dayLevel = null, dressing = false, dressErr = null;
+function defaultLevel() {
+  const occ = occasions().find((o) => o.kind !== "trip" && o.date === today());
+  if (occ) return occ.level;
+  const trip = occasions().find((o) => o.kind === "trip" && o.date <= today() && (o.end || o.date) >= today());
+  if (trip) return "Family holiday";
+  const d = new Date().getDay();
+  return d === 0 || d === 6 ? "Casual" : "Business casual";
+}
+function renderToday() {
+  $("today-date").textContent = "The Wardrobe · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  dayLevel ||= defaultLevel();
+  $("levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-level="${esc(l)}" aria-pressed="${l === dayLevel}">${esc(l)}</button>`).join("");
+  renderWeather();
+  renderOutfits();
+  renderNotes();
+}
+$("levels").addEventListener("click", (e) => { const b = e.target.closest("[data-level]"); if (b) { dayLevel = b.dataset.level; renderToday(); } });
+
+// Weather from Open-Meteo (free, no key). The place is kept in settings; the forecast is cached for an hour.
+let wx = (() => { try { return JSON.parse(localStorage.getItem("wardrobe:wx")) || null; } catch { return null; } })();
+async function loadWeather(force = false) {
+  const loc = settings().location;
+  if (!loc) return null;
+  if (!force && wx && wx.key === `${loc.lat},${loc.lon}` && Date.now() - wx.at < 3600e3) return wx;
+  if (!navigator.onLine) return wx;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=14`;
+    const j = await (await fetch(u)).json();
+    wx = { key: `${loc.lat},${loc.lon}`, at: Date.now(), daily: j.daily };
+    try { localStorage.setItem("wardrobe:wx", JSON.stringify(wx)); } catch {}
+  } catch { /* keep the old one */ }
+  return wx;
+}
+const WMO = (c) => c === 0 ? "Clear" : c <= 2 ? "Partly cloudy" : c === 3 ? "Overcast" : c <= 48 ? "Fog" : c <= 57 ? "Drizzle" : c <= 67 ? "Rain" : c <= 77 ? "Snow" : c <= 82 ? "Showers" : c <= 86 ? "Snow showers" : "Thunderstorms";
+function wxFor(date) {
+  const d = wx?.daily; if (!d) return null;
+  const i = d.time.indexOf(date); if (i < 0) return null;
+  return { hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain: d.precipitation_probability_max[i] ?? 0,
+    wind: Math.round(d.wind_speed_10m_max[i] ?? 0), sky: WMO(d.weather_code[i]) };
+}
+const wxText = (w) => w ? `${w.sky}, high ${w.hi}°F, low ${w.lo}°F, ${w.rain}% chance of rain, wind up to ${w.wind} mph` : "";
+async function renderWeather() {
+  const box = $("weather");
+  const loc = settings().location;
+  if (!loc) {
+    box.innerHTML = `<span class="label">Weather</span><p class="small muted">Tell Alfred where you are and he'll dress you for it.</p>
+      <div class="two"><button class="btn" type="button" data-here>Use my location</button><button class="btn" type="button" data-city>Choose a town</button></div>`;
+  } else {
+    await loadWeather();
+    const w = wxFor(today());
+    box.innerHTML = `<div class="row"><span class="label">Weather · ${esc(loc.name)}</span><button class="linkbtn" type="button" data-city>Change</button></div>
+      ${w ? `<div class="wx"><b>${w.hi}°</b><div><div>${esc(w.sky)}</div><div class="small muted">Low ${w.lo}° · rain ${w.rain}% · wind ${w.wind} mph</div></div></div>`
+        : `<p class="small muted">${navigator.onLine ? "The forecast hasn't come in." : "Offline: no forecast."}</p>`}`;
+  }
+  box.querySelector("[data-here]")?.addEventListener("click", () => {
+    navigator.geolocation?.getCurrentPosition((pos) => {
+      setSettings({ location: { name: "Here", lat: +pos.coords.latitude.toFixed(3), lon: +pos.coords.longitude.toFixed(3) } });
+      renderWeather();
+    }, () => toast("Couldn't get your location. Choose a town instead."), { timeout: 10000 });
+  });
+  box.querySelector("[data-city]")?.addEventListener("click", citySheet);
+}
+function citySheet() {
+  openSheet(`<h2>Where are you?</h2>
+    <label class="field">Town or city<input type="text" id="city-q" placeholder="e.g. Arlington"></label>
+    <div id="city-res" class="card rows" hidden></div>
+    <div class="two"><button class="btn" type="button" id="city-cancel">Cancel</button><button class="btn primary" type="button" id="city-go">Search</button></div>`, (p) => {
+    p.querySelector("#city-cancel").onclick = closeSheet;
+    const search = async () => {
+      const q = p.querySelector("#city-q").value.trim(); if (!q) return;
+      const res = p.querySelector("#city-res"); res.hidden = false; res.innerHTML = `<div class="empty"><span class="busy"></span></div>`;
+      try {
+        const j = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en`)).json();
+        const r = j.results || [];
+        res.innerHTML = r.length ? r.map((c, i) => `<button class="rowi" type="button" data-i="${i}" style="width:100%;border-left:0;border-right:0;border-bottom:0;background:none;text-align:left"><span class="grow"><span class="t">${esc(c.name)}</span><span class="s">${esc([c.admin1, c.country].filter(Boolean).join(", "))}</span></span></button>`).join("")
+          : `<div class="empty">Nowhere by that name.</div>`;
+        res.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => {
+          const c = r[+b.dataset.i];
+          setSettings({ location: { name: c.name, lat: +c.latitude.toFixed(3), lon: +c.longitude.toFixed(3) } });
+          closeSheet(); renderWeather();
+        }));
+      } catch { res.innerHTML = `<div class="empty err">Couldn't search just now.</div>`; }
+    };
+    p.querySelector("#city-go").onclick = search;
+    p.querySelector("#city-q").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+  });
+}
+
+$("dress-go").onclick = async () => {
+  const fit = pieces().filter(wearable);
+  if (fit.length < 3) return toast("Catalogue a few pieces on the rail first.");
+  dressing = true; dressErr = null; renderOutfits();
+  try {
+    await loadWeather();
+    const recent = pieces().filter((p) => lastWorn(p) && daysUntil(lastWorn(p)) > -4).map((p) => `${p.id} (${lastWorn(p)})`).join(", ");
+    const res = await ai("w_outfit", { ...aboutMe(), rail: railLines(wearable), weather: wxText(wxFor(today())), level: dayLevel,
+      note: $("today-note").value.trim(), recent });
+    store.set("outfits/" + today(), { ...res, level: dayLevel, at: Date.now() });
+  } catch (e) { dressErr = e; }
+  dressing = false; renderOutfits();
+};
+function outfitCard(o, n, pickedKey) {
+  const ps = (o.piece_ids || []).map(piece).filter(Boolean);
+  const worn = ps.length && ps.every((p) => lastWorn(p) === today());
+  return `<div class="card outfit">
+    <div class="row"><span class="t">${esc(o.name || `Option ${n + 1}`)}</span>${worn ? `<span class="badge">Wearing</span>` : ""}</div>
+    <div class="strip">${ps.map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>
+    <span class="small">${esc(o.why || "")}</span>
+    ${o.missing?.length ? `<span class="small muted">Would help: ${esc(o.missing.join(", "))}</span>` : ""}
+    ${worn ? "" : `<button class="btn primary sm" type="button" data-wear="${esc(pickedKey)}" data-n="${n}">I'm wearing this</button>`}
+  </div>`;
+}
+function renderOutfits() {
+  const box = $("today-body");
+  if (dressing) { box.innerHTML = spinner("Alfred is at the wardrobe…"); return; }
+  const o = store.get("outfits/" + today());
+  box.innerHTML = (dressErr ? errBox(dressErr) : "") + (o ? `${o.note ? `<p class="quote">“${esc(o.note)}” · Alfred</p>` : ""}
+    ${(o.outfits || []).map((x, n) => outfitCard(x, n, "outfits/" + today())).join("")}` : "");
+  box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => pieceSheet(b.dataset.open)));
+  box.querySelectorAll("[data-wear]").forEach((b) => (b.onclick = () => {
+    const out = store.get(b.dataset.wear); const ids = out.outfits[+b.dataset.n].piece_ids;
+    wearToday(ids);
+  }));
+  hydratePhotos(box);
+}
+function wearToday(ids) {
+  const keys = ids.map((id) => "pieces/" + id);
+  undoable(`Logged ${plural(ids.length, "piece", "pieces")} as worn today.`, keys, () => {
+    ids.forEach((id) => { const p = piece(id); if (!p) return; const w = (p.wears || []).filter((d) => d !== today()); w.push(today()); savePiece({ ...p, wears: w.slice(-120) }); });
+  });
+}
+
+// Alfred's notes: care, tailoring, re-measuring and what's coming up.
+function careDue() {
+  const out = [];
+  const t = today(), month = +t.slice(5, 7), dom = +t.slice(8, 10);
+  pieces().filter(wearable).forEach((p) => {
+    const since = p.cleaned || p.created_day || "2000-01-01";
+    const wearsSince = (p.wears || []).filter((d) => d > since).length;
+    if (p.care === "Dry clean") {
+      const every = ["Suit", "Blazer", "Coat"].includes(p.category) ? (p.category === "Coat" ? 12 : 6) : 4;
+      if (wearsSince >= every) out.push({ id: p.id, text: `Dry-clean the ${p.name.toLowerCase()} (${wearsSince} wears since)`, act: "Cleaned" });
+    }
+    if (p.care === "Polish" || p.category === "Shoes") {
+      const wornRecently = (p.wears || []).some((d) => d > since);
+      if (wornRecently && daysBetween(since, t) >= 30) out.push({ id: p.id, text: `Polish the ${p.name.toLowerCase()}`, act: "Polished" });
+    }
+  });
+  if ((month === 4 || month === 10) && dom <= 15 && settings().seasonSwap !== t.slice(0, 7)) {
+    out.push({ season: true, text: month === 4 ? "Spring swap: put the heavy wool away (clean first, moths love dirty wool) and bring the linen out." : "Autumn swap: bring the wool out, check knitwear for moths, put the linen away clean.", act: "Done" });
+  }
+  return out;
+}
+function noteItems() {
+  const t = today(), out = [];
+  const last = measures()[0];
+  const every = settings().remeasureDays || 30;
+  if (!last) out.push({ html: `No measurements yet. Five minutes with a tape measure and the rest falls into place.`, go: "fit", act: "Measure" });
+  else if (daysBetween(last.date, t) >= every) out.push({ html: `It's been ${daysBetween(last.date, t)} days since you measured.`, go: "fit", act: "Measure" });
+  occasions().filter((o) => daysUntil(o.end || o.date) >= 0 && daysUntil(o.date) <= 14).forEach((o) => {
+    const n = daysUntil(o.date);
+    const label = o.kind === "trip" ? "Trip" : `${o.level} occasion`;
+    out.push({ html: `${esc(label)} ${when(n)}${o.plan ? "" : ": no outfit planned yet"}.`, go: "occ", act: o.plan ? "See" : "Plan" });
+  });
+  tailoring().filter((x) => x.status === "At the tailor" && x.ready && x.ready <= t).forEach((x) =>
+    out.push({ html: `Collect from the tailor: ${esc(piece(x.pieceId)?.name || x.alteration)}.`, go: "fit", act: "See" }));
+  tailoring().filter((x) => x.status === "To drop off").length && out.push({ html: `${plural(tailoring().filter((x) => x.status === "To drop off").length, "piece", "pieces")} waiting to go to the tailor.`, go: "fit", act: "See" });
+  const care = careDue(); if (care.length) out.push({ html: `${plural(care.length, "care job", "care jobs")} due: ${esc(care[0].text.toLowerCase())}${care.length > 1 ? " and more" : ""}.`, go: "occ", act: "See" });
+  const unworn = pieces().filter(unwornLong).length;
+  if (unworn >= 5 && new Date().getDay() === 0) out.push({ html: `${unworn} pieces haven't been worn in 90 days. Keep, or donate?`, go: "rail", act: "See", filter: "Unworn" });
+  return out;
+}
+function renderNotes() {
+  const items = noteItems();
+  $("today-notes").hidden = !items.length;
+  $("today-list").innerHTML = items.map((n, i) => `<li><span>${n.html}</span><button class="linkbtn" type="button" data-note="${i}">${esc(n.act)}</button></li>`).join("");
+  $("today-list").querySelectorAll("[data-note]").forEach((b) => (b.onclick = () => { const n = items[+b.dataset.note]; if (n.filter) railFilter = n.filter; go(n.go); }));
+}
+
+// ===================== RAIL =====================
+let railFilter = "All", railCat = "All", railQ = "";
+const unwornLong = (p) => wearable(p) && daysBetween(lastWorn(p) || p.created_day || today(), today()) >= 90;
+const FILTERS = {
+  All: () => true, Fits: (p) => (p.verdict || "Fits") === "Fits", Tailor: (p) => p.verdict === "Tailor",
+  "Doesn't fit": (p) => p.verdict === "Too big" || p.verdict === "Too small", "On the way out": (p) => p.verdict === "Retire" || p.verdict === "Donate",
+  Unworn: unwornLong, Formal: (p) => p.formality === "Formal",
+};
+function renderRail() {
+  const all = pieces();
+  $("rail-count").textContent = all.length ? `The Wardrobe · ${plural(all.length, "piece", "pieces")}` : "The Wardrobe";
+  $("rail-filters").innerHTML = Object.keys(FILTERS).map((f) => {
+    const n = f === "All" ? all.length : all.filter(FILTERS[f]).length;
+    return (n || f === railFilter || f === "All") ? `<button class="chip" type="button" data-f="${esc(f)}" aria-pressed="${f === railFilter}">${esc(f)} <span class="muted" style="color:inherit;opacity:.7">${n}</span></button>` : "";
+  }).join("");
+  const cats = CATEGORIES.filter((c) => all.some((p) => p.category === c));
+  $("rail-cats").innerHTML = cats.length > 1 ? ["All", ...cats].map((c) => `<button class="chip" type="button" data-c="${esc(c)}" aria-pressed="${c === railCat}">${esc(c === "All" ? "Every kind" : c)}</button>`).join("") : "";
+  const q = railQ.toLowerCase();
+  const shown = all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
+    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || ""));
+  $("rail-body").innerHTML = shown.length ? `<div class="grid">${shown.map(tile).join("")}</div>`
+    : `<div class="card empty">${all.length ? "Nothing matches." : "The rail is bare. Add a photo of each piece and Alfred will do the cataloguing."}</div>`;
+}
+function tile(p) {
+  const v = p.verdict || "Fits";
+  const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(v)}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
+  return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
+    <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "tagging…" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
+}
+$("rail-filters").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { railFilter = b.dataset.f; render(); } });
+$("rail-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { railCat = b.dataset.c; render(); } });
+$("rail-search").addEventListener("input", (e) => { railQ = e.target.value; render(); });
+document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open]"); if (b) pieceSheet(b.dataset.open); });
+
+// Adding by photo: thumbnail now, Claude's tags a moment later. Several photos run one after another.
+const queue = []; let tagRunning = false, tagDone = 0, tagTotal = 0, tagErrors = 0;
+$("add-photos").addEventListener("change", async (e) => {
+  const files = [...e.target.files]; e.target.value = "";
+  if (!files.length) return;
+  if (!myId) return toast("Sign in first, so the photos have somewhere to live.");
+  for (const f of files) {
+    try {
+      const thumb = await shrink(f, 480, 0.8);
+      const p = { id: uid(), name: "New piece", category: "Other", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today(), tagging: true };
+      await storePhoto(p, thumb.blob);
+      queue.push({ id: p.id, file: f });
+    } catch (err) { toast(err.message); }
+  }
+  tagTotal += files.length;
+  if (view !== "rail") go("rail"); else render();
+  runTagging();
+});
+async function runTagging() {
+  if (tagRunning) return;
+  tagRunning = true;
+  while (queue.length) {
+    const job = queue.shift();
+    showTagProgress();
+    try {
+      const big = await shrink(job.file, 1024, 0.82);
+      const r = await ai("w_tag", { image: big.b64, media_type: "image/jpeg" });
+      const p = piece(job.id); if (!p) continue;
+      if (r.found === false) { savePiece({ ...p, tagging: false, name: "Not sure what this is" }); }
+      else savePiece({ ...p, tagging: false, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
+        formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || p.size || "", pairs_with: r.pairs_with });
+    } catch (err) {
+      tagErrors++;
+      const p = piece(job.id); if (p) savePiece({ ...p, tagging: false });
+      if (/budget|sign in|offline/i.test(err.message)) { toast(err.message); queue.length = 0; }
+    }
+    tagDone++;
+  }
+  tagRunning = false; showTagProgress();
+  if (tagDone) toast(`Catalogued ${plural(tagDone - tagErrors, "piece", "pieces")}${tagErrors ? `; ${tagErrors} need tagging by hand` : ""}. Check the sizes.`);
+  tagDone = tagTotal = tagErrors = 0; showTagProgress();
+}
+function showTagProgress() {
+  $("tag-progress").innerHTML = tagRunning && tagTotal ? `<div class="card empty"><span class="busy" aria-hidden="true"></span> Alfred is cataloguing ${Math.min(tagDone + 1, tagTotal)} of ${tagTotal}…</div>` : "";
+}
+$("add-hand").onclick = () => pieceSheet(null);
+
+function pieceSheet(id) {
+  const p = id ? piece(id) : { id: uid(), name: "", category: "Shirt", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today() };
+  if (!p) return;
+  const isNew = !id;
+  const opt = (list, cur) => list.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`).join("");
+  const worn = (p.wears || []).length;
+  const tl = tailoring().find((x) => x.pieceId === p.id && x.status !== "Collected");
+  openSheet(`${p.photo ? `<span class="thumb" data-photo="${esc(p.id)}" style="aspect-ratio:auto;height:260px;border-radius:12px">…</span>` : ""}
+    <h2>${isNew ? "A new piece" : esc(p.name)}</h2>
+    ${isNew ? "" : `<div class="chips"><span class="badge">${worn ? `Worn ${plural(worn, "time", "times")}, last ${esc(fmtDate(lastWorn(p)))}` : "Not worn yet"}</span>${tl ? `<span class="badge brass">At the tailor's list</span>` : ""}</div>`}
+    ${!isNew && lastWorn(p) !== today() ? `<button class="btn primary" type="button" id="ps-wear">Wore it today</button>` : ""}
+    <label class="field">Name<input type="text" id="ps-name" value="${esc(p.name)}" placeholder="e.g. Navy wool suit"></label>
+    <div class="two">
+      <label class="field">Kind<select id="ps-cat">${opt(CATEGORIES, p.category)}</select></label>
+      <label class="field">Formality<select id="ps-form">${opt(FORMALITY, p.formality)}</select></label>
+    </div>
+    <div class="two">
+      <label class="field">Labelled size<input type="text" id="ps-size" value="${esc(p.size || "")}" placeholder="e.g. 16/34, 36x32, 42R"></label>
+      <label class="field">Fit<select id="ps-verdict">${opt(VERDICTS, p.verdict || "Fits")}</select></label>
+    </div>
+    <div class="two">
+      <label class="field">Colour<input type="text" id="ps-colour" value="${esc(p.colour || "")}"></label>
+      <label class="field">Fabric<input type="text" id="ps-fabric" value="${esc(p.fabric || "")}"></label>
+    </div>
+    <label class="field">Care<select id="ps-care"><option value="">Not sure</option>${opt(CARE, p.care)}</select></label>
+    ${p.pairs_with ? `<p class="small"><b>Alfred:</b> ${esc(p.pairs_with)}</p>` : ""}
+    <label class="field">Notes<textarea id="ps-notes" placeholder="Where it's from, what the tailor said…" style="min-height:64px">${esc(p.notes || "")}</textarea></label>
+    ${isNew ? `<label class="btn"><span id="ps-photo-label">Add a photo</span><input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>` :
+      `<div class="chips"><label class="chip dash" style="cursor:pointer">${p.photo ? "Replace photo" : "Add a photo"}<input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>
+       ${p.verdict === "Tailor" && !tl ? `<button class="chip dash" type="button" id="ps-tailor">+ Tailoring list</button>` : ""}
+       ${p.care ? `<button class="chip dash" type="button" id="ps-clean">Just ${p.care === "Polish" ? "polished" : "cleaned"}</button>` : ""}</div>`}
+    <div class="two">${isNew ? `<button class="btn" type="button" id="ps-cancel">Cancel</button>` : `<button class="btn" type="button" id="ps-del">Remove</button>`}
+      <button class="btn primary" type="button" id="ps-save">Save</button></div>`, (panel) => {
+    let newPhoto = null;
+    const read = () => ({ ...p, name: panel.querySelector("#ps-name").value.trim() || "Untitled", category: panel.querySelector("#ps-cat").value,
+      formality: panel.querySelector("#ps-form").value, size: panel.querySelector("#ps-size").value.trim(), verdict: panel.querySelector("#ps-verdict").value,
+      colour: panel.querySelector("#ps-colour").value.trim(), fabric: panel.querySelector("#ps-fabric").value.trim(), care: panel.querySelector("#ps-care").value,
+      notes: panel.querySelector("#ps-notes").value.trim() });
+    panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
+    panel.querySelector("#ps-photo").addEventListener("change", async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
+      catch (err) { toast(err.message); }
+    });
+    panel.querySelector("#ps-save").onclick = async () => {
+      const np = read();
+      if (newPhoto) await storePhoto(np, newPhoto); else savePiece(np);
+      if (np.verdict === "Tailor" && !tailoring().some((x) => x.pieceId === np.id && x.status !== "Collected") && (p.verdict !== "Tailor")) {
+        store.set("tailoring/" + uid(), { pieceId: np.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() });
+        toast("Saved, and added to the tailoring list.");
+      }
+      closeSheet();
+    };
+    panel.querySelector("#ps-wear")?.addEventListener("click", () => { savePiece(read()); wearToday([p.id]); closeSheet(); });
+    panel.querySelector("#ps-tailor")?.addEventListener("click", () => { savePiece(read()); store.set("tailoring/" + uid(), { pieceId: p.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() }); closeSheet(); toast("On the tailoring list."); });
+    panel.querySelector("#ps-clean")?.addEventListener("click", () => { savePiece({ ...read(), cleaned: today() }); closeSheet(); toast("Noted."); });
+    panel.querySelector("#ps-del")?.addEventListener("click", () => {
+      closeSheet();
+      undoable(`Removed ${p.name}.`, ["pieces/" + p.id], () => store.remove("pieces/" + p.id));
+      // The photo goes only once the undo window has passed and the piece is still gone.
+      setTimeout(() => { if (!piece(p.id)) removePhoto(p); }, 7000);
+    });
+  });
+}
+
+// ===================== FIT =====================
+let fitAsking = false, fitErr = null;
+function renderFit() {
+  const ms = measures(), s = settings();
+  const latest = ms[0], first = ms.at(-1);
+  // progress
+  let prog = "";
+  if (latest?.weight) {
+    const lost = first?.weight && first !== latest ? Math.round((first.weight - latest.weight) * 10) / 10 : 0;
+    const togo = s.targetWeight ? Math.round((latest.weight - s.targetWeight) * 10) / 10 : null;
+    prog = `<div class="stats">
+      <div class="card stat"><b>${esc(latest.weight)}</b><span>lb now</span></div>
+      <div class="card stat"><b>${lost > 0 ? "−" + lost : lost < 0 ? "+" + (-lost) : "0"}</b><span>lb since ${esc(fmtDate(first.date))}</span></div>
+      <div class="card stat"><b>${togo == null ? "–" : togo <= 0 ? "✓" : togo}</b><span>${togo == null ? "set a target" : togo <= 0 ? "target reached" : "lb to go"}</span></div></div>`;
+  }
+  const every = s.remeasureDays || 30;
+  const due = latest ? addDays(latest.date, every) : today();
+  $("fit-progress").innerHTML = prog + (latest ? `<p class="small muted" style="margin-top:8px">Last measured ${esc(fmtDate(latest.date))}. Next ${daysUntil(due) <= 0 ? "<b>now</b>" : esc(fmtDate(due))}.</p>`
+    : `<div class="note"><span class="label">Start here</span><span>Log your measurements once a month. Alfred works out your sizes from them, and which clothes still fit.</span></div>`);
+  // trend
+  const trend = ["weight", "waist", "chest", "neck"].filter((k) => ms.filter((m) => m[k]).length >= 2);
+  $("fit-trend").innerHTML = trend.length ? `<div class="card pad"><span class="label">Trend</span><div class="mgrid">${trend.map((k) => spark(k, ms)).join("")}</div></div>` : "";
+  // sizes
+  const sizes = s.sizes || {};
+  const fit = store.get("fit");
+  $("sizes").innerHTML = `<div class="row"><h2>My sizes</h2><button class="linkbtn" type="button" id="sizes-edit">Edit</button></div>
+    ${Object.values(sizes).some(Boolean) ? `<div class="rows">${sizeKeys(sizes).map((g) => `<div class="rowi" style="padding:8px 0;min-height:0"><span class="grow">${esc(g)}</span><b>${esc(sizes[g])}</b></div>`).join("")}</div>`
+      : `<p class="small muted">Not set yet. Log your measurements and ask Alfred, or fill them in yourself.</p>`}
+    <button class="btn primary stack" type="button" id="fit-go" ${latest ? "" : "disabled"}>Check what still fits <span class="cost">about 3¢ for the whole rail</span></button>
+    ${fit ? `<span class="small muted">Last checked ${esc(fmtDate(ymd(new Date(fit.at))))}${latest && fit.measured !== latest.date ? ", before your latest measurements" : ""}.</span>` : ""}`;
+  $("sizes-edit").onclick = sizesSheet;
+  $("fit-go").onclick = runFit;
+  renderFitAdvice();
+  renderTailoring();
+  // history
+  $("fit-history").innerHTML = ms.length ? `<div class="card pad"><span class="label">Measurements</span><div class="tablewrap"><table class="hist">
+    <tr><th>Date</th>${MEASURES.map(([, l, u]) => `<th>${esc(l)}</th>`).join("")}<th></th></tr>
+    ${ms.map((m) => `<tr><td>${esc(fmtDate(m.date))}</td>${MEASURES.map(([k]) => `<td>${m[k] ?? "–"}</td>`).join("")}<td><button class="linkbtn" type="button" data-medit="${esc(m.date)}">Edit</button></td></tr>`).join("")}
+    </table></div><span class="small muted">Weight in lb, the rest in inches.</span></div>` : "";
+  $("fit-history").querySelectorAll("[data-medit]").forEach((b) => (b.onclick = () => measureSheet(b.dataset.medit)));
+}
+function spark(k, ms) {
+  const pts = ms.filter((m) => m[k]).slice(0, 12).reverse();
+  const vals = pts.map((m) => +m[k]);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const W = 240, H = 56, x = (i) => 6 + i * ((W - 12) / Math.max(1, pts.length - 1)), y = (v) => 6 + (hi - v) / span * (H - 12);
+  const d = vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join("");
+  const label = MEASURES.find(([kk]) => kk === k)[1];
+  const delta = Math.round((vals.at(-1) - vals[0]) * 10) / 10;
+  return `<div><div class="row small"><b>${esc(label)}</b><span class="muted">${vals.at(-1)} (${delta > 0 ? "+" : ""}${delta})</span></div>
+    <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label)} from ${vals[0]} to ${vals.at(-1)}">
+    <path d="${d}" fill="none" stroke="var(--green)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${x(vals.length - 1)}" cy="${y(vals.at(-1))}" r="3" fill="var(--brass)"/></svg></div>`;
+}
+$("measure-open").onclick = () => measureSheet(null);
+function measureSheet(date) {
+  const m = date ? measures().find((x) => x.date === date) : { date: today(), ...(measures()[0] || {}) };
+  if (!date) m.date = today();
+  openSheet(`<h2>${date ? "Edit measurements" : "Measurements"}</h2>
+    <p class="small muted">Inches and pounds. Leave any you didn't take blank. ${date ? "" : "Last time's numbers are filled in as a guide."}</p>
+    <label class="field">Date<input type="date" id="m-date" value="${esc(m.date)}"></label>
+    <div class="two">${MEASURES.map(([k, l, u]) => `<label class="field">${esc(l)} (${u})<input type="number" step="0.25" inputmode="decimal" id="m-${k}" value="${date ? (m[k] ?? "") : ""}" placeholder="${m[k] ?? ""}"><span class="hint">${esc(HOW[k])}</span></label>`).join("")}</div>
+    <div class="two">${date ? `<button class="btn" type="button" id="m-del">Delete</button>` : `<button class="btn" type="button" id="m-cancel">Cancel</button>`}<button class="btn primary" type="button" id="m-save">Save</button></div>`, (p) => {
+    p.querySelector("#m-cancel")?.addEventListener("click", closeSheet);
+    p.querySelector("#m-del")?.addEventListener("click", () => { closeSheet(); undoable("Deleted.", ["measures/" + date], () => store.remove("measures/" + date)); });
+    p.querySelector("#m-save").onclick = () => {
+      const d = p.querySelector("#m-date").value || today();
+      const v = {};
+      MEASURES.forEach(([k]) => { const x = parseFloat(p.querySelector("#m-" + k).value); if (!isNaN(x)) v[k] = x; });
+      if (!Object.keys(v).length) return toast("Nothing to save yet.");
+      if (date && date !== d) store.remove("measures/" + date);
+      store.set("measures/" + d, v);
+      closeSheet(); toast("Measurements saved. Ask Alfred what still fits when you're ready.");
+    };
+  });
+}
+$("target-open").onclick = () => {
+  const s = settings();
+  openSheet(`<h2>Target</h2>
+    <label class="field">Target weight (lb)<input type="number" id="t-w" inputmode="decimal" value="${esc(s.targetWeight || "")}"></label>
+    <label class="field">Anything else Alfred should know<input type="text" id="t-n" value="${esc(s.targetNote || "")}" placeholder="e.g. hoping to get there by summer"></label>
+    <label class="field">Remind me to measure every<select id="t-every">${[14, 30, 45, 60].map((n) => `<option value="${n}"${(s.remeasureDays || 30) === n ? " selected" : ""}>${n} days</option>`).join("")}</select></label>
+    <div class="two"><button class="btn" type="button" id="t-cancel">Cancel</button><button class="btn primary" type="button" id="t-save">Save</button></div>`, (p) => {
+    p.querySelector("#t-cancel").onclick = closeSheet;
+    p.querySelector("#t-save").onclick = () => { setSettings({ targetWeight: parseFloat(p.querySelector("#t-w").value) || null, targetNote: p.querySelector("#t-n").value.trim(), remeasureDays: +p.querySelector("#t-every").value }); closeSheet(); };
+  });
+};
+function sizesSheet() {
+  const sizes = settings().sizes || {};
+  const keys = [...GARMENTS, ...Object.keys(sizes).filter((k) => !GARMENTS.includes(k))];
+  openSheet(`<h2>My sizes</h2><p class="small muted">What to look for on the label today. Alfred updates these when he checks your fit.</p>
+    ${keys.map((g, i) => `<label class="field">${esc(g)}<input type="text" id="sz-${i}" value="${esc(sizes[g] || "")}"></label>`).join("")}
+    <div class="two"><button class="btn" type="button" id="sz-cancel">Cancel</button><button class="btn primary" type="button" id="sz-save">Save</button></div>`, (p) => {
+    p.querySelector("#sz-cancel").onclick = closeSheet;
+    p.querySelector("#sz-save").onclick = () => { const out = {}; keys.forEach((g, i) => { const v = p.querySelector("#sz-" + i).value.trim(); if (v) out[g] = v; }); setSettings({ sizes: out }); closeSheet(); };
+  });
+}
+async function runFit() {
+  if (!pieces().length) return toast("Catalogue some pieces first.");
+  fitAsking = true; fitErr = null; renderFitAdvice();
+  try {
+    const res = await ai("w_fit", { ...aboutMe(), rail: railLines((p) => !["Retire", "Donate"].includes(p.verdict)) });
+    store.set("fit", { ...res, at: Date.now(), measured: measures()[0]?.date, applied: {} });
+    // Fold Claude's sizes into "My sizes", keeping anything James typed for garments it didn't mention.
+    const sizes = { ...(settings().sizes || {}) };
+    (res.sizes || []).forEach(({ garment, size }) => { sizes[garmentOf(garment)] = size; });
+    setSettings({ sizes });
+  } catch (e) { fitErr = e; }
+  fitAsking = false; render();
+}
+function renderFitAdvice() {
+  const box = $("fit-advice");
+  if (fitAsking) { box.innerHTML = spinner("Alfred is going through the rail with a tape measure…"); return; }
+  const fit = store.get("fit");
+  const open = (fit?.pieces || []).filter((x) => !fit.applied?.[x.id] && piece(x.id));
+  box.innerHTML = (fitErr ? errBox(fitErr) : "") + (fit && (open.length || fit.summary) ? `<div class="card pad">
+    <h2>Alfred's fitting</h2>${fit.summary ? `<p class="small">${esc(fit.summary)}</p>` : ""}
+    ${open.length ? `<div class="rows">${open.map((x) => { const p = piece(x.id); return `<div class="rowi" style="padding:10px 0;align-items:flex-start">
+      <button class="piece" type="button" data-open="${esc(p.id)}" style="width:56px;flex:none">${thumbHtml(p)}</button>
+      <span class="grow"><span class="t">${esc(p.name)} <span class="badge ${x.verdict === "Tailor" ? "brass" : x.verdict === "Fits" ? "" : "danger"}">${esc(x.verdict)}</span></span>
+      <span class="s">${esc(x.advice)}</span>${x.alteration ? `<span class="s"><b>Ask for:</b> ${esc(x.alteration)}${x.cost_usd ? ` (about ${money(x.cost_usd)})` : ""}</span>` : ""}
+      <span class="chips" style="margin-top:6px"><button class="btn primary sm" type="button" data-apply="${esc(x.id)}">Agree</button><button class="btn sm ghost" type="button" data-skip="${esc(x.id)}">Not this one</button></span></span></div>`; }).join("")}</div>`
+      : `<span class="small muted">All advice dealt with.</span>`}</div>` : "");
+  const mark = (id) => { const f = store.get("fit"); f.applied = { ...(f.applied || {}), [id]: true }; store.set("fit", f); };
+  box.querySelectorAll("[data-apply]").forEach((b) => (b.onclick = () => {
+    const x = fit.pieces.find((y) => y.id === b.dataset.apply); const p = piece(x.id);
+    savePiece({ ...p, verdict: x.verdict, notes: [p.notes, x.verdict === "Tailor" ? `Tailor: ${x.alteration}` : ""].filter(Boolean).join("\n") });
+    if (x.verdict === "Tailor" && !tailoring().some((t) => t.pieceId === p.id && t.status !== "Collected"))
+      store.set("tailoring/" + uid(), { pieceId: p.id, alteration: x.alteration || x.advice, cost: x.cost_usd || 0, status: "To drop off", created: Date.now() });
+    mark(x.id);
+  }));
+  box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => mark(b.dataset.skip)));
+  hydratePhotos(box);
+}
+const TSTATUS = ["To drop off", "At the tailor", "Ready", "Collected"];
+function renderTailoring() {
+  const all = tailoring().filter((x) => x.status !== "Collected").sort((a, b) => TSTATUS.indexOf(a.status) - TSTATUS.indexOf(b.status));
+  const total = all.reduce((s, x) => s + (Number(x.cost) || 0), 0);
+  $("tailoring").innerHTML = `<div class="row"><h2>The tailor</h2>${all.length ? `<button class="linkbtn" type="button" id="t-copy">Copy the list</button>` : ""}</div>
+    ${all.length ? `<div class="card rows">${all.map((x) => { const p = piece(x.pieceId); const late = x.status === "At the tailor" && x.ready && x.ready <= today();
+      return `<button class="rowi" type="button" data-tl="${esc(x.id)}" style="width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left">
+      <span class="grow"><span class="t">${esc(p?.name || "A piece")}</span><span class="s">${esc(x.alteration || "Alteration not noted yet")}${x.ready ? ` · ready ${esc(fmtDate(x.ready))}` : ""}</span></span>
+      <span class="badge ${late || x.status === "Ready" ? "" : "brass"}">${esc(late ? "Collect" : x.status)}</span></button>`; }).join("")}</div>
+      <span class="small muted">About ${money(total)} all told. Tailors often want one to two weeks.</span>`
+      : `<div class="card empty">Nothing waiting on the tailor.</div>`}`;
+  $("tailoring").querySelectorAll("[data-tl]").forEach((b) => (b.onclick = () => tailorSheet(b.dataset.tl)));
+  $("t-copy")?.addEventListener("click", async () => {
+    const txt = all.filter((x) => x.status === "To drop off" || x.status === "At the tailor").map((x) => `• ${piece(x.pieceId)?.name || "Piece"}: ${x.alteration || "(to discuss)"}`).join("\n");
+    try { await navigator.clipboard.writeText(txt); toast("Copied. Paste it into a note for the tailor."); } catch { toast("Couldn't copy on this device."); }
+  });
+}
+function tailorSheet(id) {
+  const x = { id, ...store.get("tailoring/" + id) }; const p = piece(x.pieceId);
+  openSheet(`<h2>${esc(p?.name || "Alteration")}</h2>
+    <label class="field">What to ask for<textarea id="tl-alt" style="min-height:70px">${esc(x.alteration || "")}</textarea></label>
+    <div class="two"><label class="field">Cost ($)<input type="number" id="tl-cost" inputmode="decimal" value="${esc(x.cost || "")}"></label>
+    <label class="field">Ready on<input type="date" id="tl-ready" value="${esc(x.ready || "")}"></label></div>
+    <div class="chips">${TSTATUS.map((s) => `<button class="chip" type="button" data-st="${esc(s)}" aria-pressed="${s === x.status}">${esc(s)}</button>`).join("")}</div>
+    <div class="two"><button class="btn" type="button" id="tl-del">Remove</button><button class="btn primary" type="button" id="tl-save">Save</button></div>`, (panel) => {
+    let st = x.status;
+    panel.querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => { st = b.dataset.st; panel.querySelectorAll("[data-st]").forEach((c) => c.setAttribute("aria-pressed", String(c === b))); }));
+    panel.querySelector("#tl-del").onclick = () => { closeSheet(); undoable("Removed from the list.", ["tailoring/" + id], () => store.remove("tailoring/" + id)); };
+    panel.querySelector("#tl-save").onclick = () => {
+      const ready = panel.querySelector("#tl-ready").value;
+      store.set("tailoring/" + id, { ...strip(x), alteration: panel.querySelector("#tl-alt").value.trim(), cost: parseFloat(panel.querySelector("#tl-cost").value) || 0, ready, status: st });
+      if (st === "Collected" && p) savePiece({ ...p, verdict: "Fits", size: p.size && !/\(altered\)$/.test(p.size) ? `${p.size} (altered)` : p.size });
+      closeSheet();
+    };
+  });
+}
+
+// ===================== PLAN =====================
+let styleAsking = false, styleErr = null, gapAsking = false, gapErr = null, bbAsking = false, bbPhoto = null;
+function renderPlan() {
+  const phase = settings().phase || "Losing";
+  $("phase").innerHTML = Object.keys(PHASES).map((p) => `<button class="chip" type="button" data-phase="${esc(p)}" aria-pressed="${p === phase}">${esc(p)}</button>`).join("");
+  $("phase-help").textContent = PHASES[phase];
+  renderStyle(); renderBuy();
+}
+$("phase").addEventListener("click", (e) => { const b = e.target.closest("[data-phase]"); if (b) { setSettings({ phase: b.dataset.phase }); renderPlan(); } });
+function renderStyle() {
+  const box = $("style"), st = store.get("style"), prof = settings().profile || "";
+  if (styleAsking) { box.innerHTML = spinner("Alfred is considering your colouring…"); return; }
+  box.innerHTML = `<div class="row"><h2>Your style</h2><button class="linkbtn" type="button" id="prof-edit">${prof ? "About me" : ""}</button></div>
+    ${styleErr ? errBox(styleErr) : ""}
+    ${st ? `<div class="card pad">
+      <p>${esc(st.summary)}</p>
+      <span class="label">Colours that suit you</span>
+      <div class="palette">${(st.palette || []).map((c) => `<div class="swatch"><b>${esc(c.colour)}</b><span class="muted">${esc(c.why)}</span></div>`).join("")}</div>
+      ${st.avoid?.length ? `<span class="small"><b>Go easy on:</b> ${esc(st.avoid.join(", "))}</span>` : ""}
+      <span class="label">Fit</span><ul class="plain">${(st.fits || []).map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+      <span class="label">The looks</span>
+      <ul class="plain"><li><b>Formal:</b> ${esc(st.formal)}</li><li><b>Business casual:</b> ${esc(st.business_casual)}</li><li><b>Family holiday:</b> ${esc(st.family_holiday)}</li><li><b>Casual:</b> ${esc(st.casual)}</li></ul>
+      ${st.rules?.length ? `<span class="label">House rules</span><ul class="plain">${st.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+      <button class="btn sm ghost" type="button" id="style-go" style="align-self:flex-start">Rewrite it · about 3¢</button></div>`
+    : `<div class="card pad"><p class="small muted">Tell Alfred a little about yourself (hair, eyes, skin, build, what you like and loathe) and he'll write you a style brief. He uses it for every outfit after.</p>
+      <textarea id="prof-text" placeholder="e.g. Dark hair going grey, brown eyes, olive skin. Broad shoulders. Like navy and earth tones; hate anything shiny.">${esc(prof)}</textarea>
+      <button class="btn primary stack" type="button" id="style-go">Write my style brief <span class="cost">about 3¢</span></button></div>`}`;
+  $("prof-edit").onclick = () => openSheet(`<h2>About me</h2><textarea id="pe-text">${esc(settings().profile || "")}</textarea>
+    <div class="two"><button class="btn" type="button" id="pe-cancel">Cancel</button><button class="btn primary" type="button" id="pe-save">Save</button></div>`, (p) => {
+    p.querySelector("#pe-cancel").onclick = closeSheet;
+    p.querySelector("#pe-save").onclick = () => { setSettings({ profile: p.querySelector("#pe-text").value.trim() }); closeSheet(); };
+  });
+  $("style-go").onclick = async () => {
+    const t = $("prof-text"); if (t) setSettings({ profile: t.value.trim() });
+    styleAsking = true; styleErr = null; renderStyle();
+    try { const { measures: m, target, sizes } = aboutMe(); store.set("style", { ...(await ai("w_style", { profile: settings().profile || "", measures: m, target, sizes, rail: railLines() })), at: Date.now() }); }
+    catch (e) { styleErr = e; }
+    styleAsking = false; renderStyle();
+  };
+}
+function renderBuy() {
+  const box = $("buy");
+  const all = buys().sort((a, b) => (a.done - b.done) || (a.when === "Now" ? 0 : 1) - (b.when === "Now" ? 0 : 1) || (a.priority || 9) - (b.priority || 9));
+  const open = all.filter((x) => !x.done);
+  const gap = store.get("gap");
+  const nowTotal = open.filter((x) => x.when === "Now").reduce((s, x) => s + (Number(x.budget) || 0), 0);
+  box.innerHTML = `<div class="row"><h2>The buying list</h2><button class="linkbtn" type="button" id="buy-add">+ Add</button></div>
+    ${gapErr ? errBox(gapErr) : ""}
+    ${gapAsking ? spinner("Alfred is looking for gaps…") : gap?.note ? `<p class="quote">“${esc(gap.note)}” · Alfred</p>` : ""}
+    ${open.length ? `<div class="card rows">${all.map((x) => `<div class="rowi${x.done ? " isdone" : ""}">
+      <button class="tick${x.done ? " done" : ""}" type="button" data-bt="${esc(x.id)}" aria-label="${x.done ? "Not bought" : "Bought"} ${esc(x.item)}">${x.done ? "✓" : ""}</button>
+      <button class="grow" type="button" data-be="${esc(x.id)}" style="border:0;background:none;text-align:left;padding:0">
+        <span class="t">${esc(x.item)}</span><span class="s">${esc([x.why, x.where].filter(Boolean).join(" · "))}</span></button>
+      <span class="badge ${x.when === "Now" ? "" : "brass"}">${esc(x.when === "Now" ? (x.budget ? "~" + money(x.budget) : "Now") : "Wait")}</span></div>`).join("")}</div>
+      <span class="small muted">${nowTotal ? `About ${money(nowTotal)} for the “now” items.` : ""}</span>`
+      : `<div class="card empty">Nothing to buy. Alfred approves.</div>`}
+    <button class="btn stack" type="button" id="gap-go">${open.length ? "Look for gaps again" : "Find the gaps"} <span class="cost">about 2¢</span></button>`;
+  box.querySelectorAll("[data-bt]").forEach((b) => (b.onclick = () => { const x = buys().find((y) => y.id === b.dataset.bt); store.set("buy/" + x.id, { ...strip(x), done: !x.done }); }));
+  box.querySelectorAll("[data-be]").forEach((b) => (b.onclick = () => buySheet(b.dataset.be)));
+  $("buy-add").onclick = () => buySheet(null);
+  $("gap-go").onclick = runGap;
+}
+async function runGap() {
+  gapAsking = true; gapErr = null; renderBuy();
+  try {
+    const occ = occasions().filter((o) => daysUntil(o.end || o.date) >= 0).map((o) => `${o.date}: ${o.kind === "trip" ? `trip, ${o.levels?.join("/") || o.level}` : o.level}`).join("; ");
+    const res = await ai("w_gap", { ...aboutMe(), rail: railLines(), levels: LEVELS.join(", "), occasions: occ });
+    // Replace Alfred's earlier open suggestions; keep James's own entries and anything already bought.
+    buys().filter((x) => x.fromAlfred && !x.done).forEach((x) => store.remove("buy/" + x.id));
+    (res.items || []).forEach((x) => store.set("buy/" + uid(), { item: x.item, why: x.why, priority: x.priority, when: x.when, budget: x.budget_usd, where: x.where, fromAlfred: true, done: false, created: Date.now() }));
+    store.set("gap", { note: res.note, at: Date.now() });
+  } catch (e) { gapErr = e; }
+  gapAsking = false; renderBuy();
+}
+function buySheet(id) {
+  const x = id ? { id, ...store.get("buy/" + id) } : { item: "", when: "Now", budget: "", where: "", why: "" };
+  openSheet(`<h2>${id ? "Edit" : "Add to the list"}</h2>
+    <label class="field">What<input type="text" id="b-item" value="${esc(x.item)}"></label>
+    <label class="field">Why<input type="text" id="b-why" value="${esc(x.why || "")}"></label>
+    <div class="two"><label class="field">Budget ($)<input type="number" id="b-budget" inputmode="decimal" value="${esc(x.budget || "")}"></label>
+    <label class="field">When<select id="b-when"><option${x.when === "Now" ? " selected" : ""}>Now</option><option${x.when === "Wait" ? " selected" : ""}>Wait</option></select></label></div>
+    <label class="field">Where to look<input type="text" id="b-where" value="${esc(x.where || "")}"></label>
+    <div class="two">${id ? `<button class="btn" type="button" id="b-del">Remove</button>` : `<button class="btn" type="button" id="b-cancel">Cancel</button>`}<button class="btn primary" type="button" id="b-save">Save</button></div>`, (p) => {
+    p.querySelector("#b-cancel")?.addEventListener("click", closeSheet);
+    p.querySelector("#b-del")?.addEventListener("click", () => { closeSheet(); undoable("Removed.", ["buy/" + id], () => store.remove("buy/" + id)); });
+    p.querySelector("#b-save").onclick = () => {
+      const item = p.querySelector("#b-item").value.trim(); if (!item) return;
+      store.set("buy/" + (id || uid()), { ...strip(x), item, why: p.querySelector("#b-why").value.trim(), budget: parseFloat(p.querySelector("#b-budget").value) || 0,
+        when: p.querySelector("#b-when").value, where: p.querySelector("#b-where").value.trim(), done: !!x.done, created: x.created || Date.now() });
+      closeSheet();
+    };
+  });
+}
+$("bb-photo").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { bbPhoto = (await shrink(f, 1024)).b64; $("bb-photo-label").textContent = "Photo added"; } catch (err) { toast(err.message); }
+});
+$("bb-go").onclick = async () => {
+  const text = $("bb-text").value.trim();
+  if (!text && !bbPhoto) return toast("Describe it, or add a photo.");
+  const box = $("bb-body"); bbAsking = true; box.innerHTML = spinner("Alfred is holding it up to the light…");
+  try {
+    const r = await ai("w_before_buy", { ...aboutMe(), text, price: $("bb-price").value, size: $("bb-size").value.trim(), rail: railLines(wearable),
+      ...(bbPhoto ? { image: bbPhoto, media_type: "image/jpeg" } : {}) });
+    const dup = (r.duplicates || []).map(piece).filter(Boolean), pair = (r.pairs_with || []).map(piece).filter(Boolean);
+    box.innerHTML = `<div class="card pad" style="border-color:${r.verdict === "Buy" ? "var(--green)" : r.verdict === "Wait" ? "var(--brass)" : "var(--danger)"}">
+      <h3>${r.verdict === "Buy" ? "Buy it." : r.verdict === "Wait" ? "Worth having, but wait." : "Leave it on the rail."}</h3>
+      <p class="small">${esc(r.reason)}</p>
+      ${dup.length ? `<span class="label">You already have</span><div class="strip">${dup.map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>` : ""}
+      ${pair.length ? `<span class="label">Goes with</span><div class="strip">${pair.map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>` : ""}
+      ${r.verdict !== "Skip" && text ? `<button class="btn sm" type="button" id="bb-list" style="align-self:flex-start">${r.verdict === "Wait" ? "Put it on the list for later" : "Add to the buying list"}</button>` : ""}</div>`;
+    box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => pieceSheet(b.dataset.open)));
+    box.querySelector("#bb-list")?.addEventListener("click", () => { store.set("buy/" + uid(), { item: text, why: r.reason, when: r.verdict === "Buy" ? "Now" : "Wait", budget: parseFloat($("bb-price").value) || 0, where: "", done: false, created: Date.now() }); toast("On the list."); });
+    hydratePhotos(box);
+  } catch (e) { box.innerHTML = errBox(e); }
+  bbAsking = false; bbPhoto = null; $("bb-photo-label").textContent = "Add a photo";
+};
+
+// ===================== OCCASIONS =====================
+const occAsking = new Set(); const occErr = {};
+function renderOcc() {
+  const box = $("occ-body");
+  const up = occasions().filter((o) => daysUntil(o.end || o.date) >= 0), past = occasions().filter((o) => daysUntil(o.end || o.date) < 0);
+  box.innerHTML = up.length ? up.map(occCard).join("") : `<div class="card empty">Nothing in the diary. Add the next formal occasion or trip and Alfred will have you ready.</div>`;
+  if (past.length) box.insertAdjacentHTML("beforeend", `<button class="linkbtn" type="button" id="occ-clear" style="align-self:flex-start">Clear ${plural(past.length, "past entry", "past entries")}</button>`);
+  $("occ-clear")?.addEventListener("click", () => undoable("Cleared.", past.map((o) => "occasions/" + o.id), () => past.forEach((o) => store.remove("occasions/" + o.id))));
+  box.querySelectorAll("[data-oplan]").forEach((b) => (b.onclick = () => planOccasion(b.dataset.oplan)));
+  box.querySelectorAll("[data-oedit]").forEach((b) => (b.onclick = () => occSheet(b.dataset.oedit)));
+  box.querySelectorAll("[data-pack]").forEach((b) => (b.onclick = () => {
+    const [id, i] = b.dataset.pack.split(":"); const o = store.get("occasions/" + id);
+    store.set("occasions/" + id, { ...o, packed: { ...(o.packed || {}), [i]: !o.packed?.[i] } });
+  }));
+  box.querySelectorAll("[data-omiss]").forEach((b) => (b.onclick = () => {
+    const o = store.get("occasions/" + b.dataset.omiss);
+    (o.plan?.missing || []).forEach((m) => store.set("buy/" + uid(), { item: m, why: `For ${o.kind === "trip" ? "the trip" : "the occasion"} on ${fmtDate(o.date)}`, when: "Now", budget: 0, where: "", done: false, created: Date.now() }));
+    toast("Added to the buying list.");
+  }));
+  renderKit(); renderCare();
+}
+function occCard(o) {
+  const n = daysUntil(o.date), trip = o.kind === "trip";
+  const title = o.label || (trip ? "A trip" : `${o.level} occasion`);
+  const meta = trip ? `${fmtDate(o.date)} to ${fmtDate(o.end || o.date)} · ${(o.levels || [o.level]).join(", ")}` : `${fmtDate(o.date)} · ${o.level}`;
+  const plan = o.plan;
+  const tailorRisk = plan ? (plan.pack || []).map((x) => piece(x.piece_id)).filter((p) => p && p.verdict === "Tailor") : [];
+  let body = "";
+  if (occAsking.has(o.id)) body = `<div class="empty"><span class="busy"></span> Alfred is laying it out…</div>`;
+  else if (plan) {
+    const packed = o.packed || {};
+    const left = (plan.pack || []).filter((_, i) => !packed[i]).length;
+    body = `${plan.note ? `<p class="quote">“${esc(plan.note)}”</p>` : ""}
+      <div class="strip">${(plan.pack || []).map((x) => piece(x.piece_id)).filter(Boolean).map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>
+      <div class="rows">${(plan.pack || []).map((x, i) => `<div class="rowi${packed[i] ? " isdone" : ""}" style="padding:6px 0;min-height:0">
+        <button class="tick${packed[i] ? " done" : ""}" type="button" data-pack="${esc(o.id)}:${i}" aria-label="${trip ? "Packed" : "Ready"}: ${esc(x.item)}">${packed[i] ? "✓" : ""}</button>
+        <span class="grow"><span class="t" style="font-weight:500">${esc(x.item)}${x.qty > 1 ? ` × ${x.qty}` : ""}</span></span></div>`).join("")}</div>
+      <span class="small muted">${left ? `${left} to ${trip ? "pack" : "lay out"}.` : trip ? "All packed." : "All laid out."}</span>
+      ${plan.plan?.length ? `<ul class="plain">${plan.plan.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      ${tailorRisk.length && n <= 14 ? `<span class="err small">Still on the tailoring list: ${esc(tailorRisk.map((p) => p.name).join(", "))}. ${n <= 7 ? "Cutting it fine." : "Drop it off this week."}</span>` : ""}
+      ${plan.missing?.length ? `<span class="small"><b>Missing:</b> ${esc(plan.missing.join(", "))}</span><button class="btn sm" type="button" data-omiss="${esc(o.id)}" style="align-self:flex-start">Add to the buying list</button>` : ""}`;
+  }
+  return `<div class="card pad">
+    <div class="row"><div><h3>${esc(title)}</h3><span class="small muted">${esc(meta)}</span></div><span class="badge ${n <= 7 ? "brass" : ""}">${esc(n < 0 ? "Now" : when(n))}</span></div>
+    ${occErr[o.id] ? `<span class="err">${esc(occErr[o.id])}</span>` : ""}
+    ${body}
+    <div class="chips"><button class="btn sm ${plan ? "ghost" : "primary"}" type="button" data-oplan="${esc(o.id)}">${plan ? "Plan again" : trip ? "Pack for me" : "Plan the outfit"} · about ${trip ? "2" : "1"}¢</button>
+      <button class="btn sm ghost" type="button" data-oedit="${esc(o.id)}">Edit</button></div></div>`;
+}
+$("occ-add").onclick = () => occSheet(null, "event");
+$("trip-add").onclick = () => occSheet(null, "trip");
+function occSheet(id, kind) {
+  const o = id ? { id, ...store.get("occasions/" + id) } : { kind, date: addDays(today(), 7), end: addDays(today(), 10), level: "Formal", levels: ["Family holiday"], label: "", note: "" };
+  const trip = o.kind === "trip";
+  openSheet(`<h2>${id ? "Edit" : trip ? "A trip" : "An occasion"}</h2>
+    <label class="field">Call it (optional)<input type="text" id="o-label" value="${esc(o.label || "")}" placeholder="${trip ? "e.g. Beach week" : "e.g. Formal evening"}"></label>
+    ${trip ? `<div class="two"><label class="field">From<input type="date" id="o-date" value="${esc(o.date)}"></label><label class="field">To<input type="date" id="o-end" value="${esc(o.end || o.date)}"></label></div>
+      <span class="field">Dress levels on the trip</span><div class="chips" id="o-levels">${LEVELS.map((l) => `<button class="chip" type="button" data-l="${esc(l)}" aria-pressed="${(o.levels || []).includes(l)}">${esc(l)}</button>`).join("")}</div>`
+      : `<label class="field">Date<input type="date" id="o-date" value="${esc(o.date)}"></label>
+      <label class="field">How formal<select id="o-level">${LEVELS.map((l) => `<option${l === o.level ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`}
+    <label class="field">Anything Alfred should know (optional)<input type="text" id="o-note" value="${esc(o.note || "")}" placeholder="${trip ? "e.g. one smart dinner, lots of walking" : "e.g. outdoors, standing all day"}"></label>
+    <div class="two">${id ? `<button class="btn" type="button" id="o-del">Remove</button>` : `<button class="btn" type="button" id="o-cancel">Cancel</button>`}<button class="btn primary" type="button" id="o-save">Save</button></div>`, (p) => {
+    p.querySelector("#o-cancel")?.addEventListener("click", closeSheet);
+    p.querySelectorAll("#o-levels [data-l]").forEach((b) => (b.onclick = () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"))));
+    p.querySelector("#o-del")?.addEventListener("click", () => { closeSheet(); undoable("Removed.", ["occasions/" + id], () => store.remove("occasions/" + id)); });
+    p.querySelector("#o-save").onclick = () => {
+      const v = { ...strip(o), label: p.querySelector("#o-label").value.trim(), note: p.querySelector("#o-note").value.trim(), date: p.querySelector("#o-date").value || today() };
+      if (trip) { v.end = p.querySelector("#o-end").value || v.date; if (v.end < v.date) v.end = v.date; v.levels = [...p.querySelectorAll("#o-levels [aria-pressed=true]")].map((b) => b.dataset.l); if (!v.levels.length) v.levels = ["Casual"]; v.level = v.levels.join(", "); }
+      else v.level = p.querySelector("#o-level").value;
+      store.set("occasions/" + (id || uid()), v); closeSheet();
+    };
+  });
+}
+async function planOccasion(id) {
+  const o = { id, ...store.get("occasions/" + id) }; const trip = o.kind === "trip";
+  if (pieces().filter(wearable).length < 3) return toast("Catalogue a few pieces on the rail first.");
+  occAsking.add(id); delete occErr[id]; renderOcc();
+  try {
+    await loadWeather();
+    const days = trip ? daysBetween(o.date, o.end || o.date) + 1 : 1;
+    const ws = Array.from({ length: days }, (_, i) => wxFor(addDays(o.date, i))).filter(Boolean);
+    const weather = ws.length ? `highs ${Math.min(...ws.map((w) => w.hi))}–${Math.max(...ws.map((w) => w.hi))}°F, lows down to ${Math.min(...ws.map((w) => w.lo))}°F, rain up to ${Math.max(...ws.map((w) => w.rain))}% (at home; the forecast may not cover the destination)` : "";
+    const res = await ai("w_occasion", { ...aboutMe(), kind: trip ? "trip" : "event", level: o.level, days, nights: Math.max(0, days - 1), weather, note: o.note, rail: railLines(wearable) });
+    store.set("occasions/" + id, { ...strip(o), plan: res, packed: {}, planned: Date.now() });
+  } catch (e) { occErr[id] = e.message; }
+  occAsking.delete(id); renderOcc();
+}
+function renderKit() {
+  const all = pieces();
+  const rows = KIT.map((k) => {
+    if (k.basic) return { k, have: [], state: "basic" };
+    const have = all.filter((p) => k.match(p) && !["Retire", "Donate"].includes(p.verdict));
+    const fits = have.filter((p) => (p.verdict || "Fits") === "Fits"), tailor = have.filter((p) => p.verdict === "Tailor");
+    const state = fits.length >= k.n ? "ok" : fits.length + tailor.length >= k.n ? "meh" : k.optional && !have.length ? "opt" : "no";
+    return { k, have, fits, tailor, state };
+  });
+  const gaps = rows.filter((r) => r.state === "no" || r.state === "meh").length;
+  $("kit").innerHTML = `<div class="row"><h2>The formal kit</h2><span class="badge ${gaps ? "brass" : ""}">${gaps ? `${gaps} to sort` : "Ready"}</span></div>
+    <p class="small muted" style="margin:4px 0 8px">Everything an official occasion asks for, checked against the rail.</p>
+    <div class="card">${rows.map((r) => `<div class="kit">
+      <span class="ok ${r.state === "ok" ? "" : r.state === "meh" ? "meh" : r.state === "basic" || r.state === "opt" ? "meh" : "no"}" aria-hidden="true">${r.state === "ok" ? "✓" : r.state === "no" ? "✕" : "·"}</span>
+      <span class="grow"><span>${esc(r.k.name)}${r.k.n > 1 ? ` × ${r.k.n}` : ""}</span><br><span class="small muted">${
+        r.state === "basic" ? "Not catalogued; just make sure you have them." :
+        r.state === "opt" ? "Optional, but finishes the look." :
+        `${r.fits.length} fit${r.tailor.length ? `, ${r.tailor.length} with the tailor` : ""}${r.have.length - r.fits.length - r.tailor.length > 0 ? `, ${r.have.length - r.fits.length - r.tailor.length} don't fit` : ""}`}</span></span>
+      ${r.have?.length ? `<span class="strip" style="max-width:40%">${r.have.slice(0, 3).map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}" style="width:40px">${thumbHtml(p)}</button>`).join("")}</span>` : ""}</div>`).join("")}</div>`;
+}
+function renderCare() {
+  const jobs = careDue();
+  $("care").innerHTML = `<h2 style="margin-top:6px">Care</h2>
+    ${jobs.length ? `<div class="card rows" style="margin-top:8px">${jobs.map((j, i) => `<div class="rowi"><span class="grow"><span class="t" style="font-weight:500">${esc(j.text)}</span></span><button class="btn sm" type="button" data-care="${i}">${esc(j.act)}</button></div>`).join("")}</div>`
+      : `<div class="card empty" style="margin-top:8px">Nothing needs cleaning or polishing. Alfred counts the wears, so log what you wear and he'll say when.</div>`}`;
+  $("care").querySelectorAll("[data-care]").forEach((b) => (b.onclick = () => {
+    const j = jobs[+b.dataset.care];
+    if (j.season) setSettings({ seasonSwap: today().slice(0, 7) });
+    else { const p = piece(j.id); savePiece({ ...p, cleaned: today() }); }
+    renderCare();
+  }));
+}
+
+// ---------- start ----------
+// Arriving from a sign-in email, the address carries the session. Let Supabase read it before routing rewrites the address.
+if (/access_token=|error_description=/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
+  try { await supabase.auth.getSession(); } catch {}
+  if (/access_token=|error_description=/.test(location.hash)) history.replaceState(null, "", location.pathname + "#today");
+}
+store.subscribe(() => { if (!sheetOpen) render(); });
+store.onStatus(async (st) => {
+  if (st === "signed-out") { myId = null; return; }
+  if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); } }
+});
+go(location.hash.slice(1) || "today");
+</script>
