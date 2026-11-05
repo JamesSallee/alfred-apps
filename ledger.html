@@ -39,6 +39,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
+.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back:hover{text-decoration:underline}
+.back:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .purse{text-align:right}
 .purse .amt{font-family:var(--display);font-size:34px;line-height:1;color:var(--brass)}
 .purse .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -138,6 +141,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 <div class="wrap">
   <header class="top">
     <div>
+      <a class="back" href="./">← Alfred's Study</a>
       <h1>The Daily Ledger</h1>
       <div class="sub" id="greet">Kept by Alfred</div>
     </div>

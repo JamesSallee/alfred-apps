@@ -45,6 +45,9 @@ button[disabled]{opacity:.45;cursor:default}
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
+.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back:hover{text-decoration:underline}
+.back:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .today-tally{text-align:right}
 .today-tally .amt{font-family:var(--display);font-size:30px;line-height:1;color:var(--brass)}
 
@@ -154,6 +157,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 <div class="wrap">
   <header class="top">
     <div>
+      <a class="back" href="./">← Alfred's Study</a>
       <h1>Focus Room</h1>
       <div class="sub">Kept by Alfred</div>
     </div>

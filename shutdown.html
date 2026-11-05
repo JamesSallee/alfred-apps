@@ -42,6 +42,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
+.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back:hover{text-decoration:underline}
+.back:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .clock{text-align:right}
 .clock .t{font-family:var(--display);font-size:28px;line-height:1;color:var(--brass)}
 .clock .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -167,6 +170,7 @@ textarea{resize:vertical;min-height:64px}
 <div class="wrap">
   <header class="top">
     <div>
+      <a class="back" href="./">← Alfred's Study</a>
       <h1>Sunday Shutdown</h1>
       <div class="sub" id="dateline">Ten minutes to close the weekend properly.</div>
     </div>
