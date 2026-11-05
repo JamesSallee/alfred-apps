@@ -2,8 +2,8 @@
 // (the same one the Peloton website uses), so it may break without warning.
 //
 // POST { action: "sync" } with the signed-in user's token (supabase.functions.invoke does this).
-//   Reads recent workouts, and for each one not yet saved: the class plan (every move with its weight tier
-//   and time), heart rate if Peloton has it, and for rides the output and time in each power zone.
+//   Reads the last 14 days of workouts, and for each one not yet saved: the class plan (every move with its weight tier
+//   and time), heart rate if Peloton has it, Peloton's muscle-group scores, and for rides the output and time in each power zone.
 //   Each workout is saved to app_data as "training" / "workouts/<id>"; the page reads them from there.
 //   -> { added, more, latest, debug }
 // POST { action: "probe" } is the original test: the last 10 workouts, saved to "training" / "peloton/probe".
@@ -18,7 +18,7 @@ const TOKEN_URL = "https://auth.onepeloton.com/oauth/token";
 // The Peloton web app's public client id (the same one the open-source pylotoncycle library uses).
 const CLIENT_ID = "mgsmWCD0A8Qn6uz6mmqI6qeBNHH9IPwS";
 const NO_CLASS = "00000000000000000000000000000000"; // "just ride" sessions
-const PER_SYNC = 30; // new workouts fetched per sync, so one call stays well inside the time limit
+const WINDOW_DAYS = 14; // how far back a sync looks
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -94,26 +94,31 @@ async function get(token: string, path: string) {
 // ---------- sync ----------
 
 async function sync(db: SupabaseClient, userId: string) {
-  // Which workouts are already saved?
-  const { data: rows, error } = await db.from("app_data").select("key")
+  // Only the last two weeks matter: older classes are past remembering the weights for.
+  const since = Date.now() / 1000 - WINDOW_DAYS * 86400;
+  // Which recent workouts are already saved (with their muscle scores)?
+  const { data: rows, error } = await db.from("app_data").select("key, muscles:value->muscles")
     .eq("user_id", userId).eq("app", "training").like("key", "workouts/%");
   if (error) throw error;
-  const have = new Set((rows || []).map((r) => r.key.slice("workouts/".length)));
+  const have = new Set((rows || []).filter((r: any) => r.muscles != null).map((r: any) => r.key.slice("workouts/".length)));
 
   const token = await login();
   const me = await get(token, "/api/me");
 
-  // Walk back through the history (newest first) until a page is all saved already, or we have enough.
+  // Newest first; stop at the first workout older than the window.
   const fresh: any[] = [];
-  for (let page = 0; page < 10 && fresh.length < PER_SYNC; page++) {
-    const list = await get(token, `/api/user/${me.id}/workouts?joins=ride,ride.instructor&limit=50&page=${page}&sort_by=-created`);
+  let done = false;
+  for (let page = 0; page < 5 && !done; page++) {
+    const list = await get(token, `/api/user/${me.id}/workouts?joins=ride,ride.instructor&limit=20&page=${page}&sort_by=-created`);
     const data = list.data || [];
-    const unseen = data.filter((w: any) => w.status === "COMPLETE" && !have.has(w.id));
-    fresh.push(...unseen);
-    if (!data.length || unseen.length === 0 || page + 1 >= (list.page_count ?? 1)) break;
+    for (const w of data) {
+      if ((w.start_time ?? 0) < since) { done = true; break; }
+      if (w.status === "COMPLETE" && !have.has(w.id)) fresh.push(w);
+    }
+    if (!data.length || page + 1 >= (list.page_count ?? 1)) break;
   }
-  const batch = fresh.slice(0, PER_SYNC);
-  const more = fresh.length > PER_SYNC;
+  const batch = fresh;
+  const more = false;
 
   const plans = new Map<string, Move[]>(); // class plans, shared when a class is retaken
   const debug: Record<string, unknown> = {};
@@ -129,7 +134,7 @@ async function sync(db: SupabaseClient, userId: string) {
       class_id: ride.id && ride.id !== NO_CLASS ? ride.id : null,
       class_minutes: ride.duration ? Math.round(ride.duration / 60) : null,
       minutes: w.end_time && w.start_time ? Math.round((w.end_time - w.start_time) / 60) : null,
-      moves: null, hr: null, ride: null,
+      moves: null, hr: null, ride: null, muscles: [],
     };
     if (item.discipline === "strength" && item.class_id) {
       try {
@@ -141,6 +146,7 @@ async function sync(db: SupabaseClient, userId: string) {
       const graph = await get(token, `/api/workout/${w.id}/performance_graph?every_n=5`);
       if (!debug.graph_shape) debug.graph_shape = shape(graph, 0, 4);
       item.hr = heartRate(graph);
+      item.muscles = muscleScores(graph);
       if (item.discipline === "cycling") {
         const summary = await get(token, `/api/workout/${w.id}`);
         if (!debug.summary_ftp) debug.summary_ftp = summary.ftp_info ?? null;
@@ -165,7 +171,7 @@ type Move = { name: string; tier: string; seconds: number; at: number };
 type Workout = {
   id: string; start: string | null; discipline: string; title: string; instructor: string | null;
   class_id: string | null; class_minutes: number | null; minutes: number | null;
-  moves: Move[] | null; hr: unknown; ride: unknown; note?: string;
+  moves: Move[] | null; hr: unknown; ride: unknown; muscles: unknown[]; note?: string;
 };
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -195,6 +201,13 @@ function heartRate(graph: any) {
     max: Math.round(m.max_value),
     zones: Array.isArray(m.zones) ? m.zones.map((z: any) => Math.round((z.duration ?? 0) / 60)) : null,
   };
+}
+
+/** Peloton's own score for how much each muscle group worked, e.g. { group: "quads", name: "Quads", score: 41.2 }. */
+function muscleScores(graph: any) {
+  return (graph?.muscle_group_score || [])
+    .filter((m: any) => m?.muscle_group && m.score > 0)
+    .map((m: any) => ({ group: m.muscle_group, name: m.display_name || m.muscle_group, score: Math.round(m.score * 10) / 10 }));
 }
 
 /** Total output, average watts, and seconds in each of the seven power zones (from the FTP at the time). */

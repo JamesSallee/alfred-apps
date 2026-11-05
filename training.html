@@ -79,6 +79,16 @@ h1{font-size:30px;line-height:1.1}
 .day .d{color:var(--muted)}
 .day .k{font-weight:700;color:var(--green);font-size:11px;letter-spacing:.04em}
 
+/* Muscle balance */
+#muscles{display:flex;flex-direction:column;gap:6px}
+.mbars{display:flex;flex-direction:column;gap:5px}
+.mbar{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,2fr) 38px;gap:8px;align-items:center;font-size:13px}
+.mtrack{height:10px;border-radius:4px;background:var(--bg);overflow:hidden}
+.mtrack span{display:block;height:100%;background:var(--green);border-radius:0 4px 4px 0}
+.mv{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.note span+span{border-top:1px dashed var(--brass);padding-top:6px}
+.note .who+span{border-top:0;padding-top:0}
+
 /* Tabs */
 .tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px}
 .tabs button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;color:var(--muted)}
@@ -153,6 +163,7 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
     <div class="head"><h2 id="weekh">This week</h2><span class="muted" id="weekRange"></span></div>
     <div class="week" id="goals"></div>
     <div class="days" id="days"></div>
+    <div id="muscles"></div>
   </section>
 
   <div id="alfred"></div>
@@ -200,6 +211,8 @@ function weightsOwned() {
   for (let w = k.adjMin; w <= k.adjMax + 1e-9; w += k.adjStep) out.push(Math.round(w * 10) / 10);
   return [...new Set(out)].sort((a, b) => a - b);
 }
+const WINDOW = 14 * 864e5; // only the last two weeks ask for weights
+const recent = (w) => Date.now() - new Date(w.start).getTime() <= WINDOW;
 const workouts = () => store.list("workouts/").map((x) => x.value).filter((w) => w?.start).sort((a, b) => b.start.localeCompare(a.start));
 const logOf = (id) => store.get(`log/${id}`);
 
@@ -281,10 +294,40 @@ function renderAlfred() {
     const next = owned.find((w) => w > last3[0].lb);
     if (next) lines.push({ when: last3[2].date, text: `${esc(last3[0].move)} at ${last3[0].tier} has sat at ${lb(last3[0].lb)} for three classes. Try ${lb(next)} next time, even for the first set.` });
   }
-  const pending = workouts().filter((w) => w.discipline === "strength" && w.moves?.length && !logOf(w.id)).length;
+  const pending = workouts().filter((w) => w.discipline === "strength" && w.moves?.length && !logOf(w.id) && recent(w)).length;
   if (pending >= 3) lines.unshift({ when: "~", text: `${pending} classes are waiting for their weights. If it's become a chore, log just the last one and skip the rest.` });
-  const pick = lines.sort((a, b) => b.when.localeCompare(a.when))[0];
-  $("alfred").innerHTML = pick ? `<div class="note"><span class="who">Alfred</span><span>${pick.text}</span></div>` : "";
+  const m = muscleBalance();
+  if (m.neglected) lines.push({ when: "~~", text: `${m.neglected.label} ${m.neglected.label.endsWith("s") ? "have" : "has"} had only ${m.neglected.pct}% of your strength work in the last fortnight. Make the next one ${m.neglected.cls} class.` });
+  const picks = lines.sort((a, b) => (b.when > a.when) - (b.when < a.when)).slice(0, 2); // "~" lines (backlog, balance) first, then newest
+  $("alfred").innerHTML = picks.length ? `<div class="note"><span class="who">Alfred</span>${picks.map((p) => `<span>${p.text}</span>`).join("")}</div>` : "";
+}
+
+// ---------- muscle balance ----------
+// Peloton scores how much each class worked each muscle group; we fold those into four regions.
+const REGIONS = [
+  { key: "legs", label: "Legs", cls: "a lower-body", re: /quad|glute|hamstring|calf|calves|hip|adductor|abductor|leg/i },
+  { key: "core", label: "Core", cls: "a core", re: /core|abs|abdom|oblique|lower.?back/i },
+  { key: "push", label: "Chest, shoulders and triceps", cls: "an upper-body", re: /chest|pec|shoulder|delt|tricep/i },
+  { key: "pull", label: "Back and biceps", cls: "an upper-body", re: /back|lat|trap|bicep|rhomb|forearm/i },
+];
+function muscleBalance() {
+  const ws = workouts().filter((w) => recent(w) && w.discipline === "strength" && w.muscles?.length);
+  const tot = Object.fromEntries(REGIONS.map((r) => [r.key, 0]));
+  ws.forEach((w) => w.muscles.forEach((m) => {
+    const r = REGIONS.find((x) => x.re.test(m.group) || x.re.test(m.name));
+    if (r) tot[r.key] += m.score;
+  }));
+  const sum = Object.values(tot).reduce((a, b) => a + b, 0);
+  const shares = REGIONS.map((r) => ({ ...r, pct: sum ? Math.round((tot[r.key] / sum) * 100) : 0 }));
+  const low = shares.filter((r) => r.pct < 15).sort((a, b) => a.pct - b.pct)[0];
+  return { classes: ws.length, shares: sum ? shares : [], neglected: ws.length >= 2 && low ? low : null };
+}
+function renderMuscles() {
+  const m = muscleBalance();
+  $("muscles").innerHTML = m.shares.length ? `
+    <span class="label">Strength work by muscle group, last 14 days (${m.classes} ${m.classes === 1 ? "class" : "classes"})</span>
+    <div class="mbars">${m.shares.map((r) => `<div class="mbar"><span class="ml">${r.label}</span>
+      <span class="mtrack"><span style="width:${r.pct}%"></span></span><span class="mv">${r.pct}%</span></div>`).join("")}</div>` : "";
 }
 
 // ---------- Log tab ----------
@@ -296,7 +339,7 @@ function renderLog() {
     return;
   }
   const strength = ws.filter((w) => w.discipline === "strength" && w.moves?.length);
-  const waiting = strength.filter((w) => !logOf(w.id));
+  const waiting = strength.filter((w) => !logOf(w.id) && recent(w));
   const rest = ws.slice(0, 20);
   $("tab-log").innerHTML = `
     <div class="head"><h2>Waiting for weights</h2><span class="muted">${waiting.length ? `${waiting.length} to log` : "All caught up"}</span></div>
@@ -310,6 +353,7 @@ function renderLog() {
     const tag = w.discipline !== "strength" || !w.moves?.length ? `<span class="muted">${esc(KIND(w.discipline))}</span>`
       : log?.skipped ? `<span class="badge done">Skipped</span>`
       : log ? `<button class="btn quiet" data-open="${esc(w.id)}" type="button">Edit</button>`
+      : !recent(w) ? `<span class="muted">not logged</span>`
       : `<button class="btn${cta ? " solid" : ""}" data-open="${esc(w.id)}" type="button">Log weights</button>`;
     return `<li><span class="txt"><span class="ttl">${esc(w.title)}</span>
       <span class="muted">${shortDate(w.start)} · ${esc(w.instructor || "")}${w.minutes ? ` · ${w.minutes} min` : ""}${hr}</span></span>${tag}</li>`;
@@ -538,7 +582,7 @@ function renderSyncLine() {
   if (s && !$("syncBtn").disabled) $("syncline").textContent = `Last fetched from Peloton ${new Date(s.ran_at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}.`;
 }
 
-function render() { renderWeek(); renderAlfred(); renderLog(); renderLifts(); renderRides(); }
+function render() { renderWeek(); renderMuscles(); renderAlfred(); renderLog(); renderLifts(); renderRides(); }
 store.subscribe(render);
 renderSyncLine();
 
