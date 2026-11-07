@@ -145,7 +145,7 @@ ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;f
 
 /* tabs, sheet, toast */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-top:1px solid var(--line);
-  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
+  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--muted)}
 nav.tabs button[aria-current="page"]{color:var(--green)}
 nav.tabs svg{width:22px;height:22px}
@@ -164,6 +164,27 @@ nav.tabs svg{width:22px;height:22px}
 .wx b{font-family:var(--display);font-weight:400;font-size:28px;color:var(--green)}
 .outfit{padding:14px;display:flex;flex-direction:column;gap:10px}
 .outfit .t{font-family:var(--display);font-size:18px;line-height:1.2}
+.rate{display:flex;gap:6px}
+.rate button{width:38px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:16px;padding:0}
+.rate button[aria-pressed="true"]{background:var(--green-soft);border-color:var(--green)}
+/* the dressing board */
+.board{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px;overflow:hidden}
+.board .figure{position:absolute;top:8px;bottom:8px;left:50%;transform:translateX(-50%);height:calc(100% - 16px);width:auto;pointer-events:none}
+.bgrid{position:relative;display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:8px;align-items:start;
+  grid-template-areas:"coat top layer" "tie top extra" "belt bottom ." ". bottom ." ". shoes .";}
+.slot{position:relative;aspect-ratio:1/1;border:1.5px dashed var(--line);border-radius:12px;background:color-mix(in srgb, var(--paper) 70%, transparent);
+  padding:0;overflow:hidden;display:grid;place-items:center;color:var(--muted);font-size:12px;font-weight:600;text-align:center}
+.slot.filled{border-style:solid;border-color:var(--green);background:var(--paper)}
+.slot.ghost{opacity:.55}
+.slot .thumb{aspect-ratio:auto;width:100%;height:100%;font-size:20px}
+.slot .lbl{position:absolute;left:0;right:0;bottom:0;padding:3px 4px;font-size:10.5px;font-weight:600;line-height:1.2;background:color-mix(in srgb, var(--paper) 88%, transparent);color:var(--ink);
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.slot[data-k="top"],.slot[data-k="bottom"]{aspect-ratio:4/5}
+.slot[data-k="shoes"]{aspect-ratio:3/2}
+.slot[data-k="tie"],.slot[data-k="belt"],.slot[data-k="extra"]{aspect-ratio:5/4}
+.look{padding:12px;display:flex;flex-direction:column;gap:8px}
+.look .mini{display:flex;gap:4px;overflow:hidden}
+.look .mini .thumb{width:44px;flex:none;border-radius:8px}
 </style>
 
 <div class="wrap">
@@ -209,6 +230,23 @@ nav.tabs svg{width:22px;height:22px}
     <div class="chips scroller" id="rail-filters"></div>
     <div class="chips scroller" id="rail-cats"></div>
     <div id="rail-body"></div>
+  </section>
+
+  <!-- ===================== LOOKS ===================== -->
+  <section id="v-looks" data-view="looks" hidden>
+    <header class="top">
+      <span class="eyebrow">The Wardrobe</span>
+      <div class="row"><h1>The dressing board</h1><button class="linkbtn" type="button" id="board-clear">Clear</button></div>
+      <span class="muted small">Tap a slot to try something on. Only pieces that fit are offered.</span>
+    </header>
+    <div id="board"></div>
+    <div class="chips" id="board-levels"></div>
+    <div class="two">
+      <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 1¢</span></button>
+      <button class="btn" type="button" id="board-save">Save look</button>
+    </div>
+    <div id="board-verdict"></div>
+    <div id="looks"></div>
   </section>
 
   <!-- ===================== FIT ===================== -->
@@ -280,6 +318,7 @@ nav.tabs svg{width:22px;height:22px}
 <nav class="tabs" aria-label="Rooms">
   <button type="button" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>Today</button>
   <button type="button" data-tab="rail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6a2 2 0 1 1 2-2"/><path d="M12 6v2l9 7a1 1 0 0 1-.6 1.8H3.6A1 1 0 0 1 3 15l9-7"/></svg>Rail</button>
+  <button type="button" data-tab="looks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="4.5" r="2"/><path d="M8 9h8l-1 6h-6z"/><path d="M10 15l-1 6M14 15l1 6M12 9v6"/></svg>Looks</button>
   <button type="button" data-tab="fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="8" width="20" height="8" rx="1.5"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/></svg>Fit</button>
   <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>Plan</button>
   <button type="button" data-tab="occ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Occasions</button>
@@ -380,9 +419,15 @@ const lastWorn = (p) => (p.wears || []).at(-1) || null;
 const wearable = (p) => WEARABLE.has(p.verdict || "Fits");
 
 /** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn. */
-function railLines(filter = () => true) {
-  return pieces().filter(filter).map((p) => [p.id, p.name, p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
-    (p.wears || []).length, lastWorn(p) || "never"].join(" | "));
+const lineOf = (p) => [p.id, p.name, p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
+  (p.wears || []).length, lastWorn(p) || "never"].join(" | ");
+function railLines(filter = () => true) { return pieces().filter(filter).map(lineOf); }
+const looks = () => store.list("looks/").map(({ key, value }) => ({ id: key.slice(6), ...value })).sort((a, b) => (b.created || 0) - (a.created || 0));
+const lookIds = (l) => Object.values(l.slots || {}).filter(Boolean);
+const lookWords = (l) => lookIds(l).map(piece).filter(Boolean).map((p) => p.name).join(" + ");
+function tasteLines() {
+  return { liked: looks().filter((l) => l.rating > 0).slice(0, 15).map(lookWords).filter(Boolean),
+    disliked: looks().filter((l) => l.rating < 0).slice(0, 10).map(lookWords).filter(Boolean) };
 }
 function measureLines() {
   return measures().slice(0, 4).map((m) => `${m.date}: ` + MEASURES.filter(([k]) => m[k]).map(([k, l, u]) => `${l} ${m[k]}${u === "US" ? "" : " " + u}`).join(", "));
@@ -391,7 +436,7 @@ const sizesLine = () => Object.entries(settings().sizes || {}).filter(([, v]) =>
 const targetLine = () => { const s = settings(); return [s.targetWeight ? `${s.targetWeight} lb` : "", s.targetNote || ""].filter(Boolean).join(", "); };
 const styleLine = () => { const st = store.get("style"); if (!st) return ""; return [st.summary, `Palette: ${(st.palette || []).map((c) => c.colour).join(", ")}`, `Avoid: ${(st.avoid || []).join(", ")}`, `Fits: ${(st.fits || []).join("; ")}`].join(" "); };
 function aboutMe() {
-  return { measures: measureLines(), target: targetLine(), sizes: sizesLine(), phase: settings().phase || "Losing", style: styleLine() };
+  return { measures: measureLines(), target: targetLine(), sizes: sizesLine(), phase: settings().phase || "Losing", style: styleLine(), ...tasteLines() };
 }
 
 // ---------- undo toast ----------
@@ -518,7 +563,7 @@ async function removePhoto(p) {
 window.addEventListener("online", uploadPending);
 
 // ---------- routing ----------
-const VIEWS = ["today", "rail", "fit", "plan", "occ"];
+const VIEWS = ["today", "rail", "looks", "fit", "plan", "occ"];
 let view = "today";
 function go(v) {
   view = VIEWS.includes(v) ? v : "today";
@@ -538,6 +583,7 @@ function render() {
   if (view === "fit") renderFit();
   if (view === "plan") renderPlan();
   if (view === "occ") renderOcc();
+  if (view === "looks") renderLooks();
   hydratePhotos();
 }
 
@@ -652,7 +698,9 @@ function outfitCard(o, n, pickedKey) {
     <div class="strip">${ps.map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>
     <span class="small">${esc(o.why || "")}</span>
     ${o.missing?.length ? `<span class="small muted">Would help: ${esc(o.missing.join(", "))}</span>` : ""}
-    ${worn ? "" : `<button class="btn primary sm" type="button" data-wear="${esc(pickedKey)}" data-n="${n}">I'm wearing this</button>`}
+    <div class="row"><div class="chips">${worn ? "" : `<button class="btn primary sm" type="button" data-wear="${esc(pickedKey)}" data-n="${n}">I'm wearing this</button>`}
+      <button class="btn sm ghost" type="button" data-board="${n}">On the board</button></div>
+      <div class="rate"><button type="button" data-rate="1" data-n="${n}" aria-pressed="${o.rated === 1}" aria-label="I like this">👍</button><button type="button" data-rate="-1" data-n="${n}" aria-pressed="${o.rated === -1}" aria-label="Not for me">👎</button></div></div>
   </div>`;
 }
 function renderOutfits() {
@@ -665,6 +713,22 @@ function renderOutfits() {
   box.querySelectorAll("[data-wear]").forEach((b) => (b.onclick = () => {
     const out = store.get(b.dataset.wear); const ids = out.outfits[+b.dataset.n].piece_ids;
     wearToday(ids);
+  }));
+  box.querySelectorAll("[data-board]").forEach((b) => (b.onclick = () => {
+    const x = o.outfits[+b.dataset.board];
+    board = { slots: assignSlots(x.piece_ids || []), level: o.level || dayLevel, lookId: x.lookId || null };
+    saveBoard(); go("looks");
+  }));
+  box.querySelectorAll("[data-rate]").forEach((b) => (b.onclick = () => {
+    const n = +b.dataset.n, r = +b.dataset.rate, cur = store.get("outfits/" + today()), x = cur.outfits[n];
+    const rated = x.rated === r ? 0 : r;
+    const id = x.lookId || uid();
+    if (rated) store.set("looks/" + id, { name: x.name || "Alfred's pick", level: cur.level, slots: assignSlots(x.piece_ids || []), rating: rated, from: "Alfred", created: Date.now() });
+    else store.remove("looks/" + id);
+    cur.outfits[n] = { ...x, rated, lookId: rated ? id : null };
+    store.set("outfits/" + today(), cur);
+    if (rated === 1) toast("Saved to your looks. Alfred will remember you liked it.");
+    if (rated === -1) toast("Noted. Alfred will steer clear of that one.");
   }));
   hydratePhotos(box);
 }
@@ -696,6 +760,19 @@ function careDue() {
   }
   return out;
 }
+// A piece is due a fit check once you're 10 lb lighter than when it was last checked (or catalogued).
+function weightOn(day) {
+  const ms = measures().filter((m) => m.weight);
+  return (ms.find((m) => m.date <= day) || ms.at(-1))?.weight ?? null;
+}
+function fitDue() {
+  const now = measures().find((m) => m.weight)?.weight;
+  if (!now) return [];
+  return pieces().filter(wearable).filter((p) => {
+    const base = p.fitCheck?.weight ?? weightOn(p.created_day || today());
+    return base != null && base - now >= 10;
+  }).sort((a, b) => (b.wears || []).length - (a.wears || []).length);
+}
 function noteItems() {
   const t = today(), out = [];
   const last = measures()[0];
@@ -710,6 +787,7 @@ function noteItems() {
   tailoring().filter((x) => x.status === "At the tailor" && x.ready && x.ready <= t).forEach((x) =>
     out.push({ html: `Collect from the tailor: ${esc(piece(x.pieceId)?.name || x.alteration)}.`, go: "fit", act: "See" }));
   tailoring().filter((x) => x.status === "To drop off").length && out.push({ html: `${plural(tailoring().filter((x) => x.status === "To drop off").length, "piece", "pieces")} waiting to go to the tailor.`, go: "fit", act: "See" });
+  const due = fitDue().length; if (due >= 3) out.push({ html: `You're 10 lb lighter than when ${due} pieces were last checked. Time for a fitting.`, go: "fit", act: "See" });
   const care = careDue(); if (care.length) out.push({ html: `${plural(care.length, "care job", "care jobs")} due: ${esc(care[0].text.toLowerCase())}${care.length > 1 ? " and more" : ""}.`, go: "occ", act: "See" });
   const unworn = pieces().filter(unwornLong).length;
   if (unworn >= 5 && new Date().getDay() === 0) out.push({ html: `${unworn} pieces haven't been worn in 90 days. Keep, or donate?`, go: "rail", act: "See", filter: "Unworn" });
@@ -728,9 +806,10 @@ const unwornLong = (p) => wearable(p) && daysBetween(lastWorn(p) || p.created_da
 const FILTERS = {
   All: () => true, Fits: (p) => (p.verdict || "Fits") === "Fits", Tailor: (p) => p.verdict === "Tailor",
   "Doesn't fit": (p) => p.verdict === "Too big" || p.verdict === "Too small", "On the way out": (p) => p.verdict === "Retire" || p.verdict === "Donate",
-  Unworn: unwornLong, Formal: (p) => p.formality === "Formal",
+  Unworn: unwornLong, Formal: (p) => p.formality === "Formal", Untagged: untagged,
 };
 function renderRail() {
+  renderTagBar();
   const all = pieces();
   $("rail-count").textContent = all.length ? `The Wardrobe · ${plural(all.length, "piece", "pieces")}` : "The Wardrobe";
   $("rail-filters").innerHTML = Object.keys(FILTERS).map((f) => {
@@ -750,58 +829,108 @@ function tile(p) {
   const v = p.verdict || "Fits";
   const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(v)}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
   return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
-    <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "tagging…" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
+    <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "waiting to be tagged" : p.needsTag ? "needs tagging" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
 }
 $("rail-filters").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { railFilter = b.dataset.f; render(); } });
 $("rail-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { railCat = b.dataset.c; render(); } });
 $("rail-search").addEventListener("input", (e) => { railQ = e.target.value; render(); });
-document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open]"); if (b) pieceSheet(b.dataset.open); });
+document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open], #fit-trend [data-open], #looks [data-open]"); if (b) pieceSheet(b.dataset.open); });
 
-// Adding by photo: thumbnail now, Claude's tags a moment later. Several photos run one after another.
-const queue = []; let tagRunning = false, tagDone = 0, tagTotal = 0, tagErrors = 0;
+// Adding by photo: thumbnail now, Claude's tags a moment later, one photo after another.
+// The queue is the pieces themselves (tagging: true), so it survives closing the app. Until a piece is tagged,
+// a sharper 1024 px copy waits in this device's photo cache; it's dropped once Alfred has tagged the piece.
+const fullKey = (id) => `./__wardrobe-full/${id}`;
+function untagged(p) { return !!(p.tagging || p.needsTag); }
+let tagRunning = false, tagDone = 0, tagErrors = 0, tagStop = false;
+async function keepFull(id, blob) { try { await (await caches.open(PHOTO_CACHE)).put(fullKey(id), new Response(blob, { headers: { "Content-Type": "image/jpeg" } })); } catch {} }
+async function dropFull(id) { try { await (await caches.open(PHOTO_CACHE)).delete(fullKey(id)); } catch {} }
+async function hasFull(id) { try { return !!(await (await caches.open(PHOTO_CACHE)).match(fullKey(id))); } catch { return false; } }
+const blobB64 = (blob) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = bad; r.readAsDataURL(blob); });
+/** The best photo we have for tagging: the sharp copy on this device, else the stored thumbnail. */
+async function tagPhoto(p) {
+  try { const hit = await (await caches.open(PHOTO_CACHE)).match(fullKey(p.id)); if (hit) return blobB64(await hit.blob()); } catch {}
+  const u = await photoUrl(p);
+  return u ? blobB64(await (await fetch(u)).blob()) : null;
+}
 $("add-photos").addEventListener("change", async (e) => {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length) return;
   if (!myId) return toast("Sign in first, so the photos have somewhere to live.");
+  $("tag-progress").innerHTML = `<div class="card empty"><span class="busy" aria-hidden="true"></span> Taking in ${plural(files.length, "photo", "photos")}…</div>`;
   for (const f of files) {
     try {
-      const thumb = await shrink(f, 480, 0.8);
+      const [thumb, big] = [await shrink(f, 480, 0.8), await shrink(f, 1024, 0.82)];
       const p = { id: uid(), name: "New piece", category: "Other", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today(), tagging: true };
+      await keepFull(p.id, big.blob);
       await storePhoto(p, thumb.blob);
-      queue.push({ id: p.id, file: f });
     } catch (err) { toast(err.message); }
   }
-  tagTotal += files.length;
   if (view !== "rail") go("rail"); else render();
   runTagging();
 });
-async function runTagging() {
-  if (tagRunning) return;
-  tagRunning = true;
-  while (queue.length) {
-    const job = queue.shift();
-    showTagProgress();
-    try {
-      const big = await shrink(job.file, 1024, 0.82);
-      const r = await ai("w_tag", { image: big.b64, media_type: "image/jpeg" });
-      const p = piece(job.id); if (!p) continue;
-      if (r.found === false) { savePiece({ ...p, tagging: false, name: "Not sure what this is" }); }
-      else savePiece({ ...p, tagging: false, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
-        formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || p.size || "", pairs_with: r.pairs_with });
-    } catch (err) {
-      tagErrors++;
-      const p = piece(job.id); if (p) savePiece({ ...p, tagging: false });
-      if (/budget|sign in|offline/i.test(err.message)) { toast(err.message); queue.length = 0; }
+/** Tag every piece that's waiting. `onlyHere` keeps an automatic resume to pieces whose sharp photo is on this device,
+    so two devices don't both pick up the same batch. */
+async function runTagging({ onlyHere = false } = {}) {
+  if (tagRunning || !navigator.onLine || !myId) return;
+  tagRunning = true; tagStop = false;
+  const skip = new Set();
+  try {
+    while (!tagStop) {
+      const waiting = pieces().filter((p) => p.tagging && !skip.has(p.id));
+      let p = null;
+      for (const w of waiting) { if (!onlyHere || await hasFull(w.id)) { p = w; break; } skip.add(w.id); }
+      if (!p) break;
+      showTagProgress(waiting.length);
+      const b64 = await tagPhoto(p).catch(() => null);
+      if (!b64) { skip.add(p.id); savePiece({ ...piece(p.id), tagging: false, needsTag: true }); tagErrors++; continue; }
+      let r = null, err = null;
+      for (let attempt = 0; attempt < 2 && !r; attempt++) {
+        try { r = await ai("w_tag", { image: b64, media_type: "image/jpeg" }); err = null; }
+        catch (e) {
+          err = e;
+          if (/budget|sign in|offline|private/i.test(e.message)) break; // no point retrying these
+          if (!attempt) await new Promise((ok) => setTimeout(ok, 2500));
+        }
+      }
+      const now = piece(p.id);
+      if (!now) { skip.add(p.id); continue; } // removed while we were asking
+      if (r) {
+        const base = { ...now, tagging: false, needsTag: false };
+        savePiece(r.found === false ? { ...base, name: now.name === "New piece" ? "Not sure what this is" : now.name }
+          : { ...base, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
+              formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || now.size || "", pairs_with: r.pairs_with });
+        dropFull(p.id); tagDone++;
+      } else if (/budget|sign in|offline|private/i.test(err?.message || "")) {
+        toast(err.message + " The rest will wait; tap Resume cataloguing when you're ready."); break;
+      } else {
+        skip.add(p.id); tagErrors++;
+        savePiece({ ...now, tagging: false, needsTag: true }); // keeps the sharp copy, so "Ask Alfred to tag this" can try again
+      }
     }
-    tagDone++;
+  } finally {
+    tagRunning = false;
+    const failed = tagErrors ? `${plural(tagErrors, "piece", "pieces")} couldn't be tagged (filter: Untagged).` : "";
+    if (tagDone) toast(`Catalogued ${plural(tagDone, "piece", "pieces")}. Check the sizes.${failed ? " " + failed : ""}`);
+    else if (failed) toast(failed);
+    tagDone = tagErrors = 0;
+    render();
   }
-  tagRunning = false; showTagProgress();
-  if (tagDone) toast(`Catalogued ${plural(tagDone - tagErrors, "piece", "pieces")}${tagErrors ? `; ${tagErrors} need tagging by hand` : ""}. Check the sizes.`);
-  tagDone = tagTotal = tagErrors = 0; showTagProgress();
 }
-function showTagProgress() {
-  $("tag-progress").innerHTML = tagRunning && tagTotal ? `<div class="card empty"><span class="busy" aria-hidden="true"></span> Alfred is cataloguing ${Math.min(tagDone + 1, tagTotal)} of ${tagTotal}…</div>` : "";
+function showTagProgress(left) {
+  $("tag-progress").innerHTML = `<div class="card pad" style="flex-direction:row;align-items:center;justify-content:space-between">
+    <span><span class="busy" aria-hidden="true"></span> Alfred is cataloguing: ${tagDone} done, ${left} to go</span>
+    <button class="linkbtn" type="button" id="tag-pause">Pause</button></div>`;
+  $("tag-pause").onclick = () => { tagStop = true; $("tag-pause").textContent = "Pausing after this one…"; };
 }
+function renderTagBar() {
+  if (tagRunning) return;
+  const waiting = pieces().filter((p) => p.tagging).length, failed = pieces().filter((p) => p.needsTag).length;
+  $("tag-progress").innerHTML = waiting ? `<button class="btn brass stack" type="button" id="tag-resume" style="width:100%">Resume cataloguing (${waiting}) <span class="cost">about ${waiting}¢</span></button>`
+    : failed ? `<p class="small muted">${plural(failed, "piece", "pieces")} couldn't be tagged. Open one and tap “Ask Alfred to tag this”, or filter by Untagged.</p>` : "";
+  $("tag-resume")?.addEventListener("click", () => runTagging());
+}
+// Pick up where we left off: on opening (once signed in), and when the connection comes back.
+window.addEventListener("online", () => runTagging({ onlyHere: true }));
 $("add-hand").onclick = () => pieceSheet(null);
 
 function pieceSheet(id) {
@@ -833,8 +962,15 @@ function pieceSheet(id) {
     <label class="field">Notes<textarea id="ps-notes" placeholder="Where it's from, what the tailor said…" style="min-height:64px">${esc(p.notes || "")}</textarea></label>
     ${isNew ? `<label class="btn"><span id="ps-photo-label">Add a photo</span><input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>` :
       `<div class="chips"><label class="chip dash" style="cursor:pointer">${p.photo ? "Replace photo" : "Add a photo"}<input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>
+       ${p.photo && !p.tagging ? `<button class="chip dash" type="button" id="ps-retag">Ask Alfred to tag this · 1¢</button>` : ""}
        ${p.verdict === "Tailor" && !tl ? `<button class="chip dash" type="button" id="ps-tailor">+ Tailoring list</button>` : ""}
-       ${p.care ? `<button class="chip dash" type="button" id="ps-clean">Just ${p.care === "Polish" ? "polished" : "cleaned"}</button>` : ""}</div>`}
+       ${p.care ? `<button class="chip dash" type="button" id="ps-clean">Just ${p.care === "Polish" ? "polished" : "cleaned"}</button>` : ""}</div>
+      <div class="card pad" style="background:transparent">
+        <div class="row"><b>Fit check</b>${p.fitCheck ? `<span class="small muted">${esc(fmtDate(p.fitCheck.date))}: ${esc(p.fitCheck.verdict)}</span>` : ""}</div>
+        ${p.fitCheck?.advice ? `<span class="small">${esc(p.fitCheck.advice)}</span>` : ""}
+        <label class="btn stack" style="cursor:pointer">Photo of me wearing it <span class="cost">about 2¢ · the photo isn't kept</span><input type="file" accept="image/*" class="sr" id="ps-fitphoto"></label>
+        <div id="ps-fit"></div>
+      </div>`}
     <div class="two">${isNew ? `<button class="btn" type="button" id="ps-cancel">Cancel</button>` : `<button class="btn" type="button" id="ps-del">Remove</button>`}
       <button class="btn primary" type="button" id="ps-save">Save</button></div>`, (panel) => {
     let newPhoto = null;
@@ -845,7 +981,7 @@ function pieceSheet(id) {
     panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
     panel.querySelector("#ps-photo").addEventListener("change", async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
+      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await dropFull(p.id); await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
       catch (err) { toast(err.message); }
     });
     panel.querySelector("#ps-save").onclick = async () => {
@@ -860,13 +996,175 @@ function pieceSheet(id) {
     panel.querySelector("#ps-wear")?.addEventListener("click", () => { savePiece(read()); wearToday([p.id]); closeSheet(); });
     panel.querySelector("#ps-tailor")?.addEventListener("click", () => { savePiece(read()); store.set("tailoring/" + uid(), { pieceId: p.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() }); closeSheet(); toast("On the tailoring list."); });
     panel.querySelector("#ps-clean")?.addEventListener("click", () => { savePiece({ ...read(), cleaned: today() }); closeSheet(); toast("Noted."); });
+    panel.querySelector("#ps-fitphoto")?.addEventListener("change", async (e) => {
+      const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+      const box = panel.querySelector("#ps-fit");
+      box.innerHTML = `<div class="empty"><span class="busy" aria-hidden="true"></span> Alfred is looking you over…</div>`;
+      try {
+        const img = await shrink(f, 1024, 0.82);
+        const cur = read();
+        const r = await ai("w_fit_photo", { ...aboutMe(), image: img.b64, media_type: "image/jpeg", piece: lineOf(cur) });
+        if (!r.can_judge) { box.innerHTML = `<p class="small">${esc(r.advice || "I couldn't see enough to judge. Try a full-length photo in good light.")}</p>`; return; }
+        box.innerHTML = `<div class="row"><span class="badge ${r.verdict === "Fits" ? "" : r.verdict === "Tailor" ? "brass" : "danger"}">${esc(r.verdict)}</span>${r.cost_usd ? `<span class="small muted">about ${money(r.cost_usd)}</span>` : ""}</div>
+          ${r.notes?.length ? `<ul class="plain">${r.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+          <p class="small" style="margin:0">${esc(r.advice)}</p>${r.alteration ? `<p class="small" style="margin:0"><b>Ask for:</b> ${esc(r.alteration)}</p>` : ""}
+          <div class="chips"><button class="btn primary sm" type="button" id="fc-agree">Agree</button><button class="btn sm ghost" type="button" id="fc-keep">Keep it as ${esc(cur.verdict)}</button></div>`;
+        const check = { date: today(), weight: measures().find((m) => m.weight)?.weight ?? null, verdict: r.verdict, advice: r.advice, via: "photo" };
+        box.querySelector("#fc-agree").onclick = () => {
+          savePiece({ ...read(), verdict: r.verdict, fitCheck: check });
+          if (r.verdict === "Tailor" && !tailoring().some((t) => t.pieceId === p.id && t.status !== "Collected"))
+            store.set("tailoring/" + uid(), { pieceId: p.id, alteration: r.alteration || r.advice, cost: r.cost_usd || 0, status: "To drop off", created: Date.now() });
+          closeSheet(); toast(r.verdict === "Tailor" ? "Marked for the tailor." : `Marked as ${r.verdict.toLowerCase()}.`);
+        };
+        box.querySelector("#fc-keep").onclick = () => { savePiece({ ...read(), fitCheck: { ...check, verdict: cur.verdict } }); closeSheet(); };
+      } catch (err) { box.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+    });
+    panel.querySelector("#ps-retag")?.addEventListener("click", () => {
+      savePiece({ ...read(), tagging: true, needsTag: false }); closeSheet();
+      if (tagRunning) toast("Added to the queue."); else runTagging();
+    });
     panel.querySelector("#ps-del")?.addEventListener("click", () => {
       closeSheet();
       undoable(`Removed ${p.name}.`, ["pieces/" + p.id], () => store.remove("pieces/" + p.id));
       // The photo goes only once the undo window has passed and the piece is still gone.
-      setTimeout(() => { if (!piece(p.id)) removePhoto(p); }, 7000);
+      setTimeout(() => { if (!piece(p.id)) { removePhoto(p); dropFull(p.id); } }, 7000);
     });
   });
+}
+
+// ===================== LOOKS =====================
+const SLOTS = [
+  { k: "coat", label: "Coat", cats: ["Coat"] },
+  { k: "layer", label: "Jacket or layer", cats: ["Suit", "Blazer", "Jacket", "Knitwear"] },
+  { k: "top", label: "Shirt or top", cats: ["Dress shirt", "Casual shirt", "Polo", "T-shirt", "Knitwear"] },
+  { k: "tie", label: "Tie", cats: ["Tie"] },
+  { k: "bottom", label: "Trousers", cats: ["Trousers", "Chinos", "Jeans", "Shorts", "Swimwear"] },
+  { k: "belt", label: "Belt", cats: ["Belt"] },
+  { k: "shoes", label: "Shoes", cats: ["Shoes"] },
+  { k: "extra", label: "Extras", cats: ["Accessory", "Activewear", "Other"] },
+];
+const FORM_RANK = { Casual: 0, "Smart casual": 1, "Business casual": 2, Formal: 3 };
+const LEVEL_RANK = { Casual: 0, "Family holiday": 1, "Business casual": 2, Formal: 3 };
+/** Put a set of pieces into board slots by kind (a jumper goes over the shirt if there is one). */
+function assignSlots(ids) {
+  const out = {};
+  const ps = ids.map(piece).filter(Boolean).sort((a, b) => (a.category === "Knitwear") - (b.category === "Knitwear"));
+  ps.forEach((p) => { const sl = SLOTS.find((x) => x.cats.includes(p.category) && !out[x.k]) || SLOTS.find((x) => x.cats.includes(p.category)); if (sl) out[sl.k] = p.id; });
+  return out;
+}
+let board = (() => { try { return JSON.parse(localStorage.getItem("wardrobe:board")) || null; } catch { return null; } })() || { slots: {}, level: null, lookId: null };
+let boardVerdict = null, boardAsking = false, showDisliked = false;
+function saveBoard() { boardVerdict = null; try { localStorage.setItem("wardrobe:board", JSON.stringify(board)); } catch {} }
+const FIGURE = `<svg class="figure" viewBox="0 0 200 420" aria-hidden="true"><g fill="var(--rule)">
+  <circle cx="100" cy="34" r="24"/><rect x="92" y="56" width="16" height="14" rx="4"/>
+  <path d="M52 78c10-8 30-12 48-12s38 4 48 12l18 96c1 7-8 9-11 3l-17-62-4 64H66l-4-64-17 62c-3 6-12 4-11-3z"/>
+  <path d="M66 182h68l-4 220c0 8-14 8-15 0l-15-170-15 170c-1 8-15 8-15 0z"/></g></svg>`;
+function renderLooks() {
+  board.level ||= dayLevel || defaultLevel();
+  const slots = board.slots || {};
+  const suit = slots.layer && piece(slots.layer)?.category === "Suit" ? piece(slots.layer) : null;
+  $("board").innerHTML = `<div class="board">${FIGURE}<div class="bgrid">${SLOTS.map((sl) => {
+    const p = slots[sl.k] && piece(slots[sl.k]);
+    if (p) return `<button class="slot filled" type="button" data-slot="${sl.k}" data-k="${sl.k}" style="grid-area:${sl.k}" aria-label="${esc(sl.label)}: ${esc(p.name)}. Tap to change.">${thumbHtml(p)}<span class="lbl">${esc(p.name)}</span></button>`;
+    if (sl.k === "bottom" && suit) return `<button class="slot filled ghost" type="button" data-slot="bottom" data-k="bottom" style="grid-area:bottom" aria-label="Suit trousers. Tap to wear other trousers.">${thumbHtml(suit)}<span class="lbl">Suit trousers</span></button>`;
+    return `<button class="slot" type="button" data-slot="${sl.k}" data-k="${sl.k}" style="grid-area:${sl.k}">+ ${esc(sl.label)}</button>`;
+  }).join("")}</div></div>`;
+  $("board").querySelectorAll("[data-slot]").forEach((b) => (b.onclick = () => slotSheet(b.dataset.slot)));
+  $("board-levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-blevel="${esc(l)}" aria-pressed="${l === board.level}">${esc(l)}</button>`).join("");
+  $("board-levels").querySelectorAll("[data-blevel]").forEach((b) => (b.onclick = () => { board.level = b.dataset.blevel; saveBoard(); renderLooks(); }));
+  renderBoardVerdict(); renderSavedLooks(); hydratePhotos($("v-looks"));
+}
+function slotSheet(k) {
+  const sl = SLOTS.find((x) => x.k === k);
+  const rank = LEVEL_RANK[board.level] ?? 2;
+  const opts = pieces().filter(wearable).filter((p) => sl.cats.includes(p.category))
+    .sort((a, b) => Math.abs((FORM_RANK[a.formality] ?? 1) - rank) - Math.abs((FORM_RANK[b.formality] ?? 1) - rank) || (b.wears || []).length - (a.wears || []).length);
+  const cur = board.slots?.[k];
+  openSheet(`<h2>${esc(sl.label)}</h2><p class="small muted">${opts.length ? `What fits, closest to ${esc(board.level)} first.` : "Nothing on the rail that fits this slot yet."}</p>
+    <div class="grid">${opts.map((p) => `<button class="piece" type="button" data-pick="${esc(p.id)}" style="${p.id === cur ? "border-color:var(--green);border-width:2px" : ""}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span><span class="sz">${esc(p.formality || "")}</span></span></button>`).join("")}</div>
+    <div class="two"><button class="btn" type="button" id="sl-none">${cur ? "Take it off" : "Leave empty"}</button><button class="btn ghost" type="button" id="sl-cancel">Cancel</button></div>`, (panel) => {
+    panel.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { board.slots = { ...board.slots, [k]: b.dataset.pick }; saveBoard(); closeSheet(); renderLooks(); }));
+    panel.querySelector("#sl-none").onclick = () => { const s2 = { ...board.slots }; delete s2[k]; board.slots = s2; saveBoard(); closeSheet(); renderLooks(); };
+    panel.querySelector("#sl-cancel").onclick = closeSheet;
+  });
+}
+$("board-clear").onclick = () => { board = { slots: {}, level: board.level, lookId: null }; saveBoard(); renderLooks(); };
+$("board-ask").onclick = async () => {
+  const filled = SLOTS.filter((sl) => board.slots?.[sl.k] && piece(board.slots[sl.k]));
+  if (filled.length < 2) return toast("Put at least two pieces on the board first.");
+  boardAsking = true; boardVerdict = null; renderBoardVerdict();
+  try {
+    await loadWeather();
+    boardVerdict = await ai("w_look", { ...aboutMe(), level: board.level, weather: wxText(wxFor(today())), rail: railLines(wearable),
+      look: filled.map((sl) => `${sl.label}: ${lineOf(piece(board.slots[sl.k]))}`) });
+  } catch (e) { boardVerdict = { error: e.message }; }
+  boardAsking = false; renderBoardVerdict();
+};
+function renderBoardVerdict() {
+  const box = $("board-verdict");
+  if (boardAsking) { box.innerHTML = spinner("Alfred is standing back to look…"); return; }
+  const v = boardVerdict; if (!v) { box.innerHTML = ""; return; }
+  if (v.error) { box.innerHTML = errBox(v.error); return; }
+  const out = v.swap_out && piece(v.swap_out), inn = v.swap_in && piece(v.swap_in);
+  box.innerHTML = `<div class="card pad" style="border-color:${v.verdict === "Works" ? "var(--green)" : v.verdict === "Nearly" ? "var(--brass)" : "var(--danger)"}">
+    <h3>${v.verdict === "Works" ? "That works." : v.verdict === "Nearly" ? "Nearly there." : "Let's rethink that."}</h3>
+    <p class="small">${esc(v.comment)}</p>
+    ${inn ? `<div class="row" style="justify-content:flex-start;gap:10px">${out ? `<button class="piece" type="button" data-open="${esc(out.id)}" style="width:64px;flex:none">${thumbHtml(out)}</button><span>→</span>` : `<span class="small muted">Add</span>`}
+      <button class="piece" type="button" data-open="${esc(inn.id)}" style="width:64px;flex:none">${thumbHtml(inn)}</button><span class="small">${esc(v.swap_why)}</span></div>
+      <button class="btn sm primary" type="button" id="bv-swap" style="align-self:flex-start">${out ? `Swap in the ${esc(inn.name.toLowerCase())}` : `Add the ${esc(inn.name.toLowerCase())}`}</button>` : ""}
+  </div>`;
+  box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => pieceSheet(b.dataset.open)));
+  box.querySelector("#bv-swap")?.addEventListener("click", () => {
+    const s2 = { ...board.slots };
+    const outK = out && Object.keys(s2).find((k) => s2[k] === out.id);
+    if (outK) delete s2[outK];
+    const sl = (outK && SLOTS.find((x) => x.k === outK && x.cats.includes(inn.category))) || SLOTS.find((x) => x.cats.includes(inn.category) && !s2[x.k]) || SLOTS.find((x) => x.cats.includes(inn.category));
+    if (sl) s2[sl.k] = inn.id;
+    board.slots = s2; saveBoard(); renderLooks();
+  });
+  hydratePhotos(box);
+}
+$("board-save").onclick = () => {
+  if (!lookIds(board).length) return toast("Nothing on the board yet.");
+  const existing = board.lookId && store.get("looks/" + board.lookId);
+  openSheet(`<h2>${existing ? "Update this look" : "Save this look"}</h2>
+    <label class="field">Call it<input type="text" id="lk-name" value="${esc(existing?.name || `${board.level} look`)}"></label>
+    <div class="two">${existing ? `<button class="btn" type="button" id="lk-new">Save as new</button>` : `<button class="btn" type="button" id="lk-cancel">Cancel</button>`}<button class="btn primary" type="button" id="lk-save">Save</button></div>`, (p) => {
+    const save = (id) => {
+      store.set("looks/" + id, { ...(existing && id === board.lookId ? existing : { rating: 1, created: Date.now(), from: "Board" }),
+        name: p.querySelector("#lk-name").value.trim() || "A look", level: board.level, slots: { ...board.slots }, verdict: boardVerdict?.verdict || existing?.verdict || null });
+      board.lookId = id; try { localStorage.setItem("wardrobe:board", JSON.stringify(board)); } catch {}
+      closeSheet(); toast("Saved to your looks.");
+    };
+    p.querySelector("#lk-cancel")?.addEventListener("click", closeSheet);
+    p.querySelector("#lk-new")?.addEventListener("click", () => save(uid()));
+    p.querySelector("#lk-save").onclick = () => save(board.lookId || uid());
+  });
+};
+function renderSavedLooks() {
+  const all = looks(), good = all.filter((l) => l.rating >= 0), bad = all.filter((l) => l.rating < 0);
+  const card = (l) => {
+    const ps = lookIds(l).map(piece).filter(Boolean);
+    const gone = lookIds(l).length - ps.length, unfit = ps.filter((p) => !wearable(p)).length;
+    return `<div class="card look">
+      <div class="row"><div><h3>${esc(l.name)}</h3><span class="small muted">${esc(l.level || "")}${l.from === "Alfred" ? " · Alfred's pick" : ""}${l.verdict ? ` · Alfred: ${esc(l.verdict)}` : ""}</span></div>
+        <div class="rate"><button type="button" data-lrate="1" data-l="${esc(l.id)}" aria-pressed="${l.rating > 0}" aria-label="I like this">👍</button><button type="button" data-lrate="-1" data-l="${esc(l.id)}" aria-pressed="${l.rating < 0}" aria-label="Not for me">👎</button></div></div>
+      <div class="mini">${ps.map((p) => thumbHtml(p)).join("")}</div>
+      ${unfit || gone ? `<span class="small err">${[unfit ? `${unfit} no longer ${unfit === 1 ? "fits" : "fit"}` : "", gone ? `${gone} removed from the rail` : ""].filter(Boolean).join(", ")}.</span>` : ""}
+      <div class="chips"><button class="btn sm" type="button" data-lboard="${esc(l.id)}">On the board</button>
+        ${ps.length && !ps.every((p) => lastWorn(p) === today()) ? `<button class="btn sm ghost" type="button" data-lwear="${esc(l.id)}">Wearing it today</button>` : ""}
+        <button class="linkbtn danger" type="button" data-ldel="${esc(l.id)}">Remove</button></div></div>`;
+  };
+  $("looks").innerHTML = `<h2 style="margin-top:8px">Saved looks</h2>
+    ${good.length ? `<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">${good.map(card).join("")}</div>` : `<div class="card empty" style="margin-top:8px">Nothing saved yet. Build one above, or tap 👍 on one of Alfred's outfits.</div>`}
+    ${bad.length ? `<button class="linkbtn" type="button" id="looks-bad" aria-expanded="${showDisliked}" style="margin-top:6px">${showDisliked ? "▾" : "▸"} Not for me (${bad.length})</button>
+      ${showDisliked ? `<div style="display:flex;flex-direction:column;gap:10px">${bad.map(card).join("")}</div>` : ""}` : ""}`;
+  const box = $("looks");
+  box.querySelector("#looks-bad")?.addEventListener("click", () => { showDisliked = !showDisliked; renderSavedLooks(); hydratePhotos(box); });
+  box.querySelectorAll("[data-lrate]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.l); const r = +b.dataset.lrate; store.set("looks/" + b.dataset.l, { ...l, rating: l.rating === r ? 0 : r }); }));
+  box.querySelectorAll("[data-lboard]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.lboard); board = { slots: { ...l.slots }, level: l.level, lookId: b.dataset.lboard }; saveBoard(); renderLooks(); window.scrollTo(0, 0); }));
+  box.querySelectorAll("[data-lwear]").forEach((b) => (b.onclick = () => wearToday(lookIds(store.get("looks/" + b.dataset.lwear)).filter((id) => piece(id)))));
+  box.querySelectorAll("[data-ldel]").forEach((b) => (b.onclick = () => undoable("Look removed.", ["looks/" + b.dataset.ldel], () => store.remove("looks/" + b.dataset.ldel))));
 }
 
 // ===================== FIT =====================
@@ -890,7 +1188,11 @@ function renderFit() {
     : `<div class="note"><span class="label">Start here</span><span>Log your measurements once a month. Alfred works out your sizes from them, and which clothes still fit.</span></div>`);
   // trend
   const trend = ["weight", "waist", "chest", "neck"].filter((k) => ms.filter((m) => m[k]).length >= 2);
-  $("fit-trend").innerHTML = trend.length ? `<div class="card pad"><span class="label">Trend</span><div class="mgrid">${trend.map((k) => spark(k, ms)).join("")}</div></div>` : "";
+  const dueFit = fitDue();
+  $("fit-trend").innerHTML = (dueFit.length ? `<div class="note"><span class="label">Due a fitting</span>
+      <span>You're 10 lb or more lighter than when ${plural(dueFit.length, "piece was", "pieces were")} last checked. Put one on, take a photo, and Alfred will say whether it still fits. Most-worn first:</span>
+      <div class="strip">${dueFit.slice(0, 12).map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div></div>` : "")
+    + (trend.length ? `<div class="card pad"><span class="label">Trend</span><div class="mgrid">${trend.map((k) => spark(k, ms)).join("")}</div></div>` : "");
   // sizes
   const sizes = s.sizes || {};
   const fit = store.get("fit");
@@ -995,7 +1297,8 @@ function renderFitAdvice() {
   const mark = (id) => { const f = store.get("fit"); f.applied = { ...(f.applied || {}), [id]: true }; store.set("fit", f); };
   box.querySelectorAll("[data-apply]").forEach((b) => (b.onclick = () => {
     const x = fit.pieces.find((y) => y.id === b.dataset.apply); const p = piece(x.id);
-    savePiece({ ...p, verdict: x.verdict, notes: [p.notes, x.verdict === "Tailor" ? `Tailor: ${x.alteration}` : ""].filter(Boolean).join("\n") });
+    savePiece({ ...p, verdict: x.verdict, notes: [p.notes, x.verdict === "Tailor" ? `Tailor: ${x.alteration}` : ""].filter(Boolean).join("\n"),
+      fitCheck: { date: today(), weight: measures().find((m) => m.weight)?.weight ?? null, verdict: x.verdict, advice: x.advice, via: "measurements" } });
     if (x.verdict === "Tailor" && !tailoring().some((t) => t.pieceId === p.id && t.status !== "Collected"))
       store.set("tailoring/" + uid(), { pieceId: p.id, alteration: x.alteration || x.advice, cost: x.cost_usd || 0, status: "To drop off", created: Date.now() });
     mark(x.id);
@@ -1287,7 +1590,7 @@ if (/access_token=|error_description=/.test(location.hash) || new URLSearchParam
 store.subscribe(() => { if (!sheetOpen) render(); });
 store.onStatus(async (st) => {
   if (st === "signed-out") { myId = null; return; }
-  if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); } }
+  if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); runTagging({ onlyHere: true }); } }
 });
 go(location.hash.slice(1) || "today");
 </script>
