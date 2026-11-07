@@ -142,6 +142,13 @@ h1{font-size:30px;line-height:1.1}
 .tip b{color:var(--brass)}
 
 /* Edit sheet */
+.auto{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);background:var(--green-soft);border-radius:999px;padding:1px 6px;margin-left:4px;font-weight:700;vertical-align:1px}
+.auto[hidden]{display:none}
+.gathers{display:flex;flex-direction:column;gap:6px}
+.gathers .g{display:flex;gap:6px;align-items:center}
+.gathers .g input{flex:1;min-width:0}
+.gathers .g button{border:1px solid var(--line);background:var(--paper);color:var(--muted);border-radius:8px;width:32px;height:32px;flex:none}
+.rhythm{margin:0;font-size:12.5px;color:var(--muted)}
 dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% - 24px));width:100%;color:var(--ink)}
 dialog::backdrop{background:rgba(0,0,0,.35)}
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:10px;max-height:85vh;overflow:auto}
@@ -239,10 +246,15 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div id="edDates">
       <div class="grid2">
         <div class="f"><label class="label" for="edPublish">Publish on</label><input id="edPublish" type="date"></div>
-        <div class="f"><label class="label" for="edGather">Gather by</label><input id="edGather" type="date"></div>
-        <div class="f"><label class="label" for="edDraft">Draft on</label><input id="edDraft" type="date"></div>
-        <div class="f"><label class="label" for="edDue">Schedule in Substack by</label><input id="edDue" type="date"></div>
+        <div class="f"><label class="label" for="edDraft">Draft on <span class="auto" id="edDraftAuto">auto</span></label><input id="edDraft" type="date"></div>
+        <div class="f"><label class="label" for="edDue">Schedule in Substack by <span class="auto" id="edDueAuto">auto</span></label><input id="edDue" type="date"></div>
       </div>
+      <div class="f" id="edGatherF" role="group" aria-labelledby="edGatherL">
+        <span class="label" id="edGatherL"><span id="edGatherLab">Gather on</span> <span class="auto" id="edGatherAuto">auto</span></span>
+        <div class="gathers" id="edGathers"></div>
+        <div class="row"><button class="link" type="button" id="edGatherAdd">+ Another date</button></div>
+      </div>
+      <p class="rhythm"><span id="edRhythmTxt"></span> <button class="link" type="button" id="edRhythm">Reset to the rhythm</button></p>
     </div>
     <label class="tick" id="edBankedF"><input type="checkbox" id="edBanked"> This is the banked post</label>
     <div class="f"><label class="label" for="edNotes">Notes</label><textarea id="edNotes"></textarea></div>
@@ -263,6 +275,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // ---------- Data ----------
 // Store "desk":
 //   pieces/<id>  { title, track: ilkwim|fiction|comedy, series, stage, link, publish, gather, draft, due,
+//                  gathers: [dates] (every gather session; gather = the last of them),
+//                  auto: { gather, draft, due } (true = follows the publish date; see rhythm()),
 //                  banked, notes, checks: {i: true}, askSnooze: "YYYY-MM-DD", created }
 //   settings     { remedies: [..], checklist: [..], tips: [..], greeting: ".." }
 // Personal content lives in the database, never in this public file.
@@ -294,6 +308,7 @@ const parse = (s) => new Date(s + "T00:00");
 const daysTo = (s) => Math.round((parse(s) - today0()) / 864e5);
 const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const dm = (s) => parse(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const settings = () => ({ ...DEFAULTS, ...(store.get("settings") || {}) });
@@ -303,6 +318,29 @@ const stageIdx = (p) => Math.max(0, stagesOf(p).indexOf(p.stage));
 const isFinished = (p) => stageIdx(p) === stagesOf(p).length - 1;
 const savePiece = (p) => { const { id, ...v } = p; store.set("pieces/" + id, v); mirrorSoon("desk"); };
 
+// ---------- The rhythm (ILKWIM Writing Plan) ----------
+// Posts go out on a Wednesday. Gather the weekend before (Sunday), draft on the Monday,
+// schedule in Substack on the Tuesday. BlockWalkin' takes a few walks, so it gets the two Sundays before.
+const isWalk = (p) => /blockwalkin/i.test(p.series || "");
+function rhythm(publish, p) {
+  if (!publish) return { gathers: [], draft: null, due: null };
+  return {
+    gathers: isWalk(p) ? [addDays(publish, -10), addDays(publish, -3)] : [addDays(publish, -3)],
+    draft: addDays(publish, -2),
+    due: addDays(publish, -1),
+  };
+}
+const gathersOf = (p) => (p.gathers?.length ? [...p.gathers] : p.gather ? [p.gather] : []).sort();
+/** Which dates follow the publish date. Older pieces with no record: a blank date, or one that already matches the rhythm. */
+function autoOf(p) {
+  if (p.auto) return { gather: !!p.auto.gather, draft: !!p.auto.draft, due: !!p.auto.due };
+  const r = rhythm(p.publish, p), g = gathersOf(p);
+  return {
+    gather: !g.length || g.join() === r.gathers.join(),
+    draft: !p.draft || p.draft === r.draft,
+    due: !p.due || p.due === r.due,
+  };
+}
 function linkKind(url) {
   if (!url) return null;
   if (/substack\.com|shadycheez/i.test(url)) return ["st", "Substack"];
@@ -359,10 +397,12 @@ function renderNext(p) {
   }
   const st = stagesOf(p), i = stageIdx(p), d = daysTo(p.publish);
   const t = ymd(today0());
+  const gs = gathersOf(p), gLab = isWalk(p) ? "Walk" : "Gather";
   const steps = [
-    p.gather && ["Gather", p.gather], p.draft && ["Draft", p.draft], p.due && ["Schedule in Substack", p.due], ["Publish", p.publish],
+    // [label, date, the stage it should have passed by then (only the last gather date can be overdue)]
+    ...gs.map((g, k) => [gs.length > 1 ? `${gLab} ${k + 1} of ${gs.length}` : gLab, g, k === gs.length - 1 ? 1 : 0]),
+    p.draft && ["Draft", p.draft, 2], p.due && ["Schedule in Substack", p.due, 4], ["Publish", p.publish, 5],
   ].filter(Boolean);
-  const stepIdx = { "Gather": 1, "Draft": 2, "Schedule in Substack": 4, "Publish": 5 };
   const lk = linkKind(p.link);
   const askNow = !p.link && i >= st.indexOf("Draft") && p.askSnooze !== t;
   el.innerHTML = `
@@ -375,8 +415,8 @@ function renderNext(p) {
     </div>
     <div class="stages" role="list" aria-label="Stage">${st.map((s, k) =>
       `<span class="stage ${k < i ? "done" : k === i ? "now" : ""}" role="listitem"${k === i ? ' aria-current="step"' : ""}>${s}</span>`).join("")}</div>
-    <dl class="dates">${steps.map(([lab, date]) => {
-      const late = date < t && i < stepIdx[lab];
+    <dl class="dates">${steps.map(([lab, date, by]) => {
+      const late = date < t && i < by;
       return `<dt>${esc(short(date))}</dt><dd class="${late ? "late" : ""}">${lab}${late ? " (overdue)" : ""}</dd>`;
     }).join("")}</dl>
     ${p.notes ? `<p class="muted">${esc(p.notes)}</p>` : ""}
@@ -554,9 +594,11 @@ function openEditor(p, focusDate = false) {
   $("edSeries").value = editing.series || "";
   $("edLink").value = editing.link || "";
   $("edPublish").value = editing.publish || "";
-  $("edGather").value = editing.gather || "";
+  editing.auto = autoOf(editing);
+  editing.gathers = gathersOf(editing);
   $("edDraft").value = editing.draft || "";
   $("edDue").value = editing.due || "";
+  edRefresh();
   $("edBanked").checked = !!editing.banked;
   $("edNotes").value = editing.notes || "";
   $("edDelete").hidden = !p; $("edDelete").textContent = "Delete"; delete $("edDelete").dataset.armed;
@@ -571,6 +613,49 @@ $("edTrack").addEventListener("change", () => {
   syncEditorFields();
 });
 $("edCancel").addEventListener("click", () => ed.close());
+
+// Dates that follow the publish date ("auto") move with it; touching one by hand pins it.
+function edCurrent() { return { ...editing, series: $("edSeries").value.trim(), publish: $("edPublish").value || null }; }
+function edRefresh() {
+  const cur = edCurrent(), a = editing.auto, r = rhythm(cur.publish, cur);
+  if (a.gather) editing.gathers = r.gathers;
+  if (a.draft) $("edDraft").value = r.draft || "";
+  if (a.due) $("edDue").value = r.due || "";
+  const walk = isWalk(cur);
+  $("edGatherLab").textContent = walk ? "Walks" : "Gather on";
+  $("edGatherAdd").textContent = walk ? "+ Another walk" : "+ Another gather date";
+  $("edGathers").innerHTML = editing.gathers.map((g, k) =>
+    `<div class="g"><input type="date" value="${esc(g)}" data-g="${k}" aria-label="${walk ? "Walk" : "Gather date"} ${k + 1}">` +
+    `<button type="button" data-gdel="${k}" aria-label="Remove this date">×</button></div>`).join("");
+  $("edGatherAuto").hidden = !(a.gather && cur.publish);
+  $("edDraftAuto").hidden = !(a.draft && cur.publish);
+  $("edDueAuto").hidden = !(a.due && cur.publish);
+  const pinned = !a.gather || !a.draft || !a.due;
+  $("edRhythmTxt").textContent = !cur.publish ? "Set a publish date and the rest fill themselves in."
+    : pinned ? "Dates you've changed stay put when the publish date moves." : "These follow the publish date: gather the weekend before, draft Monday, schedule Tuesday.";
+  $("edRhythm").hidden = !cur.publish || !pinned;
+}
+$("edPublish").addEventListener("change", edRefresh);
+$("edSeries").addEventListener("change", edRefresh);
+$("edDraft").addEventListener("change", () => { editing.auto.draft = false; edRefresh(); });
+$("edDue").addEventListener("change", () => { editing.auto.due = false; edRefresh(); });
+$("edGathers").addEventListener("change", (e) => {
+  const k = e.target.dataset.g; if (k == null) return;
+  editing.auto.gather = false;
+  if (e.target.value) editing.gathers[k] = e.target.value; else editing.gathers.splice(k, 1);
+  editing.gathers.sort(); edRefresh();
+});
+$("edGathers").addEventListener("click", (e) => {
+  const k = e.target.dataset.gdel; if (k == null) return;
+  editing.auto.gather = false; editing.gathers.splice(k, 1); edRefresh();
+});
+$("edGatherAdd").addEventListener("click", () => {
+  editing.auto.gather = false;
+  const first = editing.gathers[0], pub = $("edPublish").value;
+  editing.gathers.push(first ? addDays(first, -7) : pub ? addDays(pub, -3) : ymd(today0()));
+  editing.gathers.sort(); edRefresh();
+});
+$("edRhythm").addEventListener("click", () => { editing.auto = { gather: true, draft: true, due: true }; edRefresh(); });
 $("edForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const title = $("edTitle").value.trim(); if (!title) { $("edTitle").focus(); return; }
@@ -578,7 +663,9 @@ $("edForm").addEventListener("submit", (e) => {
   const link = $("edLink").value.trim();
   const p = { ...editing, title, track: $("edTrack").value, stage: $("edStage").value, link: link || null,
     series: il ? $("edSeries").value.trim() || null : null,
-    publish: il ? $("edPublish").value || null : null, gather: il ? $("edGather").value || null : null,
+    publish: il ? $("edPublish").value || null : null,
+    gathers: il ? [...editing.gathers].sort() : [], gather: il ? [...editing.gathers].sort().pop() || null : null,
+    auto: editing.auto,
     draft: il ? $("edDraft").value || null : null, due: il ? $("edDue").value || null : null,
     banked: il && $("edBanked").checked, notes: $("edNotes").value.trim() || null };
   if (p.banked) pieces().filter((x) => x.banked && x.id !== p.id).forEach((x) => { x.banked = false; savePiece(x); });
