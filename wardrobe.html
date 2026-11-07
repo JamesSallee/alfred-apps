@@ -728,9 +728,10 @@ const unwornLong = (p) => wearable(p) && daysBetween(lastWorn(p) || p.created_da
 const FILTERS = {
   All: () => true, Fits: (p) => (p.verdict || "Fits") === "Fits", Tailor: (p) => p.verdict === "Tailor",
   "Doesn't fit": (p) => p.verdict === "Too big" || p.verdict === "Too small", "On the way out": (p) => p.verdict === "Retire" || p.verdict === "Donate",
-  Unworn: unwornLong, Formal: (p) => p.formality === "Formal",
+  Unworn: unwornLong, Formal: (p) => p.formality === "Formal", Untagged: untagged,
 };
 function renderRail() {
+  renderTagBar();
   const all = pieces();
   $("rail-count").textContent = all.length ? `The Wardrobe · ${plural(all.length, "piece", "pieces")}` : "The Wardrobe";
   $("rail-filters").innerHTML = Object.keys(FILTERS).map((f) => {
@@ -750,58 +751,108 @@ function tile(p) {
   const v = p.verdict || "Fits";
   const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(v)}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
   return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
-    <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "tagging…" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
+    <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "waiting to be tagged" : p.needsTag ? "needs tagging" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
 }
 $("rail-filters").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { railFilter = b.dataset.f; render(); } });
 $("rail-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { railCat = b.dataset.c; render(); } });
 $("rail-search").addEventListener("input", (e) => { railQ = e.target.value; render(); });
 document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open]"); if (b) pieceSheet(b.dataset.open); });
 
-// Adding by photo: thumbnail now, Claude's tags a moment later. Several photos run one after another.
-const queue = []; let tagRunning = false, tagDone = 0, tagTotal = 0, tagErrors = 0;
+// Adding by photo: thumbnail now, Claude's tags a moment later, one photo after another.
+// The queue is the pieces themselves (tagging: true), so it survives closing the app. Until a piece is tagged,
+// a sharper 1024 px copy waits in this device's photo cache; it's dropped once Alfred has tagged the piece.
+const fullKey = (id) => `./__wardrobe-full/${id}`;
+function untagged(p) { return !!(p.tagging || p.needsTag); }
+let tagRunning = false, tagDone = 0, tagErrors = 0, tagStop = false;
+async function keepFull(id, blob) { try { await (await caches.open(PHOTO_CACHE)).put(fullKey(id), new Response(blob, { headers: { "Content-Type": "image/jpeg" } })); } catch {} }
+async function dropFull(id) { try { await (await caches.open(PHOTO_CACHE)).delete(fullKey(id)); } catch {} }
+async function hasFull(id) { try { return !!(await (await caches.open(PHOTO_CACHE)).match(fullKey(id))); } catch { return false; } }
+const blobB64 = (blob) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = bad; r.readAsDataURL(blob); });
+/** The best photo we have for tagging: the sharp copy on this device, else the stored thumbnail. */
+async function tagPhoto(p) {
+  try { const hit = await (await caches.open(PHOTO_CACHE)).match(fullKey(p.id)); if (hit) return blobB64(await hit.blob()); } catch {}
+  const u = await photoUrl(p);
+  return u ? blobB64(await (await fetch(u)).blob()) : null;
+}
 $("add-photos").addEventListener("change", async (e) => {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length) return;
   if (!myId) return toast("Sign in first, so the photos have somewhere to live.");
+  $("tag-progress").innerHTML = `<div class="card empty"><span class="busy" aria-hidden="true"></span> Taking in ${plural(files.length, "photo", "photos")}…</div>`;
   for (const f of files) {
     try {
-      const thumb = await shrink(f, 480, 0.8);
+      const [thumb, big] = [await shrink(f, 480, 0.8), await shrink(f, 1024, 0.82)];
       const p = { id: uid(), name: "New piece", category: "Other", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today(), tagging: true };
+      await keepFull(p.id, big.blob);
       await storePhoto(p, thumb.blob);
-      queue.push({ id: p.id, file: f });
     } catch (err) { toast(err.message); }
   }
-  tagTotal += files.length;
   if (view !== "rail") go("rail"); else render();
   runTagging();
 });
-async function runTagging() {
-  if (tagRunning) return;
-  tagRunning = true;
-  while (queue.length) {
-    const job = queue.shift();
-    showTagProgress();
-    try {
-      const big = await shrink(job.file, 1024, 0.82);
-      const r = await ai("w_tag", { image: big.b64, media_type: "image/jpeg" });
-      const p = piece(job.id); if (!p) continue;
-      if (r.found === false) { savePiece({ ...p, tagging: false, name: "Not sure what this is" }); }
-      else savePiece({ ...p, tagging: false, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
-        formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || p.size || "", pairs_with: r.pairs_with });
-    } catch (err) {
-      tagErrors++;
-      const p = piece(job.id); if (p) savePiece({ ...p, tagging: false });
-      if (/budget|sign in|offline/i.test(err.message)) { toast(err.message); queue.length = 0; }
+/** Tag every piece that's waiting. `onlyHere` keeps an automatic resume to pieces whose sharp photo is on this device,
+    so two devices don't both pick up the same batch. */
+async function runTagging({ onlyHere = false } = {}) {
+  if (tagRunning || !navigator.onLine || !myId) return;
+  tagRunning = true; tagStop = false;
+  const skip = new Set();
+  try {
+    while (!tagStop) {
+      const waiting = pieces().filter((p) => p.tagging && !skip.has(p.id));
+      let p = null;
+      for (const w of waiting) { if (!onlyHere || await hasFull(w.id)) { p = w; break; } skip.add(w.id); }
+      if (!p) break;
+      showTagProgress(waiting.length);
+      const b64 = await tagPhoto(p).catch(() => null);
+      if (!b64) { skip.add(p.id); savePiece({ ...piece(p.id), tagging: false, needsTag: true }); tagErrors++; continue; }
+      let r = null, err = null;
+      for (let attempt = 0; attempt < 2 && !r; attempt++) {
+        try { r = await ai("w_tag", { image: b64, media_type: "image/jpeg" }); err = null; }
+        catch (e) {
+          err = e;
+          if (/budget|sign in|offline|private/i.test(e.message)) break; // no point retrying these
+          if (!attempt) await new Promise((ok) => setTimeout(ok, 2500));
+        }
+      }
+      const now = piece(p.id);
+      if (!now) { skip.add(p.id); continue; } // removed while we were asking
+      if (r) {
+        const base = { ...now, tagging: false, needsTag: false };
+        savePiece(r.found === false ? { ...base, name: now.name === "New piece" ? "Not sure what this is" : now.name }
+          : { ...base, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
+              formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || now.size || "", pairs_with: r.pairs_with });
+        dropFull(p.id); tagDone++;
+      } else if (/budget|sign in|offline|private/i.test(err?.message || "")) {
+        toast(err.message + " The rest will wait; tap Resume cataloguing when you're ready."); break;
+      } else {
+        skip.add(p.id); tagErrors++;
+        savePiece({ ...now, tagging: false, needsTag: true }); // keeps the sharp copy, so "Ask Alfred to tag this" can try again
+      }
     }
-    tagDone++;
+  } finally {
+    tagRunning = false;
+    const failed = tagErrors ? `${plural(tagErrors, "piece", "pieces")} couldn't be tagged (filter: Untagged).` : "";
+    if (tagDone) toast(`Catalogued ${plural(tagDone, "piece", "pieces")}. Check the sizes.${failed ? " " + failed : ""}`);
+    else if (failed) toast(failed);
+    tagDone = tagErrors = 0;
+    render();
   }
-  tagRunning = false; showTagProgress();
-  if (tagDone) toast(`Catalogued ${plural(tagDone - tagErrors, "piece", "pieces")}${tagErrors ? `; ${tagErrors} need tagging by hand` : ""}. Check the sizes.`);
-  tagDone = tagTotal = tagErrors = 0; showTagProgress();
 }
-function showTagProgress() {
-  $("tag-progress").innerHTML = tagRunning && tagTotal ? `<div class="card empty"><span class="busy" aria-hidden="true"></span> Alfred is cataloguing ${Math.min(tagDone + 1, tagTotal)} of ${tagTotal}…</div>` : "";
+function showTagProgress(left) {
+  $("tag-progress").innerHTML = `<div class="card pad" style="flex-direction:row;align-items:center;justify-content:space-between">
+    <span><span class="busy" aria-hidden="true"></span> Alfred is cataloguing: ${tagDone} done, ${left} to go</span>
+    <button class="linkbtn" type="button" id="tag-pause">Pause</button></div>`;
+  $("tag-pause").onclick = () => { tagStop = true; $("tag-pause").textContent = "Pausing after this one…"; };
 }
+function renderTagBar() {
+  if (tagRunning) return;
+  const waiting = pieces().filter((p) => p.tagging).length, failed = pieces().filter((p) => p.needsTag).length;
+  $("tag-progress").innerHTML = waiting ? `<button class="btn brass stack" type="button" id="tag-resume" style="width:100%">Resume cataloguing (${waiting}) <span class="cost">about ${waiting}¢</span></button>`
+    : failed ? `<p class="small muted">${plural(failed, "piece", "pieces")} couldn't be tagged. Open one and tap “Ask Alfred to tag this”, or filter by Untagged.</p>` : "";
+  $("tag-resume")?.addEventListener("click", () => runTagging());
+}
+// Pick up where we left off: on opening (once signed in), and when the connection comes back.
+window.addEventListener("online", () => runTagging({ onlyHere: true }));
 $("add-hand").onclick = () => pieceSheet(null);
 
 function pieceSheet(id) {
@@ -833,6 +884,7 @@ function pieceSheet(id) {
     <label class="field">Notes<textarea id="ps-notes" placeholder="Where it's from, what the tailor said…" style="min-height:64px">${esc(p.notes || "")}</textarea></label>
     ${isNew ? `<label class="btn"><span id="ps-photo-label">Add a photo</span><input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>` :
       `<div class="chips"><label class="chip dash" style="cursor:pointer">${p.photo ? "Replace photo" : "Add a photo"}<input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>
+       ${p.photo && !p.tagging ? `<button class="chip dash" type="button" id="ps-retag">Ask Alfred to tag this · 1¢</button>` : ""}
        ${p.verdict === "Tailor" && !tl ? `<button class="chip dash" type="button" id="ps-tailor">+ Tailoring list</button>` : ""}
        ${p.care ? `<button class="chip dash" type="button" id="ps-clean">Just ${p.care === "Polish" ? "polished" : "cleaned"}</button>` : ""}</div>`}
     <div class="two">${isNew ? `<button class="btn" type="button" id="ps-cancel">Cancel</button>` : `<button class="btn" type="button" id="ps-del">Remove</button>`}
@@ -845,7 +897,7 @@ function pieceSheet(id) {
     panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
     panel.querySelector("#ps-photo").addEventListener("change", async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
+      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await dropFull(p.id); await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
       catch (err) { toast(err.message); }
     });
     panel.querySelector("#ps-save").onclick = async () => {
@@ -860,11 +912,15 @@ function pieceSheet(id) {
     panel.querySelector("#ps-wear")?.addEventListener("click", () => { savePiece(read()); wearToday([p.id]); closeSheet(); });
     panel.querySelector("#ps-tailor")?.addEventListener("click", () => { savePiece(read()); store.set("tailoring/" + uid(), { pieceId: p.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() }); closeSheet(); toast("On the tailoring list."); });
     panel.querySelector("#ps-clean")?.addEventListener("click", () => { savePiece({ ...read(), cleaned: today() }); closeSheet(); toast("Noted."); });
+    panel.querySelector("#ps-retag")?.addEventListener("click", () => {
+      savePiece({ ...read(), tagging: true, needsTag: false }); closeSheet();
+      if (tagRunning) toast("Added to the queue."); else runTagging();
+    });
     panel.querySelector("#ps-del")?.addEventListener("click", () => {
       closeSheet();
       undoable(`Removed ${p.name}.`, ["pieces/" + p.id], () => store.remove("pieces/" + p.id));
       // The photo goes only once the undo window has passed and the piece is still gone.
-      setTimeout(() => { if (!piece(p.id)) removePhoto(p); }, 7000);
+      setTimeout(() => { if (!piece(p.id)) { removePhoto(p); dropFull(p.id); } }, 7000);
     });
   });
 }
@@ -1287,7 +1343,7 @@ if (/access_token=|error_description=/.test(location.hash) || new URLSearchParam
 store.subscribe(() => { if (!sheetOpen) render(); });
 store.onStatus(async (st) => {
   if (st === "signed-out") { myId = null; return; }
-  if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); } }
+  if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); runTagging({ onlyHere: true }); } }
 });
 go(location.hash.slice(1) || "today");
 </script>
