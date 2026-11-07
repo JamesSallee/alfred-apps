@@ -35,7 +35,7 @@ insert into public.app_data (user_id, app, key, value)
 select u.user_id, 'ledger', x.key, x.value::jsonb
   from (select distinct user_id from public.app_data where app = 'ledger' and key = 'settings/main') u,
        (values
-         ('store/playstation', '{"name":"PlayStation","kind":"time","price":5,"extraPrice":8,"gate":["workout","piano"],"note":"After workout and piano"}'),
+         ('store/playstation', '{"name":"PlayStation","kind":"time","price":5,"extraPrice":8,"gateAny":2,"note":"After any two habits today"}'),
          ('store/tv',          '{"name":"Extra hour of TV","kind":"time","price":2,"extraPrice":2,"note":"One show a night is free"}')
        ) as x(key, value)
 on conflict (user_id, app, key) do update set value = excluded.value, deleted = false;
