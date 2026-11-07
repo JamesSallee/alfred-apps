@@ -8,6 +8,8 @@
 //   w_before_buy { image?, text, price, size, rail, phase }           -> buy, wait or skip
 //   w_style      { profile, measures, rail }                          -> a personal style brief
 //   w_occasion   { kind, level, days, nights, weather, note, rail }   -> an outfit for an event, or a packing list for a trip
+//   w_fit_photo  { image, piece, measures }                           -> does this piece fit him, judged from a photo of him in it
+//   w_look       { look, level, weather, rail, liked }                -> does this combination work, and one swap
 
 type Usage = { input: number; output: number; searches: number };
 type Result = { result: Record<string, unknown>; usage?: Usage };
@@ -56,6 +58,8 @@ function about(b: Record<string, unknown>) {
     b.sizes ? `Current sizes: ${clip(b.sizes, 600)}` : "",
     b.phase ? `Size phase: ${clip(b.phase, 60)}` : "",
     b.style ? `His style brief: ${clip(b.style, 1500)}` : "",
+    b.liked ? `Combinations he liked:\n${lines(b.liked, 15)}` : "",
+    b.disliked ? `Combinations he didn't like:\n${lines(b.disliked, 10)}` : "",
   ].filter(Boolean).join("\n");
 }
 const RAIL_HELP = "Rail (one piece per line: id | name | category | colour | formality | labelled size | fit verdict | wears | last worn):";
@@ -67,6 +71,43 @@ export function wardrobeHandlers({ ask, parseJson, photoOf, fail }: Tools): Reco
   };
 
   return {
+    async w_fit_photo(b, guard) {
+      guard();
+      const { data, media } = photoOf(b);
+      return run([
+        { type: "image", source: { type: "base64", media_type: media, data } },
+        { type: "text", text: `${about(b)}
+The piece he is wearing in this photo: ${clip(b.piece, 300)}
+
+Judge how this piece fits him as a tailor would at a fitting: shoulders, chest, waist, sleeve or leg length, collar,
+seat and break, whichever apply. If the photo doesn't show the piece clearly enough to judge, set can_judge=false
+and say what photo would help in "advice". Otherwise give a verdict. "notes" are short observations, one per area
+("Shoulders: about an inch too wide"). For Tailor, describe the alteration as you would to a tailor and estimate a
+cost in USD. Remember he is still losing weight: say when it is wiser to wait than to tailor now.
+Be kind but candid. Comment only on the fit of the clothes, never on his body.` },
+      ], obj({ can_judge: bool, verdict: oneOf(...VERDICTS), notes: arr(str), advice: str, alteration: str, cost_usd: num }), "medium");
+    },
+
+    async w_look(b, guard) {
+      guard();
+      return run(`${about(b)}
+Dress level: ${clip(b.level, 40)}
+Weather: ${clip(b.weather, 300) || "unknown"}
+
+The combination he is considering (slot: piece line):
+${lines(b.look, 10)}
+
+${RAIL_HELP}
+${lines(b.rail)}
+
+Does this combination work? Consider colour, pattern mixing, formality, proportion, the weather and the level.
+"verdict" is Works, Nearly or Rethink. "comment" is two sentences at most, in Alfred's voice.
+Suggest the single swap that would most improve it: "swap_out" is the id of a piece in the combination (or ""
+to add rather than replace), "swap_in" is the id of a piece from the rail that currently fits (or "" if the
+combination is right as it is), and "swap_why" is one line.`,
+        obj({ verdict: oneOf("Works", "Nearly", "Rethink"), comment: str, swap_out: str, swap_in: str, swap_why: str }));
+    },
+
     async w_tag(b, guard) {
       guard();
       const { data, media } = photoOf(b);

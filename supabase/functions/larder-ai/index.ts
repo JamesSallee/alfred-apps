@@ -10,7 +10,7 @@
 //   usage        {}                                                    -> this month's spend and the cap
 //
 // The Wardrobe (private to its owner; see wardrobe.ts) adds the w_* actions: w_tag, w_outfit, w_fit,
-// w_gap, w_before_buy, w_style, w_occasion. They share the same budget and usage log.
+// w_gap, w_before_buy, w_style, w_occasion, w_fit_photo, w_look. They share the same budget and usage log.
 //
 // Every paid call is logged in public.ai_usage and refused once the household's monthly cap is reached.
 // Secrets: ANTHROPIC_API_KEY (required), LARDER_MODEL (default claude-sonnet-5-5), LARDER_MONTHLY_CAP_USD (default 10).

@@ -10,7 +10,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
 | `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
-| `wardrobe.html` | The Wardrobe: today's outfit, the rail, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
+| `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works
@@ -102,6 +102,10 @@ a fit verdict on every piece, a tailoring list, and a buying plan that waits on 
   Claude for tagging is not kept.
 - **Claude.** The `w_*` actions live in `supabase/functions/larder-ai/wardrobe.ts` and share the Larder's key,
   usage log and monthly cap. Household members can't call them.
+- **Looks.** The dressing board lays pieces from the rail on a figure (coat, jacket, shirt, tie, trousers, belt,
+  shoes); Alfred gives a verdict and one swap. Saved looks and 👍/👎 on his outfits feed back into every later suggestion.
+- **Fit by photo.** A photo of him wearing a piece gets a fit verdict on the clothes (never the body); the photo isn't
+  kept. Pieces are flagged for a re-check once he's 10 lb lighter than when they were last checked.
 - **Weather** comes from Open-Meteo (no key), for the town chosen on the Today tab.
 - **Work stays out.** Occasions are a date and a dress level (Casual, Family holiday, Business casual, Formal); nothing else is asked.
 
