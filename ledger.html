@@ -167,7 +167,9 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
-import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor } from "./js/money.js";
+import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor } from "./js/money.js";
+// Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
+const worth = (pts, cfg, light) => { const v = pts * rateFor(cfg, light); return v < 1 ? Math.round(v*100)+"¢" : "$"+v.toFixed(2); };
 mountShell('ledger');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -287,7 +289,7 @@ function renderToday(R){
   const nextWeekDisabled = addDays(S.weekStart,7) > t;
   let html = `<div class="week"><button class="arrow" id="prevWeek" aria-label="Previous week">‹</button><div class="days">${strip}</div><button class="arrow" id="nextWeek" aria-label="Next week" ${nextWeekDisabled?"disabled":""}>›</button></div>`;
   const dayPts = R.byDate[sel]||0;
-  html += `<div class="dayhead"><h2>${sel===t?"Today":esc(fmtLong(sel))}</h2><span class="pts num">${dayPts} points ${sel===t?"so far":"earned"}</span>
+  html += `<div class="dayhead"><h2>${sel===t?"Today":esc(fmtLong(sel))}</h2><span class="pts num">${dayPts} points ${sel===t?"so far":"earned"}${dayPts&&monday(sel)>=R.cfg.start?` · about ${worth(dayPts,R.cfg,!!(S.weekDocs[monday(sel)]||{}).light)}`:""}</span>
     <button class="restbtn" id="restBtn" aria-pressed="${isRest}">${isRest?"Rest day ✓":"Mark as rest day"}</button></div>`;
   if (sel===t && parse(t).getDay()===0) html += `<a class="sunday" href="shutdown.html"><span><b>It's Sunday.</b> Time for the shutdown: close out the week and set up the next.</span><span class="go">Open Sunday Shutdown →</span></a>`;
   if (isRest) html += `<div class="restnote">Rest day. Streaks pause and this week's targets drop by a day. Anything you do still earns points.</div>`;
@@ -309,7 +311,7 @@ function renderToday(R){
     let out = `<button class="habit${on?" on":""}" data-habit="${esc(hb.id)}" aria-pressed="${on}">
       <span class="tick">${on?"✓":""}</span>
       <span class="meta"><span class="name">${esc(hb.name)}</span><span class="info">${info}</span></span>
-      <span class="right">${hb.kind!=="weekly" && st>1 ? `<span class="sk num" aria-label="${st}-day streak">${st}<small>day${st===1?"":"s"}</small></span>` : ""}<span class="pv num">+${Number(hb.points)||0}</span></span></button>`;
+      <span class="right">${hb.kind!=="weekly" && st>1 ? `<span class="sk num" aria-label="${st}-day streak">${st}<small>day${st===1?"":"s"}</small></span>` : ""}<span class="pv num">+${Number(hb.points)||0}</span>${Number(hb.points)?`<span class="small" style="color:inherit;opacity:.75">about ${worth(Number(hb.points),R.cfg,!!wkMeta.light)}</span>`:""}</span></button>`;
     if (hb.variants && hb.variants.length && S.choosing===hb.id){
       out += `<div class="variants">${hb.variants.map(x=>`<button class="chip" data-variant="${esc(x.key)}" data-for="${esc(hb.id)}" aria-pressed="${v===x.key}">${esc(x.label)}</button>`).join("")}</div>`;
     }
@@ -554,7 +556,7 @@ function renderHabits(R){
   S.habits.forEach((h,i)=>{
     if (S.editing===h.id){ html += habitForm(h); return; }
     const del = S.confirm && S.confirm.type==="archive" && S.confirm.id===h.id;
-    html += `<div class="item"><div class="meta"><div class="name">${esc(h.name)}</div><div class="small">${Number(h.points)||0} points · ${h.kind==="weekly"?`${h.weeklyTarget||1} a week`:"daily"}${Number(h.bonusAt)?` · ${h.bonusAt} a week for +${Number(h.bonus)||0}`:""}${h.note?" · "+esc(h.note):""}</div>
+    html += `<div class="item"><div class="meta"><div class="name">${esc(h.name)}</div><div class="small">${Number(h.points)||0} points (about ${worth(Number(h.points)||0,R.cfg,false)}) · ${h.kind==="weekly"?`${h.weeklyTarget||1} a week`:"daily"}${Number(h.bonusAt)?` · ${h.bonusAt} a week for +${Number(h.bonus)||0}`:""}${h.note?" · "+esc(h.note):""}</div>
       ${del?`<div class="confirm" style="margin-top:6px"><span>Retire this habit? Past points stay.</span><button class="btn warn" data-archive="${esc(h.id)}">Retire</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}</div>
       <div class="row"><button class="iconbtn" data-up="${i}" ${i===0?"disabled":""} aria-label="Move up">↑</button><button class="iconbtn" data-edit="${esc(h.id)}">Edit</button><button class="iconbtn" data-askarch="${esc(h.id)}">Retire</button></div></div>`;
   });
