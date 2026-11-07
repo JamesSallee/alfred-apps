@@ -203,7 +203,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <label class="sr" for="today-note">Anything else?</label>
     <input type="text" id="today-note" placeholder="Anything else? (e.g. lots of walking, dinner out)">
-    <button class="btn primary big stack" type="button" id="dress-go">Dress me, Alfred <span class="cost">about 1¢</span></button>
+    <button class="btn primary big stack" type="button" id="dress-go">Dress me, Alfred <span class="cost">about 3¢, with a second look at the photos</span></button>
     <div id="today-body" style="display:flex;flex-direction:column;gap:10px"></div>
     <div class="note" id="today-notes" hidden><span class="label">Alfred's notes</span><ul id="today-list"></ul></div>
     <div class="small muted" id="spend"></div>
@@ -242,7 +242,7 @@ nav.tabs svg{width:22px;height:22px}
     <div id="board"></div>
     <div class="chips" id="board-levels"></div>
     <div class="two">
-      <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 1¢</span></button>
+      <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 2¢</span></button>
       <button class="btn" type="button" id="board-save">Save look</button>
     </div>
     <div id="board-verdict"></div>
@@ -686,10 +686,27 @@ $("dress-go").onclick = async () => {
     const recent = pieces().filter((p) => lastWorn(p) && daysUntil(lastWorn(p)) > -4).map((p) => `${p.id} (${lastWorn(p)})`).join(", ");
     const res = await ai("w_outfit", { ...aboutMe(), rail: railLines(wearable), weather: wxText(wxFor(today())), level: dayLevel,
       note: $("today-note").value.trim(), recent });
+    // The pick was made from descriptions; before showing it, Alfred looks at the photos of his first choice.
+    const top = res.outfits?.[0], ps = (top?.piece_ids || []).map(piece).filter(Boolean);
+    if (ps.length >= 2) {
+      try {
+        const check = await ai("w_look", { ...aboutMe(), level: dayLevel, weather: wxText(wxFor(today())), rail: railLines(wearable),
+          look: ps.map((p) => `${slotLabel(p)}: ${lineOf(p)}`), photos: await lookPhotos(ps.map((p) => ({ label: slotLabel(p), p }))) });
+        res.outfits[0] = { ...top, check: { verdict: check.verdict, comment: check.comment, swap_out: check.swap_out, swap_in: check.swap_in, swap_why: check.swap_why } };
+      } catch { /* the outfit still stands without the second look */ }
+    }
     store.set("outfits/" + today(), { ...res, level: dayLevel, at: Date.now() });
   } catch (e) { dressErr = e; }
   dressing = false; renderOutfits();
 };
+function checkHtml(o, n) {
+  const c = o.check; if (!c) return "";
+  const inn = c.swap_in && piece(c.swap_in), out = c.swap_out && piece(c.swap_out);
+  const head = c.verdict === "Works" ? "Second look at the photos: it works." : c.verdict === "Nearly" ? "Second look at the photos: nearly." : "Second look at the photos: not quite.";
+  return `<div class="note" style="padding:10px 12px"><span class="small"><b>${head}</b> ${esc(c.comment || "")}</span>
+    ${inn && !c.done && !(o.piece_ids || []).includes(inn.id) ? `<span class="small muted">${esc(c.swap_why || "")}</span>
+      <button class="btn sm" type="button" data-oswap="${n}" style="align-self:flex-start">${out ? `Swap the ${esc(out.name.toLowerCase())} for the ${esc(inn.name.toLowerCase())}` : `Add the ${esc(inn.name.toLowerCase())}`}</button>` : ""}</div>`;
+}
 function outfitCard(o, n, pickedKey) {
   const ps = (o.piece_ids || []).map(piece).filter(Boolean);
   const worn = ps.length && ps.every((p) => lastWorn(p) === today());
@@ -697,6 +714,7 @@ function outfitCard(o, n, pickedKey) {
     <div class="row"><span class="t">${esc(o.name || `Option ${n + 1}`)}</span>${worn ? `<span class="badge">Wearing</span>` : ""}</div>
     <div class="strip">${ps.map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></button>`).join("")}</div>
     <span class="small">${esc(o.why || "")}</span>
+    ${checkHtml(o, n)}
     ${o.missing?.length ? `<span class="small muted">Would help: ${esc(o.missing.join(", "))}</span>` : ""}
     <div class="row"><div class="chips">${worn ? "" : `<button class="btn primary sm" type="button" data-wear="${esc(pickedKey)}" data-n="${n}">I'm wearing this</button>`}
       <button class="btn sm ghost" type="button" data-board="${n}">On the board</button></div>
@@ -713,6 +731,12 @@ function renderOutfits() {
   box.querySelectorAll("[data-wear]").forEach((b) => (b.onclick = () => {
     const out = store.get(b.dataset.wear); const ids = out.outfits[+b.dataset.n].piece_ids;
     wearToday(ids);
+  }));
+  box.querySelectorAll("[data-oswap]").forEach((b) => (b.onclick = () => {
+    const cur = store.get("outfits/" + today()), n = +b.dataset.oswap, x = cur.outfits[n], c = x.check;
+    const ids = (x.piece_ids || []).filter((id) => id !== c.swap_out);
+    cur.outfits[n] = { ...x, piece_ids: [...ids, c.swap_in], check: { ...c, done: true } };
+    store.set("outfits/" + today(), cur);
   }));
   box.querySelectorAll("[data-board]").forEach((b) => (b.onclick = () => {
     const x = o.outfits[+b.dataset.board];
@@ -1046,6 +1070,15 @@ const SLOTS = [
 const FORM_RANK = { Casual: 0, "Smart casual": 1, "Business casual": 2, Formal: 3 };
 const LEVEL_RANK = { Casual: 0, "Family holiday": 1, "Business casual": 2, Formal: 3 };
 /** Put a set of pieces into board slots by kind (a jumper goes over the shirt if there is one). */
+/** Alfred looks at the actual pieces, not just their descriptions: each one's thumbnail, labelled with its slot. */
+async function lookPhotos(entries) {
+  return (await Promise.all(entries.map(async ({ label, p }) => {
+    const u = await photoUrl(p).catch(() => null);
+    if (!u) return null;
+    try { return { label: `${label}: ${p.name} (${p.id})`, image: await blobB64(await (await fetch(u)).blob()), media_type: "image/jpeg" }; } catch { return null; }
+  }))).filter(Boolean);
+}
+const slotLabel = (p) => (SLOTS.find((x) => x.cats.includes(p.category)) || { label: p.category || "Piece" }).label;
 function assignSlots(ids) {
   const out = {};
   const ps = ids.map(piece).filter(Boolean).sort((a, b) => (a.category === "Knitwear") - (b.category === "Knitwear"));
@@ -1096,7 +1129,8 @@ $("board-ask").onclick = async () => {
   try {
     await loadWeather();
     boardVerdict = await ai("w_look", { ...aboutMe(), level: board.level, weather: wxText(wxFor(today())), rail: railLines(wearable),
-      look: filled.map((sl) => `${sl.label}: ${lineOf(piece(board.slots[sl.k]))}`) });
+      look: filled.map((sl) => `${sl.label}: ${lineOf(piece(board.slots[sl.k]))}`),
+      photos: await lookPhotos(filled.map((sl) => ({ label: sl.label, p: piece(board.slots[sl.k]) }))) });
   } catch (e) { boardVerdict = { error: e.message }; }
   boardAsking = false; renderBoardVerdict();
 };
