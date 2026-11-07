@@ -133,6 +133,11 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
         <span class="txt"><span class="name">The Training Room</span><span class="desc">Peloton classes, the weights you lifted, and whether they're going up.</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>
+      <a class="room" id="r-todo" href="todo.html">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h7"/><path d="M3.5 6.5l1.3 1.3L7 5.5"/><path d="M3.5 12l1.3 1.3L7 11"/><circle cx="5" cy="17.5" r="1.2"/></svg></span>
+        <span class="txt"><span class="name">The Errand Book</span><span class="desc">Everything that needs doing, when it's booked, and what's waiting.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
       <a class="room" id="r-wardrobe" href="wardrobe.html">
         <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 9.5V8.3c0-.6.4-1 .9-1.3A2 2 0 1 0 10 5.3"/><path d="M12 9.5l-8.4 6.2c-.8.6-.4 1.8.6 1.8h15.6c1 0 1.4-1.2.6-1.8z"/></svg></span>
         <span class="txt"><span class="name">The Wardrobe</span><span class="desc">What to wear today, what still fits, the tailor and the formal kit.</span></span>
@@ -147,12 +152,12 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { doorFigures } from "./js/rooms.js";
+import { doorFigures, openTasks } from "./js/rooms.js";
 mountShell(null);
 
 // ---------- One live figure on each door ----------
 {
-  const names = ["ledger", "focus", "shutdown", "larder", "desk", "training", "wardrobe"];
+  const names = ["ledger", "focus", "shutdown", "larder", "desk", "training", "wardrobe", "todo"];
   const stores = Object.fromEntries(names.map(n => [n, openStore(n)]));
   const escF = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let queued = false;
@@ -240,6 +245,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
       .map(r => esc(r.text).replace("{shutdown}", link));
     notes.push(...deskNotes());
     notes.push(...wardrobeNotes());
+    notes.push(...todoNotes());
     if (!notes.length) notes.push(esc(N.fallback || (N.rules ? "Nothing pressing today." : "Sign in to see today's note.")));
     document.getElementById("notes").innerHTML = notes.map(n => "<li><span>" + n + "</span></li>").join("");
   }
@@ -273,6 +279,21 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     if (ms.length && days(ms.at(-1)) <= -every && day === 0) out.push("Time for the tape measure. Log it in the " + w + ".");
     return out;
   }
+  // The Errand Book adds a line for anything overdue, or booked for today.
+  const todoStore = openStore("todo");
+  function todoNotes() {
+    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
+    const open = openTasks(todoStore, t);
+    const b = '<a href="todo.html">Errand Book</a>';
+    const out = [];
+    const late = open.filter(x => x.due && x.due < t);
+    if (late.length) out.push((late.length === 1 ? esc(late[0].title) + " is" : late.length + " things are") + " overdue. See the " + b + ".");
+    const booked = open.filter(x => x.booked?.start && x.booked.start.slice(0, 10) === t)
+      .sort((a, b2) => a.booked.start.localeCompare(b2.booked.start))[0];
+    if (booked) out.push("Booked for today: " + esc(booked.title) + " at " + new Date(booked.booked.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + ".");
+    return out;
+  }
+  todoStore.subscribe(renderNote);
   wardrobeStore.subscribe(renderNote);
   deskStore.subscribe(renderNote);
   studyStore.subscribe(renderNote);

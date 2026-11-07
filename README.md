@@ -11,6 +11,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
 | `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
+| `todo.html` | The Errand Book: to-dos by Today / This week / Later / Someday, snooze, waiting on, done shelf, slot requests | `todo` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works
@@ -71,6 +72,25 @@ The one app shared with another person. Everything else stays private to its own
   `https://jamessallee.github.io/alfred-apps/larder.html?url=` followed by the **Shortcut Input** variable → add **Open URLs**.
   Name it "Save to Larder". It opens in Safari, so sign in to the Larder in Safari once as well; the recipe then
   syncs to the home-screen app.
+
+## The Errand Book and the Notion copies
+
+- **Alfred files tasks from chat** straight into `todo` / `tasks/<id>` and, once a slot is on the calendar, sets
+  `booked: { start, end }`. Quick capture in the room flags a task `triage` and `wantsSlot` for him to pick up.
+- **One-way copies to Notion.** `supabase/functions/alfred-notion` copies Errand Book changes to Notion Tasks and
+  Writing Desk changes to the "Writing Desk" database under the ILKWIM Writing Plan. The rooms are the master; edits
+  made in Notion are overwritten. Each page nudges a copy a few seconds after an edit, and pg_cron runs one hourly.
+  Which Notion page belongs to which item is kept under the app `notion` (`todo/<id>`, `desk/<id>`, `state`).
+- **Weekly backup.** Every Sunday 08:00 UTC the same function attaches the full Export JSON (all rooms, no photos)
+  to the "Alfred backups" page in Notion. Restore it from any room's account sheet. The scheduled calls also keep the
+  free Supabase project from pausing.
+
+### Setting it up
+
+1. Notion → Settings → Connections → Develop or manage integrations → new internal integration. Copy its secret.
+2. Share Home with the integration (••• → Connections), so it reaches Tasks, the Writing Desk database and Alfred backups.
+3. Supabase → Edge Functions → Secrets: `NOTION_TOKEN` = that secret.
+4. Run `supabase/notion.sql` with its placeholders filled in, and deploy with `supabase functions deploy alfred-notion --no-verify-jwt`.
 
 ## How the rooms connect
 

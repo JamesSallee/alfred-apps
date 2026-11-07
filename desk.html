@@ -256,7 +256,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { writingTime, fmtMins } from "./js/rooms.js";
+import { writingTime, fmtMins, mirrorSoon } from "./js/rooms.js";
 mountShell("desk");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -301,7 +301,7 @@ const pieces = () => store.list("pieces/").map((x) => ({ id: x.key.slice(7), ...
 const stagesOf = (p) => STAGES[p.track] || STAGES.ilkwim;
 const stageIdx = (p) => Math.max(0, stagesOf(p).indexOf(p.stage));
 const isFinished = (p) => stageIdx(p) === stagesOf(p).length - 1;
-const savePiece = (p) => { const { id, ...v } = p; store.set("pieces/" + id, v); };
+const savePiece = (p) => { const { id, ...v } = p; store.set("pieces/" + id, v); mirrorSoon("desk"); };
 
 function linkKind(url) {
   if (!url) return null;
@@ -588,7 +588,7 @@ $("edForm").addEventListener("submit", (e) => {
 $("edDelete").addEventListener("click", () => {
   const b = $("edDelete");
   if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Tap again to delete"; return; }
-  store.remove("pieces/" + editing.id);
+  store.remove("pieces/" + editing.id); mirrorSoon("desk");
   ed.close();
 });
 </script>
