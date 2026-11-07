@@ -9,7 +9,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |
-| `desk.html` | The Writing Desk: next post, bank, draft links, idea shelf | `desk` |
+| `desk.html` | The Writing Desk: Coming up (next post opened out; dates follow the publish date), bank, idea shelf, and a collapsed Everything list | `desk` |
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 | `todo.html` | The Errand Book: to-dos by Today / This week / Later / Someday, snooze, waiting on, done shelf, slot requests | `todo` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
