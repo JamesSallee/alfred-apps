@@ -119,7 +119,27 @@ h1{font-size:30px;line-height:1.1}
 .changed select{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(--brass)}
 
 /* Lifts */
-.lift-pick{display:flex;gap:6px;flex-wrap:wrap}
+.area{border-top:1px solid var(--line);padding-top:8px}
+.area > summary{display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none;padding:4px 0}
+.area > summary::-webkit-details-marker{display:none}
+.area > summary::before{content:"▸";color:var(--muted);margin-right:8px;transition:transform .15s}
+.area[open] > summary::before{transform:rotate(90deg)}
+.area-name{font-family:var(--display);font-size:17px;flex:1}
+.lifts{margin:4px 0 6px;padding:0;list-style:none;display:flex;flex-direction:column}
+.lift{border-top:1px solid var(--line)}
+.lift:first-child{border-top:0}
+.lift-row{width:100%;display:flex;justify-content:space-between;gap:10px;align-items:center;background:none;border:0;padding:9px 2px;text-align:left}
+.lift.open .lift-row{background:var(--green-soft);border-radius:8px;padding-inline:8px}
+.lift-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.lift-name{font-weight:600}
+.pin{color:var(--brass)}
+.lift-tiers{display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tchip{display:inline-flex;align-items:center;gap:4px}
+.lift-trend{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
+.spark{width:64px;height:22px;display:block}
+.lift-change{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lift-change.up{color:var(--green);font-weight:700}
+.lift-detail{display:flex;flex-direction:column;gap:10px;padding:10px 0 12px}
 .chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 11px;font-size:13px}
 .chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
 .chart{position:relative}
@@ -418,7 +438,35 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("shee
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-open]"); if (b) openLogger(b.dataset.open); });
 
 // ---------- Lifts tab ----------
+// Moves are grouped by body area (from the move's name), one row each with its current weights and a trend line.
+// Key lifts sit on top; tapping a row opens its chart and figures underneath.
+const AREAS = [
+  { key: "core", label: "Core & carries", re: /sit.?up|crunch|plank|twist|carry|dead.?bug|hollow|v.?up|toe touch|bicycle|russian/i },
+  { key: "pull", label: "Pull", re: /row|reverse fly|w fly|rear delt|curl|pull|shrug|y raise/i },
+  { key: "legs", label: "Legs", re: /squat|lunge|deadlift|calf|glute|bridge|hip|step.?up|swing|thruster|good morning/i },
+  { key: "push", label: "Push", re: /press|push|fly|dip|tricep|extension|kickback|raise|skull/i },
+  { key: "other", label: "Other", re: /./ },
+];
+const areaOf = (move) => AREAS.find((a) => a.re.test(move)).key;
+const KEY_DEFAULTS = [/^overhead press$/i, /chest press/i, /bent over row|row/i, /^dumbbell squat$|squat/i];
 let liftPick = null;
+
+function keyLifts(moves) {
+  const saved = (store.get("settings") || {}).keyLifts;
+  if (Array.isArray(saved)) return saved.filter((m) => moves.includes(m));
+  const out = [];
+  for (const re of KEY_DEFAULTS) {
+    const m = moves.find((x) => re.test(x) && !out.includes(x));
+    if (m) out.push(m);
+  }
+  return out;
+}
+function setKeyLift(move, on, moves) {
+  const cur = keyLifts(moves).filter((m) => m !== move);
+  if (on) cur.push(move);
+  store.set("settings", { ...(store.get("settings") || {}), keyLifts: cur });
+}
+
 function renderLifts() {
   const hist = history();
   if (!hist.length) {
@@ -427,16 +475,73 @@ function renderLifts() {
   }
   const byMove = {};
   hist.forEach((h) => (byMove[h.move] ||= []).push(h));
-  const moves = Object.keys(byMove).sort((a, b) => byMove[b].length - byMove[a].length || a.localeCompare(b));
-  if (!liftPick || !byMove[liftPick]) liftPick = moves[0];
-  const rows = byMove[liftPick];
+  const lastDate = (m) => byMove[m].at(-1).date;
+  // Recently done first, then most logged.
+  const moves = Object.keys(byMove).sort((a, b) => lastDate(b).localeCompare(lastDate(a)) || byMove[b].length - byMove[a].length);
+  const keys = keyLifts(moves);
+  const sections = [
+    { key: "key", label: "Key lifts", moves: keys },
+    ...AREAS.map((a) => ({ ...a, moves: moves.filter((m) => !keys.includes(m) && areaOf(m) === a.key) })),
+  ].filter((sct) => sct.moves.length);
+  const openState = liftsOpen();
+  $("tab-lifts").innerHTML = `
+    <div class="head"><h2>Lifts</h2><span class="muted">${moves.length} moves logged</span></div>
+    ${sections.map((sct) => `
+      <details class="area" data-area="${sct.key}"${openState[sct.key] !== false ? " open" : ""}>
+        <summary><span class="area-name">${esc(sct.label)}</span><span class="muted">${sct.moves.length}</span></summary>
+        <ul class="lifts">${sct.moves.map((m) => liftRow(m, byMove[m], keys.includes(m))).join("")}</ul>
+      </details>`).join("")}
+    ${keys.length ? "" : `<p class="muted">Open any move and pin it to keep it at the top.</p>`}`;
+  $("tab-lifts").querySelectorAll("details.area").forEach((d) => d.addEventListener("toggle", () => {
+    liftsOpen({ ...liftsOpen(), [d.dataset.area]: d.open });
+  }));
+  if (liftPick && byMove[liftPick]) {
+    const holder = $("tab-lifts").querySelector(`.lift-detail[data-for="${CSS.escape(liftPick)}"]`);
+    if (holder) renderLiftDetail(holder, liftPick, byMove[liftPick], keys.includes(liftPick), moves);
+  }
+}
+
+/** Which sections are folded away: a per-device nicety, so it lives in localStorage. */
+function liftsOpen(v) {
+  try {
+    if (v) localStorage.setItem("alfred:training:liftsOpen", JSON.stringify(v));
+    return v || JSON.parse(localStorage.getItem("alfred:training:liftsOpen") || "{}");
+  } catch { return v || {}; }
+}
+
+function liftRow(move, rows, pinned) {
+  const tiers = TIERS.filter((t) => rows.some((r) => r.tier === t));
+  const last = (t) => rows.filter((r) => r.tier === t).at(-1);
+  const top = tiers[0]; // the heaviest tier this move is done at carries the trend
+  const series = rows.filter((r) => r.tier === top);
+  const d = series.at(-1).lb - series[0].lb;
+  const change = series.length < 2 ? "first log" : d > 0 ? `+${lb(d)}` : d < 0 ? `−${lb(-d)}` : "level";
+  const open = liftPick === move;
+  return `<li class="lift${open ? " open" : ""}">
+    <button class="lift-row" type="button" data-lift="${esc(move)}" aria-expanded="${open}">
+      <span class="lift-main"><span class="lift-name">${pinned ? `<span class="pin" aria-label="Key lift">★</span> ` : ""}${esc(move)}</span>
+        <span class="lift-tiers">${tiers.map((t) => `<span class="tchip"><span class="sw" style="background:${TIER_VAR[t]}"></span>${t[0].toUpperCase()} ${lb(last(t).lb)}</span>`).join("")}</span></span>
+      <span class="lift-trend">${spark(series.map((r) => r.lb))}<span class="lift-change${d > 0 ? " up" : ""}">${change}</span></span>
+    </button>
+    ${open ? `<div class="lift-detail" data-for="${esc(move)}"></div>` : ""}
+  </li>`;
+}
+
+/** A tiny trend line for the row, no axes: just the shape of the heaviest tier over time. */
+function spark(vals) {
+  const W = 64, H = 22;
+  if (vals.length < 2) return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><circle cx="${W - 4}" cy="${H / 2}" r="3" fill="var(--green)"/></svg>`;
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const pts = vals.map((v, i) => [4 + (i / (vals.length - 1)) * (W - 8), hi === lo ? H / 2 : 4 + (1 - (v - lo) / span) * (H - 8)]);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline fill="none" stroke="var(--green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map((p) => p.join(",")).join(" ")}"/>
+    <circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="3" fill="var(--green)"/></svg>`;
+}
+
+function renderLiftDetail(el, move, rows, pinned, moves) {
   const tiers = TIERS.filter((t) => rows.some((r) => r.tier === t));
   const first = (t) => rows.find((r) => r.tier === t);
   const last = (t) => rows.filter((r) => r.tier === t).at(-1);
-  $("tab-lifts").innerHTML = `
-    <div class="head"><h2>Lifts</h2><span class="muted">${moves.length} moves logged</span></div>
-    <div class="lift-pick">${moves.map((m) => `<button class="chip" type="button" data-lift="${esc(m)}" aria-pressed="${m === liftPick}">${esc(m)} <span class="muted">${byMove[m].length}</span></button>`).join("")}</div>
-    <h3 style="font-size:18px">${esc(liftPick)}</h3>
+  el.innerHTML = `
     <div class="stats">${tiers.map((t) => {
       const a = first(t), b = last(t), d = b.lb - a.lb;
       return `<div class="stat"><span class="label">${t}</span><span class="v">${lb(b.lb)}</span>
@@ -444,17 +549,28 @@ function renderLifts() {
     }).join("")}</div>
     <div class="chart" id="liftChart"></div>
     ${tiers.length > 1 ? `<div class="legend">${tiers.map((t) => `<span><span class="sw" style="background:${TIER_VAR[t]}"></span>${t}</span>`).join("")}</div>` : ""}
+    <div class="row">
+      <button class="btn quiet" type="button" data-pin="${esc(move)}" data-on="${pinned ? "0" : "1"}">${pinned ? "Unpin from key lifts" : "★ Pin as a key lift"}</button>
+    </div>
     <details><summary>Show the figures</summary>
       <table><thead><tr><th>Date</th><th>Class</th><th>Tier</th><th>Weight</th><th>Reps or time</th></tr></thead>
       <tbody>${rows.slice().reverse().map((r) => `<tr><td>${shortDate(r.date)}</td><td>${esc(r.workout.title)}</td><td>${r.tier}</td><td>${lb(r.lb)}</td><td>${r.reps ? `${r.reps} reps` : r.seconds ? fmtSecs(r.seconds) : ""}</td></tr>`).join("")}</tbody></table>
     </details>`;
-  lineChart($("liftChart"), tiers.map((t) => ({
+  lineChart(el.querySelector("#liftChart"), tiers.map((t) => ({
     name: t, color: TIER_VAR[t],
     points: rows.filter((r) => r.tier === t).map((r) => ({ x: new Date(r.date).getTime(), y: r.lb,
       tip: `${shortDate(r.date)} · ${t} · ${lb(r.lb)}${r.reps ? ` × ${r.reps}` : r.seconds ? ` · ${fmtSecs(r.seconds)}` : ""}` })),
   })), { unit: " lb" });
+  el.querySelector("[data-pin]").addEventListener("click", (e) => {
+    setKeyLift(move, e.currentTarget.dataset.on === "1", moves);
+  });
 }
-document.addEventListener("click", (e) => { const b = e.target.closest("[data-lift]"); if (b) { liftPick = b.dataset.lift; renderLifts(); } });
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-lift]");
+  if (!b) return;
+  liftPick = liftPick === b.dataset.lift ? null : b.dataset.lift; // tap again to close
+  renderLifts();
+});
 
 /** A small line chart: one axis, 2px lines, 8px markers with a surface ring, a label at each line's end,
  *  and a tooltip on hover or tap. */
