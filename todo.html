@@ -240,7 +240,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // Alfred adds tasks from chat and sets `booked` once a slot is on the calendar. A server function copies
 // every change one way to Notion Tasks (see supabase/functions/alfred-notion).
 const store = openStore("todo");
-const AREAS = ["Home", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
+const AREAS = ["Home", "Car", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
 const PRI = { High: 0, Normal: 1, Low: 2 };
 const GROUPS = [["today", "Today"], ["week", "This week"], ["later", "Later"], ["someday", "Someday"]];
 
