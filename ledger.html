@@ -167,7 +167,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
-import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, fmtUsd, round2, targetFor } from "./js/money.js";
+import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor } from "./js/money.js";
 mountShell('ledger');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -431,7 +431,9 @@ function renderStore(R){
     for (const it of times){
       const price = hourPrice(it, S.spends, t), open = gateOpen(it, rec), hrs = S.spends.filter(x=>x.itemId===it.id && (x.day||String(x.at).slice(0,10))===t).length;
       const gateNames = (it.gate||[]).map(id=>(S.all.find(h=>h.id===id)||{}).name||id).join(" and ").toLowerCase();
-      const why = !open ? `Opens once ${gateNames} ${it.gate.length>1?"are":"is"} ticked today` : price>Wl.available ? `${fmtUsd(round2(price-Wl.available))} more to unlock` : hrs ? `${hrs} hour${hrs===1?"":"s"} today · next hour ${fmtUsd(price)}` : (it.note ? esc(it.note) : "Ready when you are");
+      const need = Number(it.gateAny)||0, have = ticksOn(rec);
+      const lockMsg = need && have < need ? `Opens once any ${need} habits are ticked today (${have} so far)` : `Opens once ${gateNames} ${(it.gate||[]).length>1?"are":"is"} ticked today`;
+      const why = !open ? lockMsg : price>Wl.available ? `${fmtUsd(round2(price-Wl.available))} more to unlock` : hrs ? `${hrs} hour${hrs===1?"":"s"} today · next hour ${fmtUsd(price)}` : (it.note ? esc(it.note) : "Ready when you are");
       html += `<div class="item"><div class="meta"><div class="name">${esc(it.name)}</div><div class="small">${why}</div><div class="small">${fmtUsd(Number(it.price)||0)} the first hour${it.extraPrice!=null&&Number(it.extraPrice)!==Number(it.price)?`, ${fmtUsd(Number(it.extraPrice))} each after`:""}</div>
         ${S.confirm&&S.confirm.type==="delItem"&&S.confirm.id===it.id?`<div class="confirm" style="margin-top:6px"><span>Remove this?</span><button class="btn warn" data-delitem="${esc(it.id)}">Remove</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}</div>
         <div class="cost num">${fmtUsd(price)}</div>
@@ -473,7 +475,7 @@ function renderStore(R){
       <label class="f">Kind<select id="itemKind"><option value="thing">A thing (one price)</option><option value="time">Time, by the hour</option></select></label>
       <label class="f">Price ($)<input id="itemPrice" type="number" min="0.5" step="0.5" required value="20"></label>
       <label class="f" data-time hidden>Each extra hour that day ($)<input id="itemExtra" type="number" min="0.5" step="0.5"></label>
-      <label class="f" data-time hidden><span><input id="itemGate" type="checkbox" style="width:auto"> Only after workout and piano</span></label>
+      <label class="f" data-time hidden><span><input id="itemGate" type="checkbox" style="width:auto"> Only after any two habits today</span></label>
       <label class="f full">Note (optional)<input id="itemNote" maxlength="60"></label>
       <div class="row full"><button class="btn" type="submit">Add to store</button><button class="btn ghost" type="button" data-cancelitem>Cancel</button></div></form>`
     : `<button class="btn ghost" id="addItem">Add to the store</button>`;
@@ -505,7 +507,7 @@ function renderStore(R){
   const ik=$("#itemKind"); if (ik) ik.onchange=()=>v.querySelectorAll("[data-time]").forEach(x=>x.hidden=ik.value!=="time");
   const f=$("#itemForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#itemName").value.trim(); const price=round2(Math.max(0.5,Number($("#itemPrice").value)||0)); if(!name) return;
     const kind=$("#itemKind").value, body={name,price,kind,note:$("#itemNote").value.trim()};
-    if (kind==="time"){ const ex=Number($("#itemExtra").value); body.extraPrice = ex>0 ? round2(ex) : price; if ($("#itemGate").checked) body.gate=["workout","piano"]; }
+    if (kind==="time"){ const ex=Number($("#itemExtra").value); body.extraPrice = ex>0 ? round2(ex) : price; if ($("#itemGate").checked) body.gateAny=2; }
     const id="t"+Date.now().toString(36); S.store.push({id,...body}); S.addingItem=false; render(); say("On the shelf. Something to look forward to.");
     if (db) write("store/"+id,()=>db.doc("store/"+id).set(body)); };
 }
@@ -524,9 +526,9 @@ function buy(id){
 }
 function buyHour(id){
   const it=S.store.find(x=>x.id===id); if(!it) return; const R=compute(), t=today();
-  if (!gateOpen(it, S.days[t])) return say("Workout and piano first. Then the controller.");
+  if (!gateOpen(it, S.days[t])) return say("Two habits first. Then the controller.");
   const price=hourPrice(it, S.spends, t); if (R.wallet.available < price) return;
-  addSpend({itemId:id,name:it.name+", one hour",dollars:price,kind:"time"}); say(pick(it.gate?LINES.play:LINES.spend));
+  addSpend({itemId:id,name:it.name+", one hour",dollars:price,kind:"time"}); say(pick(it.gate||it.gateAny?LINES.play:LINES.spend));
 }
 
 function habitForm(h){

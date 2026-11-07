@@ -148,9 +148,15 @@ export function hourPrice(item, spends, day) {
   return n === 0 ? Number(item.price) || 0 : Number(item.extraPrice ?? item.price) || 0;
 }
 
-/** Whether a gated treat is open: its habits are ticked today, or today is a rest day. */
+/** How many habits are ticked on a day. */
+export const ticksOn = dayRec => Object.keys((dayRec && dayRec.done) || {}).length;
+
+/** Whether a gated treat is open. gateAny: N = any N habits ticked today (so a physical rest day
+ *  still works); gate: [ids] = those habits ticked. A rest day opens either kind. */
 export function gateOpen(item, dayRec) {
-  if (!item.gate || !item.gate.length) return true;
+  const any = Number(item.gateAny) || 0, list = item.gate || [];
+  if (!any && !list.length) return true;
   if (dayRec && dayRec.rest) return true;
-  return item.gate.every(id => dayRec && dayRec.done && dayRec.done[id]);
+  if (any && ticksOn(dayRec) < any) return false;
+  return list.every(id => dayRec && dayRec.done && dayRec.done[id]);
 }
