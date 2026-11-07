@@ -242,7 +242,7 @@ nav.tabs svg{width:22px;height:22px}
     <div id="board"></div>
     <div class="chips" id="board-levels"></div>
     <div class="two">
-      <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 1¢</span></button>
+      <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 2¢</span></button>
       <button class="btn" type="button" id="board-save">Save look</button>
     </div>
     <div id="board-verdict"></div>
@@ -1095,8 +1095,15 @@ $("board-ask").onclick = async () => {
   boardAsking = true; boardVerdict = null; renderBoardVerdict();
   try {
     await loadWeather();
+    // Alfred looks at the actual pieces, not just their descriptions: send each one's thumbnail.
+    const photos = (await Promise.all(filled.map(async (sl) => {
+      const p = piece(board.slots[sl.k]);
+      const u = await photoUrl(p).catch(() => null);
+      if (!u) return null;
+      try { return { label: `${sl.label}: ${p.name} (${p.id})`, image: await blobB64(await (await fetch(u)).blob()), media_type: "image/jpeg" }; } catch { return null; }
+    }))).filter(Boolean);
     boardVerdict = await ai("w_look", { ...aboutMe(), level: board.level, weather: wxText(wxFor(today())), rail: railLines(wearable),
-      look: filled.map((sl) => `${sl.label}: ${lineOf(piece(board.slots[sl.k]))}`) });
+      look: filled.map((sl) => `${sl.label}: ${lineOf(piece(board.slots[sl.k]))}`), photos });
   } catch (e) { boardVerdict = { error: e.message }; }
   boardAsking = false; renderBoardVerdict();
 };

@@ -9,7 +9,7 @@
 //   w_style      { profile, measures, rail }                          -> a personal style brief
 //   w_occasion   { kind, level, days, nights, weather, note, rail }   -> an outfit for an event, or a packing list for a trip
 //   w_fit_photo  { image, piece, measures }                           -> does this piece fit him, judged from a photo of him in it
-//   w_look       { look, level, weather, rail, liked }                -> does this combination work, and one swap
+//   w_look       { look, photos, level, weather, rail, liked }        -> does this combination work (judged from photos), and one swap
 
 type Usage = { input: number; output: number; searches: number };
 type Result = { result: Record<string, unknown>; usage?: Usage };
@@ -90,22 +90,44 @@ Be kind but candid. Comment only on the fit of the clothes, never on his body.` 
 
     async w_look(b, guard) {
       guard();
-      return run(`${about(b)}
+      // Up to 10 thumbnails of the pieces on the board, each labelled with its slot, so Alfred judges the real
+      // colours, textures and patterns rather than the catalogue's words.
+      const content: unknown[] = [];
+      const photos = Array.isArray(b.photos) ? b.photos.slice(0, 10) : [];
+      for (const ph of photos as Record<string, unknown>[]) {
+        const data = String(ph?.image || "");
+        const media = String(ph?.media_type || "image/jpeg");
+        if (!data || data.length > 600_000 || !/^image\/(jpeg|png|webp)$/.test(media)) continue;
+        content.push({ type: "text", text: clip(ph.label, 120) });
+        content.push({ type: "image", source: { type: "base64", media_type: media, data } });
+      }
+      content.push({ type: "text", text: `${about(b)}
 Dress level: ${clip(b.level, 40)}
 Weather: ${clip(b.weather, 300) || "unknown"}
 
-The combination he is considering (slot: piece line):
+The combination he is considering (slot: piece line)${content.length ? "; the photos above show each piece" : ""}:
 ${lines(b.look, 10)}
 
 ${RAIL_HELP}
 ${lines(b.rail)}
 
-Does this combination work? Consider colour, pattern mixing, formality, proportion, the weather and the level.
-"verdict" is Works, Nearly or Rethink. "comment" is two sentences at most, in Alfred's voice.
+Judge this as a fashion-conscious valet would before letting him out of the door. Look at the photos first and
+trust them over the catalogue's words where they disagree (a "navy" that is really black, a "plain" shirt with a
+fine stripe). Consider:
+- Colour: harmony and contrast, warm against cool undertones, how many colours are in play, whether the darkest
+  piece sits in the right place (usually the shoes or jacket).
+- Pattern and texture: mix pattern scales rather than repeating one; pair smooth with textured; flannel, tweed and
+  linen against worsted; season-appropriate cloth for the weather.
+- Formality: every piece at the same register, nothing too sporty or too dressy for the level.
+- Leather and metal: belt and shoes in the same family; brown versus black for the occasion and the trousers.
+- Proportion and details: tie width against lapel, collar style with or without a tie, trouser break and length
+  with the shoes, layering lengths.
+"verdict" is Works, Nearly or Rethink; be honest, and don't call something Works out of politeness.
+"comment" is two sentences at most, in Alfred's voice, naming the specific thing that works or jars.
 Suggest the single swap that would most improve it: "swap_out" is the id of a piece in the combination (or ""
 to add rather than replace), "swap_in" is the id of a piece from the rail that currently fits (or "" if the
-combination is right as it is), and "swap_why" is one line.`,
-        obj({ verdict: oneOf("Works", "Nearly", "Rethink"), comment: str, swap_out: str, swap_in: str, swap_why: str }));
+combination is right as it is), and "swap_why" is one line.` });
+      return run(content, obj({ verdict: oneOf("Works", "Nearly", "Rethink"), comment: str, swap_out: str, swap_in: str, swap_why: str }), "medium");
     },
 
     async w_tag(b, guard) {
