@@ -106,6 +106,9 @@ The one app shared with another person. Everything else stays private to its own
   The same session ticks the Ledger's Write habit for its day, once (marked `focus` / `ticked/<t>`, so an untick sticks).
 - **Ledger → Sunday Shutdown.** The Shutdown opens with the week in figures (habits, workout mix, focus and
   writing time, lifts whose best this week beat their last weight), adds them to the note for Alfred and saves them with the record.
+- **Sunday Shutdown → Work Claude → Alfred.** Step 5 gives a copy-ready request for the Work Load Profile. A pasted profile
+  (it must start `WORK LOAD PROFILE`) rides along in the note for Alfred but is never saved. When Alfred's Focus Plan comes back,
+  pasting it (it must start `FOCUS PLAN`) on the closed page or the cover ticks the week as planned: `focusPlan` and `plannedAt` on `shutdowns/<date>`.
 - **The Study.** Each door shows one live figure in place of its arrow.
 
 ## Updating
