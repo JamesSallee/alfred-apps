@@ -5,7 +5,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | Page | What it is | Store name |
 | --- | --- | --- |
 | `index.html` | Alfred's Study: the hub, today's note and a "This week" summary | (reads the others) |
-| `ledger.html` | The Daily Ledger: habits, points, the store | `ledger` |
+| `ledger.html` | The Daily Ledger: habits, points, and the fun-money store (points unlock spending; sums in `js/money.js`, one-off data change in `supabase/ledger-money.sql`) | `ledger` |
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
 | `larder.html` | The Larder: shared grocery lists, pantry, cookbook and Claude's meal ideas | `larder` (shared with the household) |

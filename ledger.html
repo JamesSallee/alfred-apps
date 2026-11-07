@@ -146,7 +146,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
       <h1>The Daily Ledger</h1>
       <div class="sub" id="greet">Kept by Alfred</div>
     </div>
-    <div class="purse"><div class="amt num" id="balance">0</div><div class="lbl">points to spend</div></div>
+    <div class="purse"><div class="amt num" id="balance">$0</div><div class="lbl">fun money to spend</div></div>
   </header>
 
   <nav class="tabs" role="tablist">
@@ -167,6 +167,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
+import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, fmtUsd, round2, targetFor } from "./js/money.js";
 mountShell('ledger');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -182,10 +183,6 @@ const DN = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const fmtLong = s => parse(s).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
 const fmtShort = s => parse(s).toLocaleDateString("en-GB",{day:"numeric",month:"short"});
 
-// Streak milestones and their bonus points
-const MILESTONES = [[3,5],[7,15],[14,30],[30,75]];
-const bonusFor = n => { for (const [m,b] of MILESTONES) if (n===m) return b; return (n>30 && n%30===0) ? 75 : 0; };
-const nextMilestone = n => { for (const [m] of MILESTONES) if (n<m) return m; return Math.ceil((n+1)/30)*30; };
 
 const LINES = {
   done: ["Noted. Carry on.","Very good. I shall record it with quiet satisfaction.","Done, and without fuss. My favourite kind.","Splendid. The ledger approves.","Another one in the book.","I'll pretend I'm not impressed.","Well kept, sir.","That counts. Everything counts."],
@@ -197,7 +194,8 @@ const LINES = {
   tidy: ["Ten minutes of order. The house exhales."],
   journal: ["Written down, and therefore real."],
   undo: ["Struck from the record. No harm done.","Unticked. We shan't speak of it."],
-  spend: ["Enjoy it. You earned it, which is rather the point.","Purchased. I'll look the other way.","Treat dispensed. Do enjoy it properly."],
+  spend: ["Enjoy it. You earned it, which is rather the point.","Purchased. I'll look the other way.","Treat dispensed. Do enjoy it properly.","Paid for in piano and press-ups. Enjoy it."],
+  play: ["One hour. I shall be counting, discreetly.","Controller in hand, conscience clear.","Earned fair and square. Off you go."],
   rest: ["A rest day. Streaks will wait patiently.","Rest noted. Nothing is lost by it."]
 };
 const pick = a => a[Math.floor(Math.random()*a.length)];
@@ -205,7 +203,7 @@ let toastTimer;
 function say(text){ const t=$("#toast"); t.firstElementChild.innerHTML='<span class="who">Alfred</span>'+esc(text); t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),3200); }
 
 // State
-const S = { habits:[], days:{}, store:[], spends:[], settings:{streakMode:"grace"}, loaded:{}, view:"today", sel:ymd(new Date()), weekStart:monday(ymd(new Date())), editing:null, confirm:null, addingItem:false, addingHabit:false };
+const S = { habits:[], days:{}, store:[], spends:[], weekDocs:{}, settings:{streakMode:"grace"}, loaded:{}, view:"today", sel:ymd(new Date()), weekStart:monday(ymd(new Date())), editing:null, confirm:null, addingItem:false, addingHabit:false };
 let db = null;
 const today = () => ymd(new Date());
 
@@ -213,43 +211,47 @@ const today = () => ymd(new Date());
 const queues = {};
 function write(path, fn){ queues[path] = (queues[path]||Promise.resolve()).then(fn).catch(e => { say(e && e.code==="quota_exceeded" ? "The ledger is full. Remove a few old entries." : "That didn't save. Check your connection and try again."); }); return queues[path]; }
 
-// Points engine: everything derives from the day log, so it can always be recomputed.
+// Points engine. Points come from the day log; dollars come from js/money.js, week by week.
+// Streaks are kept for the record only: they no longer pay, so one missed day costs nothing.
 function compute(){
   const t = today();
-  const active = S.habits;
+  const cfg = settingsOf(S.settings);
   const dates = Object.keys(S.days).sort();
   const first = dates[0] && dates[0] < t ? dates[0] : t;
-  const res = { earned:0, byDate:{}, streak:{}, best:{}, week:{}, bonuses:[] };
-  const addPts = (d,n) => { res.earned += n; res.byDate[d] = (res.byDate[d]||0)+n; };
-  const mode = S.settings.streakMode || "grace";
-  for (const h of active){
-    let streak=0, best=0, graceWeek=null; const weekCount={}; const weekPaid={};
+  const res = { byDate:{}, streak:{}, best:{}, week:{}, cfg };
+  for (const h of S.habits){
+    let streak=0, best=0, graceWeek=null; const weekCount={};
     const start = h.created && h.created > first ? h.created : first;
     for (let d=start; d<=t; d=addDays(d,1)){
       const rec = S.days[d]; const done = rec && rec.done && rec.done[h.id];
       const wk = monday(d);
       if (done){
-        addPts(d, Number(h.points)||0);
+        res.byDate[d] = (res.byDate[d]||0) + (Number(h.points)||0);
         weekCount[wk]=(weekCount[wk]||0)+1;
-        const target = Number(h.weeklyTarget)||0;
-        if ((h.kind==="weekly" || mode==="weekly") && target && weekCount[wk]===target && !weekPaid[wk]){
-          weekPaid[wk]=true; const b = h.kind==="weekly" ? (Number(h.points)||0) : (Number(h.points)||0)*2;
-          addPts(d,b); res.bonuses.push({date:d,habit:h.name,amount:b,why:"weekly target met"});
-        }
-        if (h.kind!=="weekly" && mode!=="weekly"){
-          streak++; if (streak>best) best=streak; const b = bonusFor(streak);
-          if (b){ addPts(d,b); res.bonuses.push({date:d,habit:h.name,amount:b,why:streak+"-day streak"}); }
-        }
-      } else if (h.kind!=="weekly" && mode!=="weekly" && d!==t && !(rec && rec.rest)){
-        if (mode==="grace" && graceWeek!==wk){ graceWeek=wk; } else { streak=0; }
+        if (h.kind!=="weekly"){ streak++; if (streak>best) best=streak; }
+      } else if (h.kind!=="weekly" && d!==t && !(rec && rec.rest)){
+        if (graceWeek!==wk){ graceWeek=wk; } else { streak=0; }
       }
     }
     res.streak[h.id]=streak; res.best[h.id]=best;
     res.week[h.id]=weekCount[monday(S.sel)]||0;
   }
-  res.spent = S.spends.reduce((a,s)=>a+(Number(s.cost)||0),0);
-  res.balance = res.earned - res.spent;
+  const W = allWeeks({ habits:S.habits, days:S.days, weekDocs:S.weekDocs, cfg, today:t });
+  res.weeks = W.weeks; res.phoneNext = W.phoneNext;
+  res.byWeek = Object.fromEntries(W.weeks.map(w=>[w.wk,w]));
+  res.wallet = wallet({ weeks:W.weeks, spends:S.spends, bank:S.settings.bank });
   return res;
+}
+
+// Close a week for good on the Wednesday after it ends: its points and dollars are written down and never recomputed.
+function freezeWeeks(R){
+  if (!db || !S.loaded.habits || !S.loaded.days || !S.loaded.weeks) return;
+  for (const w of R.weeks){
+    if (w.closed || !w.dueToFreeze) continue;
+    const frozen = { points:w.points, base:w.base, counted:w.counted, capPts:w.capPts, over:w.over, dollars:w.dollars, light:w.light, bonuses:w.bonuses, at:new Date().toISOString() };
+    S.weekDocs[w.wk] = { ...(S.weekDocs[w.wk]||{}), frozen };
+    write("weeks/"+w.wk, ()=>db.doc("weeks/"+w.wk).set({ frozen }, { merge:true }));
+  }
 }
 
 function workoutMix(weekStart){
@@ -260,7 +262,8 @@ function workoutMix(weekStart){
 // Rendering
 function render(){
   const R = compute();
-  $("#balance").textContent = R.balance;
+  $("#balance").textContent = fmtUsd(R.wallet.available);
+  freezeWeeks(R);
   const h = new Date().getHours();
   $("#greet").textContent = (h<12?"Good morning":h<18?"Good afternoon":"Good evening")+", James. Kept by Alfred.";
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", b.dataset.view===S.view);
@@ -287,23 +290,26 @@ function renderToday(R){
   html += `<div class="dayhead"><h2>${sel===t?"Today":esc(fmtLong(sel))}</h2><span class="pts num">${dayPts} points ${sel===t?"so far":"earned"}</span>
     <button class="restbtn" id="restBtn" aria-pressed="${isRest}">${isRest?"Rest day ✓":"Mark as rest day"}</button></div>`;
   if (sel===t && parse(t).getDay()===0) html += `<a class="sunday" href="shutdown.html"><span><b>It's Sunday.</b> Time for the shutdown: close out the week and set up the next.</span><span class="go">Open Sunday Shutdown →</span></a>`;
-  if (isRest) html += `<div class="restnote">Rest day. Streaks are paused, so nothing is lost. Anything you do still earns points.</div>`;
+  if (isRest) html += `<div class="restnote">Rest day. Streaks pause and this week's targets drop by a day. Anything you do still earns points.</div>`;
   if (!S.loaded.habits){ html += `<div class="empty">Opening the ledger…</div>`; $("#v-today").innerHTML = html; bindToday(); return; }
   if (!S.habits.length){ html += `<div class="empty">No habits yet. Add your first one under Habits.</div>`; }
   const daily = S.habits.filter(x=>x.kind!=="weekly"), weekly = S.habits.filter(x=>x.kind==="weekly");
   const row = hb => {
     const v = rec.done && rec.done[hb.id]; const on = !!v;
-    const st = R.streak[hb.id]||0; const mode = S.settings.streakMode;
+    const st = R.streak[hb.id]||0;
+    const wkMeta = S.weekDocs[monday(sel)]||{};
+    const restN = Object.keys(S.days).filter(d=>monday(d)===monday(sel) && S.days[d].rest).length;
+    const tg = targetFor(hb, R.cfg, !!wkMeta.light, restN);
     let info = "";
-    if (hb.kind==="weekly") info = `${R.week[hb.id]} of ${hb.weeklyTarget||1} this week`;
-    else if (mode==="weekly") info = `${R.week[hb.id]} of ${hb.weeklyTarget||5} days this week`;
-    else info = st ? `Streak ${st} · next bonus at ${nextMilestone(st)}` : (hb.note ? esc(hb.note) : "Any attempt counts");
+    if (tg) info = `${R.week[hb.id]} of ${tg} this week${R.week[hb.id]>=tg?` · bonus +${Number(hb.bonus)||0} ✓`:` for +${Number(hb.bonus)||0}`}`;
+    else if (hb.kind==="weekly") info = `${R.week[hb.id]} of ${hb.weeklyTarget||1} this week`;
+    else info = hb.note ? esc(hb.note) : "Any attempt counts";
     if (hb.variants && typeof v==="string"){ const vv = hb.variants.find(x=>x.key===v); if (vv) info = vv.label+" · "+info; }
     if (hb.minutes && typeof v==="number") info = v+" min · "+info;
     let out = `<button class="habit${on?" on":""}" data-habit="${esc(hb.id)}" aria-pressed="${on}">
       <span class="tick">${on?"✓":""}</span>
       <span class="meta"><span class="name">${esc(hb.name)}</span><span class="info">${info}</span></span>
-      <span class="right">${hb.kind!=="weekly" && mode!=="weekly" && st>0 ? `<span class="sk num" aria-label="${st}-day streak">${st}<small>day${st===1?"":"s"}</small></span>` : ""}<span class="pv num">+${Number(hb.points)||0}</span></span></button>`;
+      <span class="right">${hb.kind!=="weekly" && st>1 ? `<span class="sk num" aria-label="${st}-day streak">${st}<small>day${st===1?"":"s"}</small></span>` : ""}<span class="pv num">+${Number(hb.points)||0}</span></span></button>`;
     if (hb.variants && hb.variants.length && S.choosing===hb.id){
       out += `<div class="variants">${hb.variants.map(x=>`<button class="chip" data-variant="${esc(x.key)}" data-for="${esc(hb.id)}" aria-pressed="${v===x.key}">${esc(x.label)}</button>`).join("")}</div>`;
     }
@@ -315,25 +321,37 @@ function renderToday(R){
   };
   html += `<div class="list">${daily.map(row).join("")}</div>`;
   if (weekly.length) html += `<h3 style="font-size:16px;margin-top:4px">This week</h3><div class="list">${weekly.map(row).join("")}</div>`;
-  // Week summary
-  const wk = monday(sel); let wkPts=0; for (let i=0;i<7;i++) wkPts += R.byDate[addDays(wk,i)]||0;
+  // Week summary: points, bonuses and what they're worth
+  const wk = monday(sel), W = R.byWeek[wk];
   const wo = S.habits.find(x=>x.id==="workout" && x.variants);
   let mixHtml = "";
   if (wo){
     const mix = workoutMix(wk);
     mixHtml = `<div class="mix">${wo.variants.map(x=>{ const n=mix[x.key]||0, tg=x.target||1; return `<div><span class="small">${esc(x.label)}</span><b class="num">${n} / ${tg}</b><span class="bar"><i style="width:${Math.min(100,n/tg*100)}%"></i></span></div>`; }).join("")}</div>`;
   }
-  const recent = R.bonuses.filter(b=>b.date>=wk && b.date<=addDays(wk,6));
-  html += `<div class="panel"><h3>Week of ${esc(fmtShort(wk))}</h3>
-    <div class="kv"><span>Points this week</span><span class="num">${wkPts}</span></div>
-    ${mixHtml}
-    ${S.habits.filter(x=>x.minutes).map(x=>{ let m=0; for (let i=0;i<7;i++){ const r=S.days[addDays(wk,i)]; const val=r&&r.done&&r.done[x.id]; if (typeof val==="number") m+=val; } return `<div class="kv"><span>${esc(x.name)} this week</span><span class="num">${m} min</span></div>`; }).join("")}
-    ${recent.length?`<div class="small">Bonuses: ${recent.map(b=>`${esc(b.habit)} ${esc(b.why)} (+${b.amount})`).join("; ")}</div>`:""}
-  </div>`;
-  if (S.settings.streakMode!=="weekly" && daily.length){
+  const minutes = S.habits.filter(x=>x.minutes).map(x=>{ let m=0; for (let i=0;i<7;i++){ const r=S.days[addDays(wk,i)]; const val=r&&r.done&&r.done[x.id]; if (typeof val==="number") m+=val; } return `<div class="kv"><span>${esc(x.name)} this week</span><span class="num">${m} min</span></div>`; }).join("");
+  if (W){
+    const good = Math.round(R.cfg.goodWeek*(W.light?R.cfg.lightFactor:1));
+    const meta = S.weekDocs[wk]||{};
+    html += `<div class="panel"><h3>Week of ${esc(fmtShort(wk))}${W.light?" · light week":""}${W.closed?" · closed":""}</h3>
+      <div class="kv"><span>Points${W.current?" so far":""}</span><span class="num">${W.points} of ${good} for a good week</span></div>
+      <span class="bar"><i style="width:${Math.min(100,W.points/good*100)}%"></i></span>
+      <div class="kv"><span>Fun money ${W.closed?"unlocked":W.current?"unlocked so far":"unlocked"}</span><span class="num">${fmtUsd(W.dollars)}</span></div>
+      ${W.over>0?`<div class="small">${W.over} points over the weekly cap of ${W.capPts}. Splendid, but they don't convert.</div>`:""}
+      ${mixHtml}${minutes}
+      ${W.bonuses&&W.bonuses.length?`<div class="small">Bonuses: ${W.bonuses.map(b=>`${esc(b.habit)}, ${esc(b.why)} (+${b.amount})`).join("; ")}</div>`:""}
+      ${W.closed?`<div class="small">Closed and written into the books. Ticks changed now are for the record only.</div>`:`
+      <form class="row" id="phoneForm"><label class="f" style="flex:1">Phone screen time, daily average (target ${W.phoneTarget} h)<input id="phoneIn" type="number" min="0" max="24" step="0.1" inputmode="decimal" value="${meta.phone??""}" placeholder="From Digital Wellbeing"></label><button class="btn ghost" type="submit" style="align-self:flex-end">Save</button></form>
+      <div class="row"><button class="restbtn" id="lightBtn" aria-pressed="${!!meta.light}">${meta.light?"Light week ✓":"Mark as a light week"}</button><span class="small">For trips, illness and busy weeks: targets shrink, the money doesn't.</span></div>`}
+    </div>`;
+  } else {
+    html += `<div class="panel"><h3>Week of ${esc(fmtShort(wk))}</h3>${mixHtml}${minutes}<div class="small">Before fun money began. Points here are for the record.</div></div>`;
+  }
+  const daily2 = S.habits.filter(x=>x.kind!=="weekly");
+  if (daily2.length){
     html += `<div class="panel"><h3>Streaks</h3><div class="streaks"><span class="h">Habit</span><span class="h" style="text-align:right">Now</span><span class="h" style="text-align:right">Best</span>
-      ${daily.map(hb=>{ const st=R.streak[hb.id]||0, bs=R.best[hb.id]||0; return `<span>${esc(hb.name)}</span><span class="c num">${st}</span><span class="b num">${bs}</span>`; }).join("")}</div>
-      <div class="small">Days in a row, with one grace day a week. Rest days pause the count.</div></div>`;
+      ${daily2.map(hb=>{ const st=R.streak[hb.id]||0, bs=R.best[hb.id]||0; return `<span>${esc(hb.name)}</span><span class="c num">${st}</span><span class="b num">${bs}</span>`; }).join("")}</div>
+      <div class="small">For the record only: streaks don't pay, so a missed day costs nothing. One grace day a week; rest days pause the count.</div></div>`;
   }
   $("#v-today").innerHTML = html; bindToday();
 }
@@ -345,6 +363,9 @@ function bindToday(){
   if (p) p.onclick=()=>{ S.weekStart=addDays(S.weekStart,-7); S.sel=addDays(S.weekStart,6); render(); };
   if (n) n.onclick=()=>{ S.weekStart=addDays(S.weekStart,7); const e=addDays(S.weekStart,6); S.sel = e>today()?today():e; render(); };
   const rb=$("#restBtn"); if (rb) rb.onclick=toggleRest;
+  const lb=$("#lightBtn"); if (lb) lb.onclick=()=>saveWeek(monday(S.sel), { light: !(S.weekDocs[monday(S.sel)]||{}).light }, l=>l.light?"A light week. Smaller targets, same money for a good one.":"Back to a full week.");
+  const pf=$("#phoneForm"); if (pf) pf.onsubmit=e=>{ e.preventDefault(); const raw=$("#phoneIn").value.trim(); const n = raw==="" ? null : Math.min(24,Math.max(0,round2(Number(raw)))); if (raw!=="" && !Number.isFinite(n)) return say("Hours and minutes as a number, please: 6.5 for six and a half.");
+    saveWeek(monday(S.sel), { phone:n }, ()=>{ const W=compute().byWeek[monday(S.sel)]; return n==null?"Cleared.":n<=W.phoneTarget-1?"An hour under target. The phone sulks; I don't.":n<=W.phoneTarget?"Under target. Bonus added.":"Over target this week. It stays where it is; no harm done."; }); };
   v.querySelectorAll("[data-habit]").forEach(b=>b.onclick=()=>tapHabit(b.dataset.habit));
   v.querySelectorAll("[data-variant]").forEach(b=>b.onclick=()=>setDone(b.dataset.for, b.dataset.variant));
   v.querySelectorAll("[data-min]").forEach(b=>b.onclick=()=>setDone(b.dataset.for, Number(b.dataset.min)));
@@ -375,55 +396,137 @@ function setDone(id, val){
   const body = dayDoc(S.sel);
   if (val==null || body.done[id]===val) { delete body.done[id]; S.choosing=null; saveDay(S.sel, body); return say(pick(LINES.undo)); }
   body.done[id] = val; S.choosing=null; saveDay(S.sel, body);
-  const after = compute();
-  const hb = S.habits.find(x=>x.id===id);
-  const gained = after.earned - before.earned, base = Number(hb.points)||0;
-  if (gained > base) say(`Bonus! ${gained-base} extra points for keeping it up. I've added them to your purse.`);
+  const after = compute(), wk = monday(S.sel);
+  const b0 = (before.byWeek[wk]?.bonuses||[]).length, b1 = after.byWeek[wk]?.bonuses||[];
+  if (b1.length > b0) { const nb = b1[b1.length-1]; say(`${nb.habit==="Good week"?"A good week":"Target met"}: +${nb.amount} points. The purse is heavier.`); }
   else say(pick([...(LINES[id]||[]), ...LINES.done]));
+}
+function saveWeek(wk, patch, msg){
+  const body = { ...(S.weekDocs[wk]||{}), ...patch }; S.weekDocs[wk] = body; render(); say(typeof msg==="function"?msg(body):msg);
+  if (db) write("weeks/"+wk, ()=>db.doc("weeks/"+wk).set(patch, { merge:true }));
 }
 function toggleRest(){ const body = dayDoc(S.sel); body.rest = !body.rest; saveDay(S.sel, body); if (body.rest) say(pick(LINES.rest)); }
 
 function renderStore(R){
-  let html = `<div class="panel"><div class="kv"><span>Earned to date</span><span class="num">${R.earned}</span></div><div class="kv"><span>Spent</span><span class="num">${R.spent}</span></div></div>`;
-  if (!S.store.length) html += `<div class="empty">The store is empty. Add a treat you'd actually look forward to.</div>`;
+  const Wl = R.wallet, cfg = R.cfg, t = today(), rec = S.days[t]||{};
+  const bank = S.settings.bank, bankAge = bank && bank.at ? Math.floor((Date.now()-Date.parse(bank.at))/864e5) : null;
+  let html = `<div class="panel"><div class="kv"><span>Yours to spend</span><span class="num" style="font-family:var(--display);font-size:22px;color:var(--brass)">${fmtUsd(Wl.available)}</span></div>
+    <div class="kv"><span>Unlocked since ${esc(fmtShort(cfg.start))}</span><span class="num">${fmtUsd(Wl.unlocked)}</span></div>
+    <div class="kv"><span>Spent on yourself</span><span class="num">${fmtUsd(Wl.spent)}</span></div>
+    ${Wl.thisWeek?`<div class="small">Includes ${fmtUsd(Wl.thisWeek)} unlocked so far this week. A week's sum is settled the Wednesday after.</div>`:""}
+    ${Wl.ceiling!=null && Wl.ceiling < Wl.free ? `<div class="small">Held to ${fmtUsd(Wl.ceiling)}: the account balance you last gave me, less what you've logged since.</div>`:""}
+    <div class="small">${bank&&bank.at?`Account balance ${fmtUsd(Number(bank.balance))} on ${esc(fmtShort(String(bank.at).slice(0,10)))}.${bankAge>31?" A month on: worth checking again.":""}`:"No account balance yet. Once a month, tell me what's in the fun-money account."} <button class="iconbtn" id="bankBtn">${bank?"Update balance":"Add balance"}</button></div>
+    ${S.editBank?`<form class="row" id="bankForm"><label class="f" style="flex:1">Fun-money account balance ($)<input id="bankIn" type="number" min="0" step="0.01" inputmode="decimal" required value="${bank?Number(bank.balance):""}"></label><button class="btn" type="submit" style="align-self:flex-end">Save</button><button class="btn ghost" type="button" id="bankCancel" style="align-self:flex-end">Cancel</button></form>`:""}
+  </div>`;
+  // Saving towards
+  const goal = S.settings.goal && S.store.find(x=>x.id===S.settings.goal.itemId);
+  if (goal){ const pr=Number(goal.price)||0, pct=pr?Math.min(100,Wl.available/pr*100):0;
+    html += `<div class="panel"><h3>Saving towards: ${esc(goal.name)}</h3><span class="bar"><i style="width:${pct}%"></i></span>
+      <div class="kv"><span>${fmtUsd(Math.min(Wl.available,pr))} of ${fmtUsd(pr)}</span><span>${Wl.available>=pr?"Within reach":`${fmtUsd(round2(pr-Wl.available))} to go`}</span></div>
+      <div class="row"><button class="iconbtn" id="dropGoal">Stop saving for this</button></div></div>`; }
+  // Time treats: PlayStation, extra TV
+  const times = S.store.filter(x=>x.kind==="time");
+  if (times.length){
+    html += `<h3 style="font-size:16px">Time, by the hour</h3><div class="list">`;
+    for (const it of times){
+      const price = hourPrice(it, S.spends, t), open = gateOpen(it, rec), hrs = S.spends.filter(x=>x.itemId===it.id && (x.day||String(x.at).slice(0,10))===t).length;
+      const gateNames = (it.gate||[]).map(id=>(S.all.find(h=>h.id===id)||{}).name||id).join(" and ").toLowerCase();
+      const why = !open ? `Opens once ${gateNames} ${it.gate.length>1?"are":"is"} ticked today` : price>Wl.available ? `${fmtUsd(round2(price-Wl.available))} more to unlock` : hrs ? `${hrs} hour${hrs===1?"":"s"} today · next hour ${fmtUsd(price)}` : (it.note ? esc(it.note) : "Ready when you are");
+      html += `<div class="item"><div class="meta"><div class="name">${esc(it.name)}</div><div class="small">${why}</div><div class="small">${fmtUsd(Number(it.price)||0)} the first hour${it.extraPrice!=null&&Number(it.extraPrice)!==Number(it.price)?`, ${fmtUsd(Number(it.extraPrice))} each after`:""}</div>
+        ${S.confirm&&S.confirm.type==="delItem"&&S.confirm.id===it.id?`<div class="confirm" style="margin-top:6px"><span>Remove this?</span><button class="btn warn" data-delitem="${esc(it.id)}">Remove</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}</div>
+        <div class="cost num">${fmtUsd(price)}</div>
+        <div class="row" style="flex-direction:column;gap:6px"><button class="btn" data-hour="${esc(it.id)}" ${!open||price>Wl.available?"disabled":""}>Log an hour</button><button class="iconbtn" data-askdel="${esc(it.id)}" aria-label="Remove ${esc(it.name)}">Remove</button></div></div>`;
+    }
+    html += `</div>`;
+  }
+  // Things
+  const things = S.store.filter(x=>x.kind!=="time");
+  html += `<h3 style="font-size:16px">Things</h3>`;
+  if (!things.length) html += `<div class="empty">Nothing on the shelf. Add something you'd actually look forward to.</div>`;
   html += `<div class="list">`;
-  for (const it of [...S.store].sort((a,b)=>(a.cost||0)-(b.cost||0))){
-    const short = (it.cost||0) - R.balance;
+  for (const it of [...things].sort((a,b)=>(a.price||0)-(b.price||0))){
+    const price = Number(it.price)||0, short = round2(price - Wl.available);
+    const needsHold = price > cfg.holdOver, holdUntil = it.holdUntil ? Date.parse(it.holdUntil) : null;
+    const holding = needsHold && holdUntil && holdUntil > Date.now(), held = needsHold && holdUntil && holdUntil <= Date.now();
     const confirming = S.confirm && S.confirm.type==="buy" && S.confirm.id===it.id;
     const delConfirm = S.confirm && S.confirm.type==="delItem" && S.confirm.id===it.id;
-    html += `<div class="item"><div class="meta"><div class="name">${esc(it.name)}</div><div class="small">${it.note?esc(it.note)+" · ":""}${short>0?`${short} more to go`:"Yours whenever you like"}</div>
-      ${confirming?`<div class="confirm" style="margin-top:6px"><span>Spend ${it.cost} points?</span><button class="btn" data-buy="${esc(it.id)}">Yes, treat me</button><button class="btn ghost" data-cancel>Not yet</button></div>`:""}
-      ${delConfirm?`<div class="confirm" style="margin-top:6px"><span>Remove this treat?</span><button class="btn warn" data-delitem="${esc(it.id)}">Remove</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}
-      </div><div class="cost num">${it.cost}</div>
-      <div class="row" style="flex-direction:column;gap:6px"><button class="btn" data-ask="${esc(it.id)}" ${short>0?"disabled":""}>Redeem</button><button class="iconbtn" data-askdel="${esc(it.id)}" aria-label="Remove ${esc(it.name)}">Remove</button></div></div>`;
+    let status = short>0 ? `${fmtUsd(short)} more to unlock` : "Yours whenever you like";
+    if (short<=0 && needsHold && !held) status = holding ? `Sleeping on it until ${new Date(holdUntil).toLocaleString("en-GB",{weekday:"short",hour:"numeric",minute:"2-digit"})}` : `Over ${fmtUsd(cfg.holdOver)}: sleep on it for ${cfg.holdHours} hours first`;
+    let btn;
+    if (short>0) btn = `<button class="btn" disabled>Buy</button>`;
+    else if (needsHold && !held) btn = `<button class="btn" data-hold="${esc(it.id)}" ${holding?"disabled":""}>${holding?"Waiting":"I want it"}</button>`;
+    else btn = `<button class="btn" data-ask="${esc(it.id)}">Buy</button>`;
+    html += `<div class="item"><div class="meta"><div class="name">${esc(it.name)}</div><div class="small">${it.note?esc(it.note)+" · ":""}${status}</div>
+      ${confirming?`<div class="confirm" style="margin-top:6px"><span>Spend ${fmtUsd(price)} of fun money?</span><button class="btn" data-buy="${esc(it.id)}">Yes, I earned it</button><button class="btn ghost" data-cancel>Not yet</button></div>`:""}
+      ${delConfirm?`<div class="confirm" style="margin-top:6px"><span>Remove this?</span><button class="btn warn" data-delitem="${esc(it.id)}">Remove</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}
+      </div><div class="cost num">${fmtUsd(price)}</div>
+      <div class="row" style="flex-direction:column;gap:6px">${btn}${short>0&&(!S.settings.goal||S.settings.goal.itemId!==it.id)?`<button class="iconbtn" data-goal="${esc(it.id)}">Save for it</button>`:""}<button class="iconbtn" data-askdel="${esc(it.id)}" aria-label="Remove ${esc(it.name)}">Remove</button></div></div>`;
   }
   html += `</div>`;
+  // Anything else
+  html += S.logging ? `<form class="panel edit" id="logForm"><label class="f full">What did you buy?<input id="logName" required maxlength="60" placeholder="e.g. Concert tickets"></label>
+      <label class="f">Amount ($)<input id="logAmt" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+      <div class="small" style="align-self:end">Only things for yourself. Shared and household spends stay out of the game.</div>
+      <div class="row full"><button class="btn" type="submit">Spend it</button><button class="btn ghost" type="button" id="logCancel">Cancel</button></div></form>`
+    : `<button class="btn" id="logBtn">I bought something</button>`;
   html += S.addingItem ? `<form class="panel edit" id="itemForm"><label class="f full">Treat<input id="itemName" required maxlength="60" placeholder="e.g. Afternoon at the bookshop"></label>
-      <label class="f">Cost in points<input id="itemCost" type="number" min="1" step="1" required value="100"></label>
-      <label class="f">Note (optional)<input id="itemNote" maxlength="60"></label>
+      <label class="f">Kind<select id="itemKind"><option value="thing">A thing (one price)</option><option value="time">Time, by the hour</option></select></label>
+      <label class="f">Price ($)<input id="itemPrice" type="number" min="0.5" step="0.5" required value="20"></label>
+      <label class="f" data-time hidden>Each extra hour that day ($)<input id="itemExtra" type="number" min="0.5" step="0.5"></label>
+      <label class="f" data-time hidden><span><input id="itemGate" type="checkbox" style="width:auto"> Only after workout and piano</span></label>
+      <label class="f full">Note (optional)<input id="itemNote" maxlength="60"></label>
       <div class="row full"><button class="btn" type="submit">Add to store</button><button class="btn ghost" type="button" data-cancelitem>Cancel</button></div></form>`
-    : `<button class="btn ghost" id="addItem">Add a treat</button>`;
-  const recent = [...S.spends].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,10);
-  if (recent.length) html += `<div class="panel"><h3>Recently enjoyed</h3><div class="hist">${recent.map(s=>`<div><span>${esc(s.name)} <span class="small">${esc(fmtShort(String(s.at).slice(0,10)))}</span></span><span class="row"><span class="num">−${s.cost}</span><button class="iconbtn" data-undo="${esc(s.id)}">Undo</button></span></div>`).join("")}</div></div>`;
+    : `<button class="btn ghost" id="addItem">Add to the store</button>`;
+  const recent = [...S.spends].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,12);
+  if (recent.length) html += `<div class="panel"><h3>Recently enjoyed</h3><div class="hist">${recent.map(s=>`<div><span>${esc(s.name)} <span class="small">${esc(fmtShort(String(s.at).slice(0,10)))}</span></span><span class="row"><span class="num">−${fmtUsd(Number(s.dollars)||0)}</span><button class="iconbtn" data-undo="${esc(s.id)}">Undo</button></span></div>`).join("")}</div></div>`;
+  html += `<div class="small" style="text-align:center">The $${cfg.monthly} a month still arrives by direct deposit. This only decides what you've earned the right to spend on yourself. Nothing here touches the bank.</div>`;
   $("#v-store").innerHTML = html;
   const v=$("#v-store");
   v.querySelectorAll("[data-ask]").forEach(b=>b.onclick=()=>{ S.confirm={type:"buy",id:b.dataset.ask}; render(); });
   v.querySelectorAll("[data-askdel]").forEach(b=>b.onclick=()=>{ S.confirm={type:"delItem",id:b.dataset.askdel}; render(); });
   v.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=()=>{ S.confirm=null; render(); });
   v.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>buy(b.dataset.buy));
+  v.querySelectorAll("[data-hour]").forEach(b=>b.onclick=()=>buyHour(b.dataset.hour));
+  v.querySelectorAll("[data-hold]").forEach(b=>b.onclick=()=>{ const id=b.dataset.hold; const until=new Date(Date.now()+cfg.holdHours*36e5).toISOString(); saveItem(id,{holdUntil:until}); say("Noted. Ask me again in two days; if you still want it, it's yours."); });
+  v.querySelectorAll("[data-goal]").forEach(b=>b.onclick=()=>saveSettings({goal:{itemId:b.dataset.goal}},"Saving towards it. I'll keep the tally."));
+  const dg=$("#dropGoal"); if (dg) dg.onclick=()=>saveSettings({goal:null},"Goal set aside. The money stays put.");
   v.querySelectorAll("[data-delitem]").forEach(b=>b.onclick=()=>{ const id=b.dataset.delitem; S.store=S.store.filter(x=>x.id!==id); S.confirm=null; render(); if (db) write("store/"+id,()=>db.doc("store/"+id).delete()); });
-  v.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{ const id=b.dataset.undo; S.spends=S.spends.filter(x=>x.id!==id); render(); say("Refunded. The treat never happened."); if (db) write("spends/"+id,()=>db.doc("spends/"+id).delete()); });
+  v.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{ const id=b.dataset.undo; S.spends=S.spends.filter(x=>x.id!==id); render(); say("Refunded. It never happened."); if (db) write("spends/"+id,()=>db.doc("spends/"+id).delete()); });
+  const bb=$("#bankBtn"); if (bb) bb.onclick=()=>{ S.editBank=!S.editBank; render(); $("#bankIn")?.focus(); };
+  const bc=$("#bankCancel"); if (bc) bc.onclick=()=>{ S.editBank=false; render(); };
+  const bf=$("#bankForm"); if (bf) bf.onsubmit=e=>{ e.preventDefault(); const n=round2(Number($("#bankIn").value)); if (!Number.isFinite(n)||n<0) return; S.editBank=false; saveSettings({bank:{balance:n,at:new Date().toISOString()}},"Balance noted. The books and the bank agree, or near enough."); };
+  const lb=$("#logBtn"); if (lb) lb.onclick=()=>{ S.logging=true; render(); $("#logName")?.focus(); };
+  const lc=$("#logCancel"); if (lc) lc.onclick=()=>{ S.logging=false; render(); };
+  const lf=$("#logForm"); if (lf) lf.onsubmit=e=>{ e.preventDefault(); const name=$("#logName").value.trim(), amt=round2(Number($("#logAmt").value)); if (!name||!(amt>0)) return;
+    if (amt > compute().wallet.available) return say(`That's more than the ${fmtUsd(compute().wallet.available)} you've unlocked. It can wait, or go on the saving list.`);
+    S.logging=false; addSpend({name,dollars:amt,kind:"other"}); say(pick(LINES.spend)); };
   const a=$("#addItem"); if (a) a.onclick=()=>{ S.addingItem=true; render(); $("#itemName")?.focus(); };
   const c=v.querySelector("[data-cancelitem]"); if (c) c.onclick=()=>{ S.addingItem=false; render(); };
-  const f=$("#itemForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#itemName").value.trim(); const cost=Math.max(1,Math.round(Number($("#itemCost").value)||0)); if(!name) return;
-    const id="t"+Date.now().toString(36); const body={name,cost,note:$("#itemNote").value.trim()}; S.store.push({id,...body}); S.addingItem=false; render(); say("On the shelf. Something to look forward to.");
+  const ik=$("#itemKind"); if (ik) ik.onchange=()=>v.querySelectorAll("[data-time]").forEach(x=>x.hidden=ik.value!=="time");
+  const f=$("#itemForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#itemName").value.trim(); const price=round2(Math.max(0.5,Number($("#itemPrice").value)||0)); if(!name) return;
+    const kind=$("#itemKind").value, body={name,price,kind,note:$("#itemNote").value.trim()};
+    if (kind==="time"){ const ex=Number($("#itemExtra").value); body.extraPrice = ex>0 ? round2(ex) : price; if ($("#itemGate").checked) body.gate=["workout","piano"]; }
+    const id="t"+Date.now().toString(36); S.store.push({id,...body}); S.addingItem=false; render(); say("On the shelf. Something to look forward to.");
     if (db) write("store/"+id,()=>db.doc("store/"+id).set(body)); };
 }
+function saveSettings(patch, msg){ S.settings={...S.settings,...patch}; render(); if (msg) say(msg); if (db) write("settings/main",()=>db.doc("settings/main").set(S.settings)); }
+function saveItem(id, patch){ const it=S.store.find(x=>x.id===id); if(!it) return; Object.assign(it,patch); render(); const body={...it}; delete body.id; if (db) write("store/"+id,()=>db.doc("store/"+id).set(body)); }
+function addSpend(body){
+  const sid="s"+Date.now().toString(36); const full={...body,at:new Date().toISOString(),day:today()};
+  S.spends.push({id:sid,...full}); S.confirm=null; render();
+  if (db) write("spends/"+sid,()=>db.doc("spends/"+sid).set(full));
+}
 function buy(id){
-  const it=S.store.find(x=>x.id===id); if(!it) return; const R=compute(); if (R.balance < it.cost) return;
-  const sid="s"+Date.now().toString(36); const body={itemId:id,name:it.name,cost:it.cost,at:new Date().toISOString()};
-  S.spends.push({id:sid,...body}); S.confirm=null; render(); say(pick(LINES.spend));
-  if (db) write("spends/"+sid,()=>db.doc("spends/"+sid).set(body));
+  const it=S.store.find(x=>x.id===id); if(!it) return; const R=compute(); const price=Number(it.price)||0; if (R.wallet.available < price) return;
+  addSpend({itemId:id,name:it.name,dollars:price,kind:"thing"}); say(pick(LINES.spend));
+  if (S.settings.goal && S.settings.goal.itemId===id) saveSettings({goal:null});
+  if (it.holdUntil) saveItem(id,{holdUntil:null});
+}
+function buyHour(id){
+  const it=S.store.find(x=>x.id===id); if(!it) return; const R=compute(), t=today();
+  if (!gateOpen(it, S.days[t])) return say("Workout and piano first. Then the controller.");
+  const price=hourPrice(it, S.spends, t); if (R.wallet.available < price) return;
+  addSpend({itemId:id,name:it.name+", one hour",dollars:price,kind:"time"}); say(pick(it.gate?LINES.play:LINES.spend));
 }
 
 function habitForm(h){
@@ -433,22 +536,23 @@ function habitForm(h){
     <label class="f">Points each time<input id="hPoints" type="number" min="0" step="1" required value="${h?Number(h.points)||0:5}"></label>
     <label class="f">How often<select id="hKind"><option value="daily" ${!h||h.kind!=="weekly"?"selected":""}>Daily</option><option value="weekly" ${h&&h.kind==="weekly"?"selected":""}>A few times a week</option></select></label>
     <label class="f">Weekly target (days)<input id="hTarget" type="number" min="1" max="7" step="1" value="${h?Number(h.weeklyTarget)||5:5}"></label>
-    <label class="f">Note (optional)<input id="hNote" maxlength="60" value="${h?esc(h.note||""):""}"></label>
+    <label class="f">Bonus target, times a week (0 for none)<input id="hBonusAt" type="number" min="0" max="7" step="1" value="${h?Number(h.bonusAt)||0:0}"></label>
+    <label class="f">Bonus points<input id="hBonus" type="number" min="0" step="1" value="${h?Number(h.bonus)||0:10}"></label>
+    <label class="f full">Note (optional)<input id="hNote" maxlength="60" value="${h?esc(h.note||""):""}"></label>
     ${isWo?`<div class="small full">Workout types and weekly mix: ${h.variants.map(v=>esc(v.label)+" "+v.target).join(", ")}.</div>`:""}
     <div class="row full"><button class="btn" type="submit">${h?"Save":"Add habit"}</button><button class="btn ghost" type="button" data-cancelhabit>Cancel</button></div></form>`;
 }
 function renderHabits(R){
-  let html = `<div class="panel"><h3>How streaks work</h3>
-    <label class="f">Streak style<select id="streakMode">
-      <option value="grace" ${S.settings.streakMode==="grace"?"selected":""}>Bonuses with one grace day a week</option>
-      <option value="classic" ${S.settings.streakMode==="classic"?"selected":""}>Classic: a missed day resets</option>
-      <option value="weekly" ${S.settings.streakMode==="weekly"?"selected":""}>Weekly targets instead of streaks</option></select></label>
-    <div class="small">${S.settings.streakMode==="weekly"?"Hit a habit's weekly target and earn double its points as a bonus.":"Bonus points at 3, 7, 14 and 30 days, then every 30. Rest days pause streaks. Breaking a streak never costs points you've earned."}</div></div>`;
+  const cfg = R.cfg, rate = cfg.monthly*12/52/cfg.goodWeek;
+  let html = `<div class="panel"><h3>How earning works</h3>
+    <div class="small">A good week is ${cfg.goodWeek} points and unlocks a week's share of the $${cfg.monthly} a month: about ${fmtUsd(round2(cfg.monthly*12/52))}, so a point is worth about ${Math.round(rate*100)}¢. Up to ${cfg.cap} points a week count toward money.</div>
+    <div class="small">Bonuses: meet a habit's weekly target for its bonus; meet most targets and tick something on six days for +${cfg.goodWeekBonus}; come back after a week under ${cfg.comebackBelow} with ${cfg.comebackAt} or more for +${cfg.comebackBonus}; keep phone time under target for +${cfg.phone.hit} (an hour under: +${cfg.phone.beat}). Phone target next week: ${R.phoneNext} hours a day.</div>
+    <div class="small">No penalties and no debt. Rest days lower that week's targets by a day; a light week shrinks them to ${Math.round(cfg.lightFactor*100)}% and still pays a good week in full. Each week is closed on the Wednesday after, so changing a habit's points only affects weeks still open.</div></div>`;
   html += `<div class="list">`;
   S.habits.forEach((h,i)=>{
     if (S.editing===h.id){ html += habitForm(h); return; }
     const del = S.confirm && S.confirm.type==="archive" && S.confirm.id===h.id;
-    html += `<div class="item"><div class="meta"><div class="name">${esc(h.name)}</div><div class="small">${Number(h.points)||0} points · ${h.kind==="weekly"?`${h.weeklyTarget||1} a week`:"daily"}${h.note?" · "+esc(h.note):""}</div>
+    html += `<div class="item"><div class="meta"><div class="name">${esc(h.name)}</div><div class="small">${Number(h.points)||0} points · ${h.kind==="weekly"?`${h.weeklyTarget||1} a week`:"daily"}${Number(h.bonusAt)?` · ${h.bonusAt} a week for +${Number(h.bonus)||0}`:""}${h.note?" · "+esc(h.note):""}</div>
       ${del?`<div class="confirm" style="margin-top:6px"><span>Retire this habit? Past points stay.</span><button class="btn warn" data-archive="${esc(h.id)}">Retire</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}</div>
       <div class="row"><button class="iconbtn" data-up="${i}" ${i===0?"disabled":""} aria-label="Move up">↑</button><button class="iconbtn" data-edit="${esc(h.id)}">Edit</button><button class="iconbtn" data-askarch="${esc(h.id)}">Retire</button></div></div>`;
   });
@@ -457,7 +561,6 @@ function renderHabits(R){
   if (S.retired.length) html += `<div class="panel"><h3>Retired</h3><div class="hist">${S.retired.map(h=>`<div><span>${esc(h.name)}</span><button class="iconbtn" data-restore="${esc(h.id)}">Bring back</button></div>`).join("")}</div></div>`;
   $("#v-habits").innerHTML = html;
   const v=$("#v-habits");
-  $("#streakMode").onchange=e=>{ S.settings={...S.settings,streakMode:e.target.value}; render(); if (db) write("settings/main",()=>db.doc("settings/main").set(S.settings)); };
   v.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{ S.editing=b.dataset.edit; S.addingHabit=false; render(); });
   v.querySelectorAll("[data-askarch]").forEach(b=>b.onclick=()=>{ S.confirm={type:"archive",id:b.dataset.askarch}; render(); });
   v.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=()=>{ S.confirm=null; render(); });
@@ -467,7 +570,7 @@ function renderHabits(R){
   const add=$("#addHabit"); if (add) add.onclick=()=>{ S.addingHabit=true; S.editing=null; render(); $("#hName")?.focus(); };
   const c=v.querySelector("[data-cancelhabit]"); if (c) c.onclick=()=>{ S.addingHabit=false; S.editing=null; render(); };
   const f=$("#habitForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#hName").value.trim(); if(!name) return;
-    const patch={name,points:Math.max(0,Math.round(Number($("#hPoints").value)||0)),kind:$("#hKind").value,weeklyTarget:Math.min(7,Math.max(1,Math.round(Number($("#hTarget").value)||1))),note:$("#hNote").value.trim()};
+    const patch={name,points:Math.max(0,Math.round(Number($("#hPoints").value)||0)),kind:$("#hKind").value,weeklyTarget:Math.min(7,Math.max(1,Math.round(Number($("#hTarget").value)||1))),bonusAt:Math.min(7,Math.max(0,Math.round(Number($("#hBonusAt").value)||0))),bonus:Math.max(0,Math.round(Number($("#hBonus").value)||0)),note:$("#hNote").value.trim()};
     const id=f.dataset.id;
     if (id) { S.editing=null; saveHabit(id,patch); say("Amended. The ledger adjusts itself."); }
     else { const nid="h"+Date.now().toString(36); const order=Math.max(0,...S.all.map(h=>Number(h.order)||0))+1; S.addingHabit=false; saveHabit(nid,{...patch,order,active:true,created:today()},true); say("A new habit. I shall keep an eye on it."); }
@@ -498,7 +601,8 @@ render();
   const settle = snap => { if (!snap.metadata.fromCache){ clearTimeout(timer); setStatus(""); } };
   const fail = () => { clearTimeout(timer); setStatus("Lost touch with the ledger. Reopen the page to reconnect."); };
   db.collection("habits").onSnapshot(s=>{ S.all=s.docs.map(d=>({id:d.id,...d.data()})); splitHabits(); S.loaded.habits=true; settle(s); render(); }, fail);
-  db.collection("days").onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data()); S.days=o; settle(s); render(); }, fail);
+  db.collection("days").onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data()); S.days=o; S.loaded.days=true; settle(s); render(); }, fail);
+  db.collection("weeks").onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data()); S.weekDocs=o; S.loaded.weeks=true; render(); }, fail);
   db.collection("store").onSnapshot(s=>{ S.store=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
   db.collection("spends").onSnapshot(s=>{ S.spends=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
   // A Peloton class ticks the workout on its own: fetch new classes (at most every 30 minutes) and tick their days.
