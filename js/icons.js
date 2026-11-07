@@ -9,6 +9,7 @@ export const ICONS = {
   larder:   '<path d="M2.5 15.5c0-4 4.3-7 9.5-7s9.5 3 9.5 7c0 1.7-1.3 3-3 3h-13c-1.7 0-3-1.3-3-3z"/><path d="M7.5 10l2 3M11.5 9l2 3M15.5 10l2 3"/>',
   desk:     '<path d="M12 21.5l-5-9 2-6h6l2 6z"/><path d="M12 21.5V14"/><circle cx="12" cy="12.5" r="1.5"/><path d="M9 3.5h6"/>',
   training: '<rect x="5" y="7" width="3" height="10" rx="1"/><rect x="16" y="7" width="3" height="10" rx="1"/><path d="M3 10v4M21 10v4M8 12h8"/>',
+  todo:     '<path d="M9 6.5h11M9 12h11M9 17.5h7"/><path d="M3.5 6.5l1.3 1.3L7 5.5"/><path d="M3.5 12l1.3 1.3L7 11"/><circle cx="5" cy="17.5" r="1.2"/>',
   wardrobe: '<path d="M12 9.5V8.3c0-.6.4-1 .9-1.3A2 2 0 1 0 10 5.3"/><path d="M12 9.5l-8.4 6.2c-.8.6-.4 1.8.6 1.8h15.6c1 0 1.4-1.2.6-1.8z"/>',
 };
 
