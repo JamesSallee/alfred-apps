@@ -211,15 +211,45 @@ export function writingTime(focus, pieceId) {
 }
 export const fmtMins = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`;
 
+// ---------- Notion copies ----------
+
+/** Ask the server to copy this room's changes to Notion, a few seconds after the last edit.
+ *  (It also runs hourly on its own; see supabase/functions/alfred-notion.) */
+const mirrorTimers = {};
+export function mirrorSoon(app) {
+  clearTimeout(mirrorTimers[app]);
+  mirrorTimers[app] = setTimeout(() => {
+    if (navigator.onLine) supabase.functions.invoke("alfred-notion", { body: { action: "mirror", app } }).catch(() => {});
+  }, 8000);
+}
+
+// ---------- The Errand Book (to-dos) ----------
+
+/** Every task in the "todo" store, with its id. */
+export const todoTasks = (todo) => todo.list("tasks/").map((x) => ({ id: x.key.slice(6), ...x.value })).filter((x) => x.title);
+/** Which list an open task sits in today: today | week | later | someday. */
+export function todoBucket(x, t = ymd(new Date())) {
+  if (x.someday) return "someday";
+  const booked = x.booked?.start ? ymd(new Date(x.booked.start)) : null;
+  const when = [x.due, booked].filter(Boolean).sort()[0];
+  if (x.status === "doing" || (when && when <= t)) return "today";
+  if (when && when <= addDays(t, 6)) return "week";
+  return "later";
+}
+/** Open tasks that are live today (not done, not snoozed). */
+export const openTasks = (todo, t = ymd(new Date())) => todoTasks(todo).filter((x) => x.status !== "done" && !(x.snoozeUntil > t));
+/** Tasks ticked off between two dates (inclusive), for the Sunday Shutdown. */
+export const tasksDone = (todo, from, to) => todoTasks(todo).filter((x) => x.status === "done" && x.doneAt && ymd(new Date(x.doneAt)) >= from && ymd(new Date(x.doneAt)) <= to);
+
 // ---------- The Study's doors: one live figure each ----------
 
 const shortDate = (s) => parse(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-/** { ledger, focus, shutdown, larder, desk, training, wardrobe } -> { v, c } (value, caption) or null. */
+/** { ledger, focus, shutdown, larder, desk, training, wardrobe, todo } -> { v, c } (value, caption) or null. */
 export function doorFigures(stores) {
   const t = ymd(new Date());
   const out = {};
-  const { ledger, focus, shutdown, larder, desk, training, wardrobe } = stores;
+  const { ledger, focus, shutdown, larder, desk, training, wardrobe, todo } = stores;
   if (ledger) {
     const daily = activeHabits(ledger).filter((h) => h.kind !== "weekly");
     const done = ledger.get(`days/${t}`)?.done || {};
@@ -257,6 +287,12 @@ export function doorFigures(stores) {
     const o = wardrobe.list("occasions/").map((x) => x.value).filter((x) => x.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
     const d = o && daysBetween(t, o.date);
     out.wardrobe = o ? { v: d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`, c: o.kind === "trip" ? "to the trip" : "to the occasion" } : null;
+  }
+  if (todo) {
+    const open = openTasks(todo, t);
+    const late = open.filter((x) => x.due && x.due < t).length;
+    const now = open.filter((x) => todoBucket(x, t) === "today").length;
+    out.todo = late ? { v: String(late), c: "overdue" } : now ? { v: String(now), c: "for today" } : open.length ? { v: String(open.length), c: "on the list" } : null;
   }
   return out;
 }
