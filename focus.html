@@ -100,6 +100,8 @@ input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px s
 .breakcard p{margin:0}
 .donecard{background:var(--green-soft);border:1px solid var(--green);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
 .donecard p{margin:0}
+.ringbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--brass-soft);border:1px solid var(--brass);border-radius:12px;padding:10px 12px;font-size:14px}
+.ringbar .btn{padding:8px 16px;min-width:0}
 
 /* Breathing orb */
 .orbwrap{display:grid;place-items:center;height:220px;position:relative}
@@ -187,6 +189,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
         <button class="btn" id="skipBtn" hidden>Skip</button>
         <button class="btn quiet" id="stopBtn" hidden>Stop</button>
       </div>
+      <div class="ringbar" id="ringBar" hidden><span>Ringing every 30 seconds until you're back.</span><button class="btn primary" id="ackBtn">I'm here</button></div>
     </div>
 
     <div id="breakSlot"></div>
@@ -216,6 +219,16 @@ input[type=range]{width:auto;accent-color:var(--green)}
         </div>
       </div>
       <label class="check"><input type="checkbox" id="settle"> Settle in for 2 minutes before the clock starts</label>
+    </div>
+
+
+    <div class="panel stack" id="alarmPanel">
+      <div class="row" style="justify-content:space-between"><h2>Alarm</h2><span class="small">Tap a sound to hear it</span></div>
+      <div class="field"><span class="lbl">When focus ends</span><div class="chips" id="alFocus"></div></div>
+      <div class="field"><span class="lbl">When a break ends</span><div class="chips" id="alBreak"></div><span class="small">The end of a session plays this one twice.</span></div>
+      <div class="vol"><span class="lbl">Alarm volume</span><input type="range" id="alVol" min="0.05" max="1" step="0.01" aria-label="Alarm volume"><button class="chip" id="alTest">Preview</button></div>
+      <label class="check"><input type="checkbox" id="alFade"> Fade the soundscape down over the last 30 seconds</label>
+      <label class="check"><input type="checkbox" id="alRepeat"> Keep ringing every 30 seconds until I press "I'm here"</label>
     </div>
   </section>
 
@@ -268,7 +281,7 @@ function say(t){const el=$("#toast");el.firstElementChild.innerHTML='<span class
 /* ---------- settings ---------- */
 const DEF_LABELS=["Writing","Bootcamp","Reading","Planning","Admin"];
 const S=Object.assign({vol:.7,duck:true,settle:false,plan:{focus:50,brk:10,rounds:1},label:"Writing",labels:DEF_LABELS.slice(),levels:{},
-  pattern:"calm",medMins:5,cues:true},store.get("settings",{}));
+  pattern:"calm",medMins:5,cues:true,alertFocus:"bell",alertBreak:"marimba",alertVol:.75,alertFade:true,alertRepeat:false},store.get("settings",{}));
 function save(){store.set("settings",S);}
 let LOG=readLog();
 focusStore.subscribe(()=>{ const next=readLog(); if(next.length!==LOG.length||next.some((x,i)=>x.t!==LOG[i].t)){ LOG=next; renderTally(); if(!$("#v-log").hidden) renderLog(); } const remote=focusStore.get("settings"); if(remote) Object.assign(S,remote); });
@@ -295,12 +308,12 @@ function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const e
 // Beds are long stereo noise read out in random stretches with soft crossfades. Drops, crackles and chirps
 // are rendered fresh a couple of seconds at a time, just ahead of the play head. Swells and gusts drift at
 // random, each sound's "weather" eases up and down over minutes, and now and then something rare happens.
-let ctx=null, master=null, duckG=null, B=null, pump=null;
+let ctx=null, master=null, duckG=null, fadeG=null, B=null, pump=null, NODES=null;
 const bufs={}, active={};
 const AHEAD=3, CHUNK=2, TAIL=2.5; // seconds: how far ahead to schedule, and the size of each fresh texture chunk
 function ac(){
   if(!ctx){ const C=window.AudioContext||window.webkitAudioContext; ctx=new C();
-    master=ctx.createGain(); master.gain.value=S.vol*S.vol; duckG=ctx.createGain(); master.connect(duckG); duckG.connect(ctx.destination); }
+    master=ctx.createGain(); master.gain.value=S.vol*S.vol; duckG=ctx.createGain(); fadeG=ctx.createGain(); master.connect(duckG); duckG.connect(fadeG); fadeG.connect(ctx.destination); }
   if(ctx.state==="suspended") ctx.resume();
   return ctx;
 }
@@ -496,16 +509,52 @@ function stopSound(id){
 }
 function setDuck(on){ if(!ctx) return; duckG.gain.setTargetAtTime(on&&S.duck?.35:1,ctx.currentTime,.8); }
 
-// Bells: struck partials, scheduled on the audio clock so they ring on time even in a background tab.
-function bells(at,count){
-  ac(); const t0=Math.max(ctx.currentTime+.02,at), out=ctx.createGain(); out.gain.value=.22; out.connect(ctx.destination); const os=[];
-  for(let k=0;k<count;k++){ const t=t0+k*1.3;
-    [[1,1,3.6],[2.76,.35,2.2],[5.4,.15,1.3],[.5,.3,4.2]].forEach(([r,a,d])=>{
-      const o=ctx.createOscillator(),g=ctx.createGain(); o.frequency.value=528*r*(k%2?.89:1);
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(a,t+.008); g.gain.exponentialRampToValueAtTime(.0001,t+d);
-      o.connect(g); g.connect(out); o.start(t); o.stop(t+d+.1); os.push(o); }); }
-  return {cancel(){ os.forEach(o=>{try{o.stop()}catch(e){}}); try{out.disconnect()}catch(e){} }};
+// Alarm sounds: all synthesised, scheduled on the audio clock so they ring on time even in a background tab.
+function note(o,f,t,a,att,dec,type){ const x=ctx.createOscillator(),g=ctx.createGain(); x.type=type||"sine"; x.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(a,t+att); g.gain.exponentialRampToValueAtTime(.0001,t+att+dec);
+  x.connect(g); g.connect(o); x.start(t); x.stop(t+att+dec+.05); NODES&&NODES.push(x); return x; }
+function strike(o,t,f,amp){ [[1,1,3.6],[2.76,.35,2.2],[5.4,.15,1.3],[.5,.3,4.2]].forEach(([r,a,d])=>note(o,f*r,t,a*amp,.008,d)); }
+const ALERTS={
+  bell:{name:"Temple bell",dur:5,play(t,o){ strike(o,t,528,.75); strike(o,t+1.3,470,.75); }},
+  bowl:{name:"Singing bowl",dur:7,play(t,o){ note(o,220,t,.6,.08,7); note(o,221.6,t,.45,.08,7); note(o,596,t,.22,.06,5); note(o,1122,t,.09,.04,3); note(o,880,t,.08,.002,.25); }},
+  chimes:{name:"Wind chimes",dur:3.6,play(t,o){ const f=[1047,1175,1319,1568,1760,2093]; [[3,0],[5,.18],[2,.42],[4,.55],[1,.8],[3,1.1],[0,1.35]].forEach(([k,d])=>{ note(o,f[k],t+d,.55,.003,2.4); note(o,f[k]*2.76,t+d,.12,.003,1.2); }); }},
+  marimba:{name:"Marimba",dur:1.4,play(t,o){ [523.25,659.25,783.99].forEach((f,k)=>{ const u=t+k*.16; note(o,f,u,.8,.003,.7); note(o,f*4,u,.25,.002,.12); note(o,f*10,u,.05,.001,.04); }); }},
+  piano:{name:"Piano phrase",dur:3,play(t,o){ [523.25,659.25,783.99,1046.5].forEach((f,k)=>{ const u=t+k*.2, dec=k===3?2.6:1.4; for(let n=1;n<=6;n++) note(o,f*n*(1+.0004*n*n),u,.6/Math.pow(n,1.3),.004,dec/(1+n*.3)); }); }},
+  beep:{name:"Soft beep",dur:.6,play(t,o){ [0,.24].forEach(d=>{ const x=ctx.createOscillator(),g=ctx.createGain(); x.type="triangle"; x.frequency.value=880; const u=t+d;
+      g.gain.setValueAtTime(0,u); g.gain.linearRampToValueAtTime(1,u+.01); g.gain.setValueAtTime(1,u+.12); g.gain.linearRampToValueAtTime(0,u+.15);
+      x.connect(g); g.connect(o); x.start(u); x.stop(u+.2); NODES&&NODES.push(x); }); }},
+  kettle:{name:"Kettle whistle",dur:3,play(t,o){
+      const n=ctx.createBufferSource(); n.buffer=noiseBuf("white"); n.loop=true; const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=25;
+      bp.frequency.setValueAtTime(1900,t); bp.frequency.linearRampToValueAtTime(2700,t+2.2);
+      const ng=ctx.createGain(); ng.gain.setValueAtTime(0,t); ng.gain.linearRampToValueAtTime(4,t+2); ng.gain.setValueAtTime(4,t+2.5); ng.gain.linearRampToValueAtTime(0,t+2.8);
+      n.connect(bp); bp.connect(ng); ng.connect(o); n.start(t); n.stop(t+2.9);
+      const w=ctx.createOscillator(), wg=ctx.createGain(); w.frequency.setValueAtTime(1900,t); w.frequency.linearRampToValueAtTime(2700,t+2.2);
+      const v=ctx.createOscillator(), vg=ctx.createGain(); v.frequency.value=6; vg.gain.value=25; v.connect(vg); vg.connect(w.frequency);
+      wg.gain.setValueAtTime(0,t); wg.gain.linearRampToValueAtTime(.4,t+2); wg.gain.setValueAtTime(.4,t+2.5); wg.gain.linearRampToValueAtTime(0,t+2.8);
+      w.connect(wg); wg.connect(o); w.start(t); v.start(t); w.stop(t+2.9); v.stop(t+2.9);
+      if(NODES) NODES.push(n,w,v); }}
+};
+const alertGain=()=>.45*S.alertVol*S.alertVol;
+function playAt(id,t){ const o=ctx.createGain(); o.gain.value=alertGain(); o.connect(ctx.destination); NODES=[]; ALERTS[id].play(t,o); const nodes=NODES; NODES=null; return {o,nodes}; }
+// kind: focus (end of a focus block), break (end of a break or settling in), final (end of the session)
+function ring(at,kind){
+  ac(); const now=ctx.currentTime; at=Math.max(now+.02,at);
+  const id=kind==="focus"?S.alertFocus:S.alertBreak, A=ALERTS[id], times=[at];
+  if(kind==="final") times.push(at+A.dur+.3);
+  const lastT=times[times.length-1]; if(S.alertRepeat) for(let k=1;k<=20;k++) times.push(lastT+30*k);
+  const plays=times.map(t=>playAt(id,t));
+  // Soundscape fade over the last 30 seconds, then back up once the alarm has sounded.
+  const g=fadeG.gain; g.cancelScheduledValues(now); g.setValueAtTime(g.value,now);
+  if(S.alertFade){ const fs=Math.max(now+3,at-30); g.linearRampToValueAtTime(1,now+3);
+    if(fs<at){ g.setValueAtTime(1,fs); g.linearRampToValueAtTime(.15,at); g.setTargetAtTime(1,times[kind==="final"?1:0]+A.dur*.6,1.5); } }
+  else g.setTargetAtTime(1,now,.3);
+  return {at,end:times[times.length-1]+A.dur,repeating:S.alertRepeat,
+    cancel(restoreFade){ plays.forEach(p=>{ p.nodes.forEach(x=>{try{x.stop()}catch(e){}}); try{p.o.disconnect()}catch(e){} });
+      if(restoreFade){ const n=ctx.currentTime; fadeG.gain.cancelScheduledValues(n); fadeG.gain.setValueAtTime(fadeG.gain.value,n); fadeG.gain.setTargetAtTime(1,n,.3); } }};
 }
+let previewH=null;
+function preview(id){ ac(); if(previewH) previewH.nodes.forEach(x=>{try{x.stop()}catch(e){}}); previewH=playAt(id,ctx.currentTime+.03); }
+function chimeOnce(id){ ac(); playAt(id,ctx.currentTime+.03); }
 function softTone(f){ if(!ctx||!S.cues) return; const t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain(); o.type="sine"; o.frequency.value=f;
   g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.06,t+.08); g.gain.exponentialRampToValueAtTime(.0001,t+1.1); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+1.2); }
 
@@ -568,7 +617,7 @@ $("#settle").checked=S.settle; $("#settle").onchange=e=>{ S.settle=e.target.chec
 
 /* ---------- the focus timer ---------- */
 const CIRC=2*Math.PI*108; $("#arc").style.strokeDasharray=CIRC;
-const run={running:false,paused:false,phases:[],i:-1,endAt:0,start:0,pausedAt:0,chime:null,focusSecs:0};
+const run={ringing:null,running:false,paused:false,phases:[],i:-1,endAt:0,start:0,pausedAt:0,chime:null,focusSecs:0};
 const LINES={
   settle:["Phone face down. Water to hand. One tab open.","Close what you won't need. The rest can wait an hour.","Take a breath. Decide what done looks like for this block."],
   focus:["Heads down. I'll call you when it's time.","One thing at a time. The inbox will keep.","Steady work beats heroic work.","If you drift, come back. No harm done."],
@@ -577,9 +626,11 @@ const pick=a=>a[Math.floor(R()*a.length)];
 const cur=()=>run.phases[run.i];
 function buildPhases(){ const p=[]; if(S.settle) p.push({k:"settle",s:120});
   for(let r=1;r<=S.plan.rounds;r++){ p.push({k:"focus",s:S.plan.focus*60,r}); if(S.plan.brk>0) p.push({k:"break",s:S.plan.brk*60,r}); } return p; }
-function cancelChime(){ if(run.chime){ run.chime.cancel(); run.chime=null; } }
+function cancelChime(){ if(run.chime){ run.chime.cancel(true); run.chime=null; } }
+function ack(){ if(run.ringing){ run.ringing.cancel(false); run.ringing=null; } $("#ringBar").hidden=true; }
 function scheduleChime(){ cancelChime(); const last=run.i===run.phases.length-1, ph=cur();
-  run.chime=bells(ctx.currentTime+(run.endAt-Date.now())/1000, last?3:ph.k==="focus"?2:1); }
+  run.chime=ring(ctx.currentTime+(run.endAt-Date.now())/1000, last?"final":ph.k==="focus"?"focus":"break"); }
+function rescheduleChime(){ if(run.running&&!run.paused&&run.chime) scheduleChime(); }
 function enter(i,startMs){
   run.i=i; const ph=cur(); run.start=startMs; run.endAt=startMs+ph.s*1000;
   setDuck(ph.k==="break"); scheduleChime();
@@ -596,18 +647,19 @@ function begin(){
 function elapsedFocus(now){ return Math.min(cur().s,((run.paused?run.pausedAt:now)-run.start)/1000); }
 function finishPhase(at){ // natural end
   const ph=cur(); if(ph.k==="focus"){ run.focusSecs+=ph.s; addLog("focus",ph.s/60,S.label); }
-  run.chime=null; // let the bell ring out
+  if(run.chime&&run.chime.repeating){ if(run.ringing) run.ringing.cancel(false); run.ringing=run.chime; $("#ringBar").hidden=false; }
+  run.chime=null; // let the alarm ring out
   if(run.i+1<run.phases.length) enter(run.i+1,at); else complete();
 }
 function skip(){
-  const ph=cur(), now=Date.now();
+  ack(); const ph=cur(), now=Date.now();
   if(ph.k==="focus"){ const s=elapsedFocus(now); run.focusSecs+=s; addLog("focus",s/60,S.label); }
   cancelChime(); stopInlineBreath(true);
   if(run.paused){ run.paused=false; $("#startBtn").textContent="Pause"; }
   if(run.i+1<run.phases.length) enter(run.i+1,now); else complete();
 }
 function stop(){
-  const ph=cur(); if(ph&&ph.k==="focus"){ const s=elapsedFocus(Date.now()); run.focusSecs+=s; addLog("focus",s/60,S.label); }
+  ack(); const ph=cur(); if(ph&&ph.k==="focus"){ const s=elapsedFocus(Date.now()); run.focusSecs+=s; addLog("focus",s/60,S.label); }
   cancelChime(); stopInlineBreath(true); const total=run.focusSecs;
   reset(); clearSlot();
   if(total>=60) say(`Stopped. ${fmtM(total/60)} logged under ${S.label||"no label"}.`);
@@ -620,7 +672,7 @@ function complete(){
   $("#breakSlot").innerHTML=`<div class="donecard"><h3>Session complete</h3><p>${fmtM(total/60)} of ${esc(S.label||"focus")} logged${S.label==="Writing"&&S.deskPiece!=="none"&&deskPick()?`, on the Writing Desk against ${esc(deskPick().title)}`:""}. Now leave it alone for a while; it will still be there.</p></div>`;
 }
 function togglePause(){
-  if(!run.running){ begin(); return; }
+  ack(); if(!run.running){ begin(); return; }
   const now=Date.now();
   if(!run.paused){ run.paused=true; run.pausedAt=now; cancelChime(); $("#startBtn").textContent="Resume"; $("#alfred").textContent="Paused. Take the time you need."; }
   else { run.paused=false; run.endAt+=now-run.pausedAt; run.start+=now-run.pausedAt; ac(); scheduleChime(); $("#startBtn").textContent="Pause"; $("#alfred").textContent=pick(LINES[cur().k==="settle"?"settle":"focus"]); if(cur().k==="break") $("#alfred").textContent=""; }
@@ -648,6 +700,7 @@ function tick(){
   if(run.running&&!run.paused){ let guard=0; while(run.running&&Date.now()>=run.endAt&&guard++<50) finishPhase(run.endAt); renderRun(); }
   if(med.running) med.update();
   if(inline&&inline.running) inline.update();
+  if(run.ringing&&ctx&&ctx.currentTime>run.ringing.end){ run.ringing=null; $("#ringBar").hidden=true; }
 }
 setInterval(tick,250);
 
@@ -698,7 +751,7 @@ function makeBreather(wrap,patKey,mins,onEnd){
   const pat=PATTERNS[patKey], orb=wrap.querySelector(".orb"), cue=wrap.querySelector(".cue"), cnt=wrap.querySelector(".cnt");
   const L=pat.steps.reduce((a,s)=>a+s[1],0), total=mins*60;
   const b={running:false,t0:0,last:-1,raf:0,
-    start(){ this.running=true; this.t0=performance.now(); this.last=-1; ac(); bells(0,1); wake(true); const loop=()=>{ if(!this.running) return; this.update(); this.raf=requestAnimationFrame(loop); }; loop(); },
+    start(){ this.running=true; this.t0=performance.now(); this.last=-1; ac(); chimeOnce("bowl"); wake(true); const loop=()=>{ if(!this.running) return; this.update(); this.raf=requestAnimationFrame(loop); }; loop(); },
     update(){ if(!this.running) return; const e=(performance.now()-this.t0)/1000;
       if(e>=total){ this.finish(); return; }
       let pos=e%L, idx=0; while(pos>=pat.steps[idx][1]){ pos-=pat.steps[idx][1]; idx++; }
@@ -706,7 +759,7 @@ function makeBreather(wrap,patKey,mins,onEnd){
       orb.style.transform=reduce?"scale(.8)":`scale(${sc})`; if(reduce) orb.style.opacity=.45+.5*(sc-.55)/.45;
       const stepId=Math.floor(e/L)*10+idx; if(stepId!==this.last){ this.last=stepId; if(name==="Breathe in") softTone(392); else if(name==="Breathe out") softTone(294); }
       cue.textContent=name; cnt.textContent=`${Math.ceil(len-pos)}  ·  ${mmss(total-e)} left`; },
-    finish(){ this.running=false; cancelAnimationFrame(this.raf); bells(0,1); addLog("breathe",total/60); cue.textContent="Done"; cnt.textContent=fmtM(total/60)+" logged"; orb.style.transform="scale(.55)"; if(!run.running) wake(false); onEnd&&onEnd(true); },
+    finish(){ this.running=false; cancelAnimationFrame(this.raf); chimeOnce("bowl"); addLog("breathe",total/60); cue.textContent="Done"; cnt.textContent=fmtM(total/60)+" logged"; orb.style.transform="scale(.55)"; if(!run.running) wake(false); onEnd&&onEnd(true); },
     stop(silent){ if(!this.running) return; this.running=false; cancelAnimationFrame(this.raf); const e=(performance.now()-this.t0)/1000; if(e>=60) addLog("breathe",e/60);
       if(!silent){ cue.textContent="Stopped"; cnt.textContent=e>=60?fmtM(e/60)+" logged":"Under a minute, so not logged"; } orb.style.transform="scale(.55)"; if(!run.running) wake(false); onEnd&&onEnd(false); }
   };
@@ -746,6 +799,21 @@ $("#mixes").addEventListener("click",e=>{const b=e.target.closest("[data-mix]");
   save(); renderTiles(); });
 $("#vol").value=S.vol; $("#vol").addEventListener("input",e=>{ S.vol=+e.target.value; save(); if(master) master.gain.setTargetAtTime(S.vol*S.vol,ctx.currentTime,.05); });
 $("#duck").checked=S.duck; $("#duck").onchange=e=>{ S.duck=e.target.checked; save(); setDuck(run.running&&cur()&&cur().k==="break"); };
+
+/* ---------- alarm settings ---------- */
+function renderAlarm(){
+  const chips=(sel,key)=>Object.entries(ALERTS).map(([id,a])=>`<button class="chip" data-al="${id}" data-key="${key}" aria-pressed="${S[key]===id}">${esc(a.name)}</button>`).join("");
+  $("#alFocus").innerHTML=chips(S.alertFocus,"alertFocus"); $("#alBreak").innerHTML=chips(S.alertBreak,"alertBreak");
+  $("#alVol").value=S.alertVol; $("#alFade").checked=S.alertFade; $("#alRepeat").checked=S.alertRepeat;
+}
+let lastPick="alertFocus";
+$("#alarmPanel").addEventListener("click",e=>{ const b=e.target.closest("[data-al]"); if(!b) return; S[b.dataset.key]=b.dataset.al; lastPick=b.dataset.key; save(); renderAlarm(); preview(b.dataset.al); rescheduleChime(); });
+$("#alTest").onclick=()=>preview(S[lastPick]);
+$("#alVol").addEventListener("input",e=>{ S.alertVol=+e.target.value; save(); });
+$("#alVol").addEventListener("change",()=>{ preview(S[lastPick]); rescheduleChime(); });
+$("#alFade").onchange=e=>{ S.alertFade=e.target.checked; save(); rescheduleChime(); };
+$("#alRepeat").onchange=e=>{ S.alertRepeat=e.target.checked; save(); rescheduleChime(); };
+$("#ackBtn").onclick=ack;
 
 /* ---------- log ---------- */
 function renderTally(){ const k=dayKey(Date.now()); $("#todayAmt").textContent=fmtM(LOG.filter(x=>x.k==="focus"&&dayKey(x.t)===k).reduce((a,x)=>a+x.m,0)); }
@@ -788,7 +856,7 @@ function showTab(t){
 }
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(b) showTab(b.dataset.tab);});
 
-renderPlan(); renderLabels(); renderMed(); renderTiles(); renderTally();
+renderPlan(); renderLabels(); renderMed(); renderTiles(); renderAlarm(); renderTally();
 let startTab="focus"; try{ startTab=sessionStorage.getItem("focusroom.tab")||"focus"; }catch(e){}
 showTab(startTab);
 })();
