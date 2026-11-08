@@ -245,11 +245,11 @@ export const tasksDone = (todo, from, to) => todoTasks(todo).filter((x) => x.sta
 
 const shortDate = (s) => parse(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-/** { ledger, focus, shutdown, larder, desk, training, wardrobe, todo } -> { v, c } (value, caption) or null. */
+/** { ledger, focus, shutdown, larder, desk, training, wardrobe, todo, podcast } -> { v, c } (value, caption) or null. */
 export function doorFigures(stores) {
   const t = ymd(new Date());
   const out = {};
-  const { ledger, focus, shutdown, larder, desk, training, wardrobe, todo } = stores;
+  const { ledger, focus, shutdown, larder, desk, training, wardrobe, todo, podcast } = stores;
   if (ledger) {
     const daily = activeHabits(ledger).filter((h) => h.kind !== "weekly");
     const done = ledger.get(`days/${t}`)?.done || {};
@@ -293,6 +293,13 @@ export function doorFigures(stores) {
     const late = open.filter((x) => x.due && x.due < t).length;
     const now = open.filter((x) => todoBucket(x, t) === "today").length;
     out.todo = late ? { v: String(late), c: "overdue" } : now ? { v: String(now), c: "for today" } : open.length ? { v: String(open.length), c: "on the list" } : null;
+  }
+  if (podcast) {
+    const open = podcast.list("episodes/").map((x) => x.value).filter((e) => e.title && e.stage !== "out");
+    const next = open.filter((e) => e.publish).sort((a, b) => a.publish.localeCompare(b.publish))[0];
+    const d = next && daysBetween(t, next.publish);
+    out.podcast = next ? { v: d < 0 ? "Overdue" : d === 0 ? "Today" : d === 1 ? "Tomorrow" : shortDate(next.publish), c: "next episode" }
+      : open.length ? { v: String(open.length), c: "in progress" } : null;
   }
   return out;
 }

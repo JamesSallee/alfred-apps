@@ -138,6 +138,11 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
         <span class="txt"><span class="name">The Errand Book</span><span class="desc">Everything that needs doing, when it's booked, and what's waiting.</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>
+      <a class="room" id="r-podcast" href="podcast.html">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5v3M9 20.5h6"/></svg></span>
+        <span class="txt"><span class="name">The Recording Booth</span><span class="desc">Podcast episodes from plan to publish, the music licences and the credits.</span></span>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
       <a class="room" id="r-wardrobe" href="wardrobe.html">
         <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 9.5V8.3c0-.6.4-1 .9-1.3A2 2 0 1 0 10 5.3"/><path d="M12 9.5l-8.4 6.2c-.8.6-.4 1.8.6 1.8h15.6c1 0 1.4-1.2.6-1.8z"/></svg></span>
         <span class="txt"><span class="name">The Wardrobe</span><span class="desc">What to wear today, what still fits, the tailor and the formal kit.</span></span>
@@ -157,7 +162,7 @@ mountShell(null);
 
 // ---------- One live figure on each door ----------
 {
-  const names = ["ledger", "focus", "shutdown", "larder", "desk", "training", "wardrobe", "todo"];
+  const names = ["ledger", "focus", "shutdown", "larder", "desk", "training", "wardrobe", "todo", "podcast"];
   const stores = Object.fromEntries(names.map(n => [n, openStore(n)]));
   const escF = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let queued = false;

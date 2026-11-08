@@ -12,6 +12,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `desk.html` | The Writing Desk: Coming up (next post opened out; dates follow the publish date), bank, idea shelf, and a collapsed Everything list | `desk` |
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 | `todo.html` | The Errand Book: to-dos by Today / This week / Later / Someday, snooze, waiting on, done shelf, slot requests | `todo` |
+| `podcast.html` | The Recording Booth: podcast episodes from plan to publish, stage checklists, the music licence log and the credits | `podcast` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works
@@ -160,3 +161,17 @@ Peloton classes come in on their own; James only confirms the weights.
 
 1. Add the secrets (Supabase → Edge Functions → Secrets): `PELOTON_USERNAME`, `PELOTON_PASSWORD`.
 2. Deploy the function: `supabase functions deploy peloton` (or via the Supabase connector).
+
+## The Recording Booth
+
+The podcast's workbench. Ideas stay in the Writing Desk; an episode links to one (`piece`) and only reads it.
+
+- **Episodes** (`podcast` / `episodes/<id>`) move through Plan, Record, Edit, Publish and Out, each with its own checklist.
+  The checklists are editable (`settings.checklists`); ticks are kept per stage on the episode.
+- **The licence log** (`tracks/<id>`) holds each track once: title, artist, source link, licence and version, the date it
+  was downloaded, and a link to proof of the licence as it was then.
+- **Checks.** Each episode's music is checked against its licence and how it's used: ND tracks can't be trimmed, faded or
+  talked over; SA tracks used that way make the episode share-alike (and two different SA licences can't be mixed); NC
+  tracks are flagged while the show is marked as possibly earning money (`settings.paid`, on by default).
+- **Credits.** The page writes the show notes (plain text with addresses spelled out, or HTML with links) and a spoken
+  credit for the outro, from the episode's summary, links and music.
