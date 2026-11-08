@@ -339,7 +339,6 @@ function viewIntro(){
     </ul>
     ${parked.length ? `<p class="notice">You parked ${parked.length} ${parked.length===1?"worry":"worries"} last time. We'll look at ${parked.length===1?"it":"them"} again in step 2.</p>` : ""}
     ${doneToday ? `<p class="notice">You've already closed today. Going again will replace that entry.</p>` : ""}
-    <p class="alfred">Phone face down, if you'd be so kind. The week will still be there in ten minutes.</p>
     <div class="btns"><button class="btn primary" data-go="0">${D.items.length||D.back.well?'Carry on':'Begin'}</button>${D.items.length||D.back.well?'<button class="btn ghost" id="restart">Start over</button>':''}</div>
   </section>`;
 }
