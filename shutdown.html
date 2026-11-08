@@ -149,7 +149,8 @@ textarea{resize:vertical;min-height:64px}
 .fplan{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .fplan h3{font-family:var(--display);font-weight:400;font-size:17px;margin:0}
 .fplan textarea{min-height:120px;background:var(--paper)}
-.fplan .ok{color:var(--green);font-weight:600}
+.fplan summary{cursor:pointer;font-weight:600}
+.notice.ok-n{background:var(--green-soft)}
 
 /* History */
 .hist h2{font-size:18px}
@@ -246,7 +247,7 @@ const CUES = [
 ];
 
 // ---------- State ----------
-const fresh = () => ({ date: ymd(new Date()), step:-1, items:[], back:{well:"",drained:"",grateful:""}, ahead:{matters:"",word:"",note:""}, work:{profile:""}, sit:{mode:"guided",len:5,secs:0}, parkedMerged:false, saved:false });
+const fresh = () => ({ date: ymd(new Date()), step:-1, items:[], back:{well:"",drained:"",grateful:""}, ahead:{matters:"",word:"",note:""}, work:{profile:"",none:false}, sit:{mode:"guided",len:5,secs:0}, parkedMerged:false, saved:false });
 let D = fresh();
 const DRAFT_KEY = "sunday-shutdown-draft";
 try { const raw = localStorage.getItem(DRAFT_KEY); if (raw) { const d = JSON.parse(raw); const age = (new Date() - parse(d.date))/864e5; if (age < 2 && !d.saved) D = Object.assign(fresh(), d); } } catch(e){}
@@ -331,7 +332,7 @@ function viewIntro(){
     <div class="eyebrow">Sunday evening</div>
     <h2>Put the weekend away.</h2>
     ${figuresHtml(figures(), false)}
-    <p class="lede">Seven short steps. Empty your head, look back, look ahead, ask Work Claude for the week, sit for a few minutes, and close. I'll take the notes.</p>
+    <p class="lede">Seven short steps. Empty your head, look back, look ahead, check the work week, sit for a few minutes, and close. I'll take the notes.</p>
     ${planCard()}
     <ul class="plan">
       ${STEPS.map((x,i)=>`<li><span class="n">${i+1}</span><span>${esc(x.n)}</span><span class="m num">${x.k==="sit"?"3–10 min":x.min?x.min+" min":"done"}</span></li>`).join("")}
@@ -426,14 +427,30 @@ function viewAhead(){
 
 // ---------- Work week ----------
 // The boundary: this room only ever handles the Work Load Profile (times, opaque topic letters, generic labels)
-// and the Focus Plan (IDs, letters, times). The profile rides along in the note for Alfred and is never saved
-// with the shutdown; only the Focus Plan is kept, so the week can be ticked as planned.
+// and the Focus Plan (IDs, letters, times). A pasted profile rides along in the note for Alfred and is never saved.
+// The Load Profile usually arrives on Thursday or Friday and Alfred books the week straight away, filing the
+// Focus Plan at plans/<Monday> in this app. So the step reports that plan when it's there, and only asks
+// Work Claude for a profile when it isn't.
 const PROFILE_HEAD = /^\s*WORK LOAD PROFILE\b/i, PLAN_HEAD = /^\s*FOCUS PLAN\b/i;
+const weekAfter = date => parse(date).getDay() === 1 ? date : addDays(mondayOf(date), 7);
 /** The working week being planned: the coming Monday to Sunday (this one, when the shutdown is done on a Monday). */
-function nextWeek(){
-  const mon = parse(D.date).getDay() === 1 ? D.date : addDays(mondayOf(D.date), 7);
-  return { from: mon, to: addDays(mon, 6) };
+function nextWeek(){ const mon = weekAfter(D.date); return { from: mon, to: addDays(mon, 6) }; }
+let plans = {};          // plans/<Monday>: { week, focusPlan, plannedAt, afterHours?, by }
+const LOCAL_PLANS = "sunday-shutdown-plans";
+const planFor = mon => { const p = plans[mon]; return p && PLAN_HEAD.test(p.focusPlan || "") ? p : null; };
+/** What the Focus Plan says, read from its own lines: blocks placed, what's unplaced, after-hours used. */
+function planSummary(p){
+  const t = p.focusPlan || "";
+  const blocks = t.split("\n").filter(l => /^\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\b.*\d{1,2}[:.]?\d{0,2}\s*[–-]/i.test(l)).length;
+  const un = (t.match(/^\s*Unplaced:\s*(.+)$/im) || [])[1];
+  const ah = p.afterHours ?? (t.match(/After-hours used:\s*([\d.]+)\s*of\s*10/i) || [])[1];
+  const bits = [];
+  if (blocks) bits.push(`${blocks} focus block${blocks===1?"":"s"}`);
+  if (ah != null) bits.push(`${ah} of 10 after-hours hours`);
+  bits.push(!un || /^none\b/i.test(un.trim()) ? "nothing unplaced" : `unplaced: ${un.trim()}`);
+  return bits.join(" · ");
 }
+const filedOn = p => p.plannedAt ? ` on ${fmtLong(p.plannedAt.slice(0,10))}` : "";
 const fmtDay = s => parse(s).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
 function workPrompt(){
   const { from, to } = nextWeek();
@@ -463,58 +480,62 @@ function profileWarn(){
   if (!v || profileOk()) return "";
   return `<p class="notice warn small">That doesn't look like a Load Profile; it should start with "WORK LOAD PROFILE". I'll leave it out of the note. Please don't paste anything else from work here.</p>`;
 }
+/** planned | none | profile | waiting: where next week's work stands. */
+function workStatus(){
+  if (planFor(nextWeek().from)) return "planned";
+  if (D.work.none) return "none";
+  return profileOk() ? "profile" : "waiting";
+}
+let fpOpen = false;
 function viewWork(){
   const { from, to } = nextWeek();
-  return `<section class="sheet">
-    <div class="eyebrow">Step 5 · Plan the work week</div>
-    <h2>Ask Work Claude for the week.</h2>
-    <p class="lede">Copy this into your work account. It'll send back your Work Load Profile for ${esc(fmtShort(from))} to ${esc(fmtShort(to))}: times, topic letters and labels, nothing more.</p>
-    <div class="copybox"><textarea id="cpWork" class="mono" readonly rows="8">${esc(workPrompt())}</textarea><div class="btns"><button class="btn" data-copy="cpWork">Copy the request</button></div></div>
+  const p = planFor(from);
+  const head = `<div class="eyebrow">Step 5 · The work week</div>`;
+  if (p) return `<section class="sheet">${head}
+    <h2>Next week's work is already planned.</h2>
+    <p class="lede">I filed the Focus Plan for ${esc(fmtShort(from))} to ${esc(fmtShort(to))}${esc(filedOn(p))}: ${esc(planSummary(p))}.</p>
+    <details class="fplan"><summary>See the Focus Plan</summary><textarea id="fpCopy" readonly>${esc(p.focusPlan)}</textarea>
+      <div class="btns"><button class="btn" data-copy="fpCopy">Copy for Work Claude</button></div></details>
+    <p class="alfred small">Nothing to do here. If work has changed since, have Work Claude send me a Work Load Update and I'll re-place what moved.</p>
+    ${nav(true,true)}
+  </section>`;
+  if (D.work.none) return `<section class="sheet">${head}
+    <h2>No work next week. Noted.</h2>
+    <p class="lede">I'll plan ${esc(fmtShort(from))} to ${esc(fmtShort(to))} without any work blocks.</p>
+    <div class="btns"><button class="btn ghost" id="workBack">Actually, there is work</button></div>
+    ${nav(true,true)}
+  </section>`;
+  return `<section class="sheet">${head}
+    <h2>Next week's work isn't planned yet.</h2>
+    <p class="lede">No Load Profile has reached me for ${esc(fmtShort(from))} to ${esc(fmtShort(to))}. Copy this into your work account and it'll send one back: times, topic letters and labels, nothing more.</p>
+    <div class="copybox"><textarea id="cpWork" class="mono" readonly rows="8">${esc(workPrompt())}</textarea><div class="btns"><button class="btn" data-copy="cpWork">Copy the request</button><button class="btn ghost" id="workNone">No work next week</button></div></div>
     <label class="f">Paste the profile here<span class="hint">Optional. I'll add it to your note for Alfred so it's one paste. It isn't saved with the shutdown.</span><textarea id="work-profile" class="mono" data-bind="work.profile" rows="4" placeholder="WORK LOAD PROFILE: …">${esc(D.work.profile)}</textarea></label>
     <div id="wpWarn">${profileWarn()}</div>
-    <p class="alfred small">Bring it to me with tonight's note. I'll place the focus blocks around your week and hand back a Focus Plan for Work Claude. Not working next week? Skip straight on.</p>
+    ${fpOpen ? `<div class="fplan"><h3>Already have a Focus Plan from me?</h3><p class="small muted">Paste it and I'll file it for the week.</p>
+      <textarea id="fpText" placeholder="FOCUS PLAN: …" aria-label="Focus Plan"></textarea>
+      <div class="btns"><button class="btn primary" id="fpSave">File it</button><button class="btn ghost" id="fpCancel">Cancel</button></div></div>`
+      : `<button class="btn ghost" id="fpOpen" style="align-self:flex-start">I already have a Focus Plan</button>`}
     ${nav(true,true)}
   </section>`;
 }
-
-// The Focus Plan comes back after I've booked the week, usually after the shutdown is closed,
-// so the box lives on the closed page and on the cover until the week is ticked as planned.
-let fpEdit = false;
-function planTarget(){
-  if (D.saved) return history.find(h => h.date === D.date) || null;
-  const last = history[0];
-  if (!last) return null;
-  const age = (parse(ymd(new Date())) - parse(last.date))/864e5;
-  return age <= 7 ? last : null;
+/** One line on the cover and the closed page saying where next week's work stands. */
+function planCard(){
+  const { from } = nextWeek(), p = planFor(from);
+  if (p) return `<p class="notice ok-n small"><b>Next week's work is planned.</b> ${esc(planSummary(p))}.</p>`;
+  if (D.saved && D.work.none) return "";
+  if (D.saved) return `<p class="notice warn small">Next week's work isn't planned yet. ${profileOk() ? "Your Load Profile is in the note below." : "Send me the Load Profile when Work Claude has it."}</p>`;
+  return "";
 }
-function planBox(rec){
-  if (!rec) return "";
-  if (rec.plannedAt && !fpEdit) return `<div class="fplan">
-      <h3>The week is planned.</h3>
-      <p class="small"><span class="ok">Ticked</span> <span class="muted">on ${esc(fmtLong(rec.plannedAt.slice(0,10)))}. Here's the Focus Plan, should Work Claude need it again.</span></p>
-      <textarea id="fpCopy" readonly>${esc(rec.focusPlan||"")}</textarea>
-      <div class="btns"><button class="btn" data-copy="fpCopy">Copy for Work Claude</button><button class="btn ghost" id="fpEdit">Replace it</button></div>
-    </div>`;
-  return `<div class="fplan">
-      <h3>Focus Plan from Alfred</h3>
-      <p class="small muted">Once I've booked the week, I'll send you a Focus Plan. Paste it here to tick the week as planned, then pass it on to Work Claude.</p>
-      <textarea id="fpText" placeholder="FOCUS PLAN: …" aria-label="Focus Plan">${esc(rec.plannedAt ? rec.focusPlan||"" : "")}</textarea>
-      <div class="btns"><button class="btn primary" id="fpSave" data-date="${esc(rec.date)}">Mark the week planned</button>${rec.plannedAt ? `<button class="btn ghost" id="fpCancel">Cancel</button>` : ""}</div>
-    </div>`;
-}
-function planCard(){ return planBox(planTarget()); }
-async function savePlan(date, text){
+async function savePlan(text){
   const v = text.trim();
   if (!PLAN_HEAD.test(v)) { say("That isn't a Focus Plan. Paste the one I sent, starting \"FOCUS PLAN\"."); return; }
-  const patch = { focusPlan: v, plannedAt: new Date().toISOString() };
-  if (db) await write("shutdowns/"+date, () => db.collection("shutdowns").doc(date).update(patch));
-  else {
-    const h = localGet(LOCAL_HIST, []).map(x => x.date === date ? { ...x, ...patch } : x);
-    localSet(LOCAL_HIST, h); history = h; renderHistory();
-  }
-  const rec = history.find(x => x.date === date); if (rec) Object.assign(rec, patch);
-  fpEdit = false; render();
-  say("Week planned. Hand that to Work Claude and you're done.");
+  const mon = nextWeek().from;
+  const rec = { week: mon, focusPlan: v, plannedAt: new Date().toISOString(), by: "james" };
+  plans[mon] = rec;
+  if (db) await write("plans/"+mon, () => db.collection("plans").doc(mon).set(rec));
+  else localSet(LOCAL_PLANS, plans);
+  fpOpen = false; render();
+  say("Filed. Next week's work is planned.");
 }
 
 // ---------- Meditation ----------
@@ -619,7 +640,11 @@ function alfredText(){
   if (D.back.grateful) L.push(`Grateful for: ${D.back.grateful}`);
   if (todos().length) L.push(`To-dos to file in Tasks:\n` + todos().map(t=>"- "+t).join("\n"));
   if (worries().length) L.push(`Parked worries: ${worries().map(w=>w.text).join("; ")}`);
-  L.push(profileOk() ? `\n${D.work.profile.trim()}\n` : `Work Load Profile: not included (ask Work Claude, or no work next week)`);
+  const ws = workStatus(), nw = nextWeek().from;
+  L.push(ws === "planned" ? `Work next week: already planned (${planSummary(planFor(nw))})`
+    : ws === "none" ? `Work next week: none`
+    : ws === "profile" ? `\n${D.work.profile.trim()}\n`
+    : `Work next week: no Load Profile yet`);
   L.push(`Sat for: ${D.sit.secs ? mins(D.sit.secs)+" ("+D.sit.mode+")" : "skipped"}`);
   const ft = figuresText(figures()); if (ft) L.push(ft);
   return L.join("\n");
@@ -647,7 +672,7 @@ function viewClose(){
 }
 function copyBlocks(){
   return `${todos().length?`<div class="copybox"><h3>To-dos for Notion Tasks</h3><textarea id="cpTodo" readonly>${esc(todoText())}</textarea><div class="btns"><button class="btn" data-copy="cpTodo">Copy to-dos</button></div></div>`:""}
-    <div class="copybox"><h3>Note for Alfred's Sunday plan</h3><textarea id="cpAlfred" readonly>${esc(alfredText())}</textarea><div class="btns"><button class="btn" data-copy="cpAlfred">Copy note</button><span class="muted small">Paste it to me and I'll file the to-dos and plan around it${profileOk() ? ", work and all" : ""}.</span></div></div>`;
+    <div class="copybox"><h3>Note for Alfred's Sunday plan</h3><textarea id="cpAlfred" readonly>${esc(alfredText())}</textarea><div class="btns"><button class="btn" data-copy="cpAlfred">Copy note</button><span class="muted small">Paste it to me and I'll file the to-dos and plan around it${workStatus()==="profile" ? ", work and all" : ""}.</span></div></div>`;
 }
 
 // ---------- Saving ----------
@@ -657,7 +682,7 @@ function record(){
   return { date:D.date, word:D.ahead.word.trim(), matters:D.ahead.matters.trim(), note:D.ahead.note.trim(),
     well:D.back.well.trim(), drained:D.back.drained.trim(), grateful:D.back.grateful.trim(),
     todos:todos(), worries:worries().map(w=>w.text.trim()), letgo:D.items.filter(i=>i.tag==="letgo").length,
-    sitMode:D.sit.mode, sitSecs:D.sit.secs, savedAt:new Date().toISOString(), figures:figuresSaved() };
+    work:workStatus(), sitMode:D.sit.mode, sitSecs:D.sit.secs, savedAt:new Date().toISOString(), figures:figuresSaved() };
 }
 function figuresSaved(){
   const F = figures();
@@ -680,7 +705,7 @@ async function closeWeekend(){
 function renderHistory(){
   const ul = $("#hlist");
   $("#histEmpty").hidden = history.length > 0;
-  ul.innerHTML = history.slice(0,12).map(h => `<li><details><summary><span class="d">${esc(fmtShort(h.date))}</span><span class="w">${esc(h.word||"")}</span><span class="s num">${(h.todos||[]).length} to-do · ${h.sitSecs?mins(h.sitSecs)+" sat":"no sit"}${h.plannedAt?" · planned":""}</span></summary>
+  ul.innerHTML = history.slice(0,12).map(h => `<li><details><summary><span class="d">${esc(fmtShort(h.date))}</span><span class="w">${esc(h.word||"")}</span><span class="s num">${(h.todos||[]).length} to-do · ${h.sitSecs?mins(h.sitSecs)+" sat":"no sit"}${planFor(weekAfter(h.date))?" · work planned":""}</span></summary>
     <div class="body">
       ${h.matters?`<p><b>Mattered most:</b> ${esc(h.matters)}</p>`:""}
       ${h.well?`<p><b>Went well:</b> ${esc(h.well)}</p>`:""}
@@ -688,7 +713,7 @@ function renderHistory(){
       ${h.grateful?`<p><b>Grateful for:</b> ${esc(h.grateful)}</p>`:""}
       ${(h.worries||[]).length?`<p><b>Parked:</b> ${esc(h.worries.join("; "))}</p>`:""}
       ${(h.todos||[]).length?`<p><b>To-dos:</b> ${esc(h.todos.join("; "))}</p>`:""}
-      <p><b>Work week:</b> ${h.plannedAt ? `planned ${esc(fmtShort(h.plannedAt.slice(0,10)))}` : "not ticked as planned"}</p>
+      <p><b>Work week:</b> ${planFor(weekAfter(h.date)) ? esc(planSummary(planFor(weekAfter(h.date)))) : h.work === "none" ? "no work" : "no Focus Plan filed"}</p>
     </div></details></li>`).join("");
 }
 
@@ -710,9 +735,11 @@ document.addEventListener("click", async e => {
   if (t.id === "medStart") return startMed();
   if (t.id === "medPause") return pauseMed();
   if (t.id === "medEnd") return finishMed();
-  if (t.id === "fpSave") { const ta = $("#fpText"); return savePlan(t.dataset.date, ta ? ta.value : ""); }
-  if (t.id === "fpEdit") { fpEdit = true; render(); return; }
-  if (t.id === "fpCancel") { fpEdit = false; render(); return; }
+  if (t.id === "fpSave") { const ta = $("#fpText"); return savePlan(ta ? ta.value : ""); }
+  if (t.id === "fpOpen") { fpOpen = true; render(); const ta = $("#fpText"); ta && ta.focus(); return; }
+  if (t.id === "fpCancel") { fpOpen = false; render(); return; }
+  if (t.id === "workNone") { D.work.none = true; render(); return; }
+  if (t.id === "workBack") { D.work.none = false; render(); return; }
   if (t.id === "closeIt") { t.disabled = true; return closeWeekend(); }
   if (t.dataset.copy) {
     const ta = document.getElementById(t.dataset.copy);
@@ -735,14 +762,19 @@ document.addEventListener("input", e => {
 });
 
 // ---------- Boot ----------
-history = localGet(LOCAL_HIST, []); parked = (localGet(LOCAL_PARK, {items:[]}).items)||[];
+history = localGet(LOCAL_HIST, []); plans = localGet(LOCAL_PLANS, {}); parked = (localGet(LOCAL_PARK, {items:[]}).items)||[];
 render(); renderHistory();
 [ledgerStore, trainingStore, focusStore].forEach(st => st.subscribe(() => { if (D.step < 0) render(); }));
 (async () => {
   db = openDb("shutdown");
   if (!db) return;
   db.collection("shutdowns").orderBy("date","desc").limit(24).onSnapshot(snap => {
-    history = snap.docs.map(d=>d.data()).filter(Boolean); renderHistory(); if (D.step<0 || (D.saved && !document.activeElement?.matches("textarea"))) render();
+    history = snap.docs.map(d=>d.data()).filter(Boolean); renderHistory(); if (D.step<0) render();
+  }, () => {});
+  db.collection("plans").onSnapshot(snap => {
+    const next = {}; snap.docs.forEach(d => { const v = d.data(); if (v) next[d.id] = v; });
+    plans = next; renderHistory();
+    if (!document.activeElement?.matches("textarea,input")) render();
   }, () => {});
   db.doc("parked/current").onSnapshot(snap => {
     parked = (snap.exists && snap.data().items) || []; if (D.step<0) render();
