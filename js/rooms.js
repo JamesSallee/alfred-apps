@@ -209,6 +209,26 @@ export function writingTime(focus, pieceId) {
   const log = focus.list("log/").map((x) => x.value).filter((e) => e.k === "focus" && e.piece === pieceId);
   return { minutes: log.reduce((a, e) => a + (e.m || 0), 0), sessions: log.length, last: log.reduce((a, e) => Math.max(a, e.t), 0) || null };
 }
+/** Recording Booth → Writing Desk: which Desk pieces an unfinished episode uses, as pieceId -> [{ ep, label, role }].
+ *  role is "idea" (the episode's own idea) or "link" (the script for a spoken link in the running order). */
+export function onAir(podcast) {
+  const out = {};
+  podcast.list("episodes/").forEach(({ key, value: e }) => {
+    if (!e?.title || e.stage === "out") return;
+    const ep = key.slice(9), label = e.number != null && e.number !== "" ? `Ep ${e.number}` : e.title;
+    const add = (pid, role) => { if (pid) (out[pid] ||= []).push({ ep, label, role }); };
+    add(e.piece, "idea");
+    (e.slots || []).forEach((x) => x.kind === "bit" && add(x.piece, "link"));
+  });
+  return out;
+}
+/** Desk pieces that are scripts for links in an unfinished episode, for the Focus Room's writing picker. */
+export function radioScripts(podcast, desk) {
+  const air = onAir(podcast);
+  return Object.keys(air).filter((id) => air[id].some((a) => a.role === "link"))
+    .map((id) => { const v = desk.get("pieces/" + id); return v && { id, ...v, onAir: air[id] }; })
+    .filter((p) => p && p.stage !== FINISHED[p.track] && p.stage !== "Skipped");
+}
 export const fmtMins = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`;
 
 // ---------- Notion copies ----------

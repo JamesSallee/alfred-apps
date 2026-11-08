@@ -263,7 +263,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { openIlkwim, nextPost, linkWritingToLedger } from "./js/rooms.js";
+import { openIlkwim, nextPost, linkWritingToLedger, radioScripts } from "./js/rooms.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -286,18 +286,21 @@ function save(){store.set("settings",S);}
 let LOG=readLog();
 focusStore.subscribe(()=>{ const next=readLog(); if(next.length!==LOG.length||next.some((x,i)=>x.t!==LOG[i].t)){ LOG=next; renderTally(); if(!$("#v-log").hidden) renderLog(); } const remote=focusStore.get("settings"); if(remote) Object.assign(S,remote); });
 // Writing sessions are logged against an ILKWIM post: the next one, unless another is picked (S.deskPiece).
-const deskStore=openStore("desk");
-function deskPick(){ const open=openIlkwim(deskStore); const next=nextPost(deskStore); return (S.deskPiece&&open.find(p=>p.id===S.deskPiece))||next||null; }
+// Scripts for the podcast's spoken links (Desk pieces in the Recording Booth's running order) can be picked too.
+const deskStore=openStore("desk"), podStore=openStore("podcast");
+const radio=()=>radioScripts(podStore,deskStore).filter(p=>p.track!=="ilkwim");
+function deskPick(){ const open=[...openIlkwim(deskStore),...radio()]; const next=nextPost(deskStore); return (S.deskPiece&&open.find(p=>p.id===S.deskPiece))||next||null; }
 function renderDesk(){
-  const row=$("#deskRow"); const open=openIlkwim(deskStore); row.hidden=S.label!=="Writing"||!open.length; if(row.hidden) return;
+  const row=$("#deskRow"); const open=openIlkwim(deskStore), air=radio(); row.hidden=S.label!=="Writing"||!(open.length+air.length); if(row.hidden) return;
   const next=nextPost(deskStore), pick=deskPick();
   const rest=open.filter(p=>p.id!==next?.id).sort((a,b)=>(a.publish||"9").localeCompare(b.publish||"9"));
   $("#deskPiece").innerHTML=`<option value="">${next?"The next post: "+esc(next.title):"No post picked"}</option>`
     +rest.map(p=>`<option value="${esc(p.id)}"${pick&&pick.id===p.id&&S.deskPiece?" selected":""}>${esc(p.title)}${p.banked?" (the bank)":""}</option>`).join("")
+    +air.map(p=>`<option value="${esc(p.id)}"${pick&&pick.id===p.id&&S.deskPiece?" selected":""}>Podcast link: ${esc(p.title)} (${esc(p.onAir[0].label)})</option>`).join("")
     +`<option value="none"${S.deskPiece==="none"?" selected":""}>Something else</option>`;
 }
 $("#deskPiece").onchange=e=>{ S.deskPiece=e.target.value; save(); };
-deskStore.subscribe(renderDesk);
+deskStore.subscribe(renderDesk); podStore.subscribe(renderDesk);
 // A Writing session also ticks the Ledger's Write habit for its day (see js/rooms.js).
 linkWritingToLedger(()=>say("Writing ticked in the Ledger. The page is less blank than it was."));
 function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const entry={t:Date.now(),k,m:mins,label:label||""};

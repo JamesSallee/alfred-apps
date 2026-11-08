@@ -105,6 +105,20 @@ h1{font-size:30px;line-height:1.1}
 .alfred{background:var(--brass-soft);border-radius:10px;padding:8px 10px;font-size:13.5px}
 .alfred .who{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass)}
 
+/* Running order */
+.ro{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;counter-reset:ro}
+.ro li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);counter-increment:ro}
+.ro li:first-child{border-top:0}
+.ro li::before{content:counter(ro);font-family:var(--display);color:var(--muted);text-align:center}
+.ro .k{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+.ro .k.song{color:var(--green)} .ro .k.bit{color:var(--rust)}
+.ro .acts{display:flex;gap:4px}
+.ro .acts .btn{padding:3px 7px}
+.clock{display:flex;flex-direction:column;gap:4px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;display:flex}
+.bar span{display:block;height:100%}
+.bar .song{background:var(--green)} .bar .bit{background:var(--rust)}
+
 /* Credits output */
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 11px;font-size:13px}
@@ -164,10 +178,35 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     </div>
 
     <div class="col">
+      <article class="card" aria-labelledby="crateh">
+        <div class="head"><h2 id="crateh">The crate</h2><span class="eyebrow" id="crateN"></span></div>
+        <p class="muted">Heard something good? Drop the link here before you lose it. Check the licence when you're ready to use it.</p>
+        <form class="f" id="crateForm" style="gap:8px">
+          <label class="label" for="crateUrl" hidden>Link</label>
+          <input id="crateUrl" type="url" required placeholder="Paste the song's link">
+          <div class="row" style="flex-wrap:nowrap"><label class="label" for="crateWhat" hidden>What it is</label>
+            <input id="crateWhat" style="flex:1;min-width:0" placeholder="Title – artist, or a note (optional)"><button class="btn solid" type="submit">Keep</button></div>
+        </form>
+        <ul class="mini" id="crate"></ul>
+      </article>
+
       <article class="card" aria-labelledby="logh">
         <div class="head"><h2 id="logh">Licence log</h2><button class="btn sm" type="button" id="newTrack">Log a track</button></div>
         <p class="muted">Every piece of music, logged once, with proof of its licence on the day you took it.</p>
         <ul class="mini" id="tracks"></ul>
+      </article>
+
+      <article class="card" aria-labelledby="whereh">
+        <h2 id="whereh">Where to look</h2>
+        <ul class="mini" id="places">
+          <li><span><a href="https://freemusicarchive.org/" target="_blank" rel="noopener">Free Music Archive</a><span class="sub">Filter by licence. Strong on indie, folk and electronic.</span></span></li>
+          <li><span><a href="https://ccmixter.org/" target="_blank" rel="noopener">ccMixter</a><span class="sub">Remixes and vocals. Lots of BY-NC; check each one.</span></span></li>
+          <li><span><a href="https://www.jamendo.com/" target="_blank" rel="noopener">Jamendo</a><span class="sub">Big catalogue. Use the free listening licences, not its paid ones.</span></span></li>
+          <li><span><a href="https://archive.org/details/netlabels" target="_blank" rel="noopener">Internet Archive netlabels</a><span class="sub">Whole albums from small labels, mostly CC.</span></span></li>
+          <li><span><a href="https://bandcamp.com/tag/creative-commons" target="_blank" rel="noopener">Bandcamp, tagged Creative Commons</a><span class="sub">Check the licence line at the foot of each album page.</span></span></li>
+          <li><span><a href="https://openverse.org/search/audio?q=" target="_blank" rel="noopener">Openverse</a><span class="sub">Searches several archives at once, filtered by licence.</span></span></li>
+        </ul>
+        <p class="muted">Or ask the artist. Small artists often say yes, even for an NC or ND song. Alfred will draft the email.</p>
       </article>
 
       <article class="card">
@@ -204,14 +243,15 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div class="grid2">
       <div class="f"><label class="label" for="epRec">Record on</label><input id="epRec" type="date"></div>
       <div class="f"><label class="label" for="epPub">Publish on</label><input id="epPub" type="date"></div>
-      <div class="f"><label class="label" for="epLen">Target length (min)</label><input id="epLen" type="number" min="1" step="1" placeholder="30"></div>
+      <div class="f"><label class="label" for="epLen">Running time (min)</label><input id="epLen" type="number" min="1" step="1" placeholder="30"></div>
       <div class="f"><label class="label" for="epGuest">Guest(s)</label><input id="epGuest" placeholder="Solo"></div>
     </div>
     <label class="check" id="epReleaseRow"><input type="checkbox" id="epRelease"> Guest release agreed</label>
     <div class="f"><label class="label" for="epSummary">Summary for the show notes</label><textarea id="epSummary" placeholder="Two or three sentences. What it's about and why anyone should press play."></textarea></div>
     <div class="f"><label class="label" for="epLinks">Links (one per line)</label><textarea id="epLinks" placeholder="https://…"></textarea></div>
     <div class="f">
-      <span class="label">Music in this episode</span>
+      <span class="label">Theme, stings and beds</span>
+      <p class="muted">The four songs go in the running order. This is for music under or around the talking.</p>
       <div class="uses" id="epUses"></div>
       <div class="row"><button class="btn sm" type="button" id="epAddUse">Add a track</button><span class="muted" id="epNoTracks">Log a track in the licence log first.</span></div>
     </div>
@@ -238,9 +278,10 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     </div>
     <div class="f" id="trOtherF"><label class="label" for="trOther">How they ask to be credited</label><textarea id="trOther" placeholder="Paste the licence's own credit wording"></textarea></div>
     <div class="grid2">
+      <div class="f"><label class="label" for="trLen">Length (m:ss)</label><input id="trLen" placeholder="3:45" inputmode="numeric" pattern="\\d{1,2}:[0-5]\\d"></div>
       <div class="f"><label class="label" for="trGot">Downloaded on</label><input id="trGot" type="date"></div>
-      <div class="f"><label class="label" for="trProof">Proof (screenshot or archive link)</label><input id="trProof" placeholder="https://web.archive.org/…"></div>
-    </div>
+      </div>
+    <div class="f"><label class="label" for="trProof">Proof (screenshot or archive link)</label><input id="trProof" placeholder="https://web.archive.org/…"></div>
     <div class="f"><label class="label" for="trNotes">Notes</label><textarea id="trNotes" placeholder="Good as a bed; loud ending"></textarea></div>
     <div class="foot">
       <button class="btn danger" type="button" id="trDelete">Delete</button>
@@ -268,10 +309,28 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   </form>
 </dialog>
 
+<dialog id="slotDlg" aria-labelledby="sldh">
+  <form class="sheet" method="dialog" id="slotForm">
+    <h2 id="sldh">Running order</h2>
+    <div class="f" id="slSongF"><label class="label" for="slTrack">Song</label><select id="slTrack"></select>
+      <span class="muted" id="slSongHint"></span></div>
+    <div id="slBitF" class="col" style="gap:10px">
+      <div class="f"><label class="label" for="slPiece">The link's script, from the Writing Desk</label><select id="slPiece"></select></div>
+      <div class="f" id="slNewF"><label class="label" for="slTitle">What the link is about</label><input id="slTitle" placeholder="Cold open: a word from our sponsor"></div>
+      <div class="f"><label class="label" for="slMins">Roughly how long (min)</label><input id="slMins" type="number" min="0.5" step="0.5" placeholder="3"></div>
+    </div>
+    <div class="f"><label class="label" for="slNotes">Notes</label><input id="slNotes" placeholder="Into the song cold; mention the weather"></div>
+    <div class="foot">
+      <button class="btn danger" type="button" id="slDelete">Take it out</button>
+      <div class="row"><button class="btn quiet" type="button" id="slCancel">Cancel</button><button class="btn solid" type="submit">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { ymd } from "./js/rooms.js";
+import { ymd, writingTime, fmtMins, mirrorSoon } from "./js/rooms.js";
 mountShell("podcast");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -279,29 +338,36 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // Store "podcast":
 //   episodes/<id> { number, title, piece (Writing Desk piece id), stage: plan|record|edit|publish|out,
 //                   record, publish (dates), length (min), guest, release, summary, links, notes,
-//                   uses: [{ track, use: theme|bed|segment|sting|full, changes }],
+//                   slots: [{ id, kind: song|bit, track, piece (Desk piece id, bits), title, mins, notes }]
+//                          the running order: songs play whole; bits are the spoken links between them,
+//                   uses: [{ track, use: theme|bed|segment|sting|full, changes }] (music under or around the talking),
 //                   checks: { <stage>: { <item text>: true } }, created, outAt }
 //   tracks/<id>   { title, artist, artistUrl, source, licence: CC0|PD|BY|BY-SA|BY-NC|BY-ND|BY-NC-SA|BY-NC-ND|Other,
-//                   version, other (credit wording for non-CC), downloaded, proof, notes, created }
+//                   version, other (credit wording for non-CC), secs (length), downloaded, proof, notes, created }
 //   settings      { show, host, paid, signoff, checklists: { plan: [..], record: [..], edit: [..], publish: [..] } }
-// Ideas stay in the Writing Desk ("desk" / pieces/<id>); this room only reads them.
+// Ideas and the links' scripts live in the Writing Desk ("desk" / pieces/<id>). The Booth reads them, and adds a
+// comedy piece there when a new link is written from the running order; the Desk shows which episode uses a piece.
 // Personal content lives in the database, never in this public file.
 const store = openStore("podcast");
 const desk = openStore("desk");
+const focus = openStore("focus"); // writing sessions on a link's script, logged against its Desk piece
 
 const STAGES = [["plan", "Plan"], ["record", "Record"], ["edit", "Edit"], ["publish", "Publish"], ["out", "Out"]];
 const STAGE_NAME = Object.fromEntries(STAGES);
 const USES = [["theme", "Theme (intro)"], ["bed", "Bed under talking"], ["segment", "Between segments"], ["sting", "Sting or outro"], ["full", "Played whole, untouched"]];
 const USE_NAME = Object.fromEntries(USES);
 const DEFAULT_LISTS = {
-  plan: ["Pick the idea from the Writing Desk", "Write the one-line hook", "Outline: cold open, three beats, close",
-    "Choose the music and log any new tracks", "Guest booked and release agreed (if any)", "Book the recording slot"],
+  plan: ["Pick the month's idea from the Writing Desk", "Choose four songs and log each one", "Check every song can be played whole",
+    "Running order: cold open, song, link, song, link, song, link, song, sign-off", "Write the links in the Writing Desk",
+    "Running order adds up to about 30 minutes", "Book the recording slot"],
   record: ["Phone on silent, notifications off", "Door shut, something soft on the walls", "Water within reach",
-    "Mic check: 30 seconds, peaks near -12 dB", "Record WAV, 48 kHz", "Back up the raw file straight after"],
-  edit: ["Rough cut: false starts and tangents", "Clean-up: long pauses, ums, mouth noise", "Theme, beds and outro in",
-    "Spoken credits recorded", "Loudness to -16 LUFS, peaks under -1 dB", "Export MP3, 128 kbps", "One full listen at 1x"],
-  publish: ["Title and episode number", "Show notes: summary and links", "Music credits pasted", "Transcript attached",
-    "Cover art (the show's, or the episode's own)", "Upload and schedule", "Post a clip or a note"],
+    "Mic check: 30 seconds, peaks near -12 dB", "Record each link as its own take, WAV, 48 kHz",
+    "Record the back-announcements", "Back up the raw files straight after"],
+  edit: ["Assemble the links and songs in running order", "Songs untouched: no fades, no talking over intros or endings",
+    "Clean up the links: long pauses, ums, mouth noise", "Theme and stings in", "Loudness to -16 LUFS, peaks under -1 dB",
+    "Export MP3, 128 kbps", "One full listen at 1x"],
+  publish: ["Title and episode number", "Post it in the show's section of ILKWIM", "Show notes and music credits pasted",
+    "Cover art", "Schedule it", "A Substack Note with one funny line"],
 };
 const LICENCES = {
   "BY": "Attribution", "BY-SA": "Attribution-ShareAlike", "BY-NC": "Attribution-NonCommercial", "BY-ND": "Attribution-NoDerivatives",
@@ -321,14 +387,21 @@ const lists = () => ({ ...DEFAULT_LISTS, ...(settings().checklists || {}) });
 const paid = () => settings().paid !== false;
 const episodes = () => store.list("episodes/").map((x) => ({ id: x.key.slice(9), ...x.value }))
   .sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9) || (a.created || "").localeCompare(b.created || ""));
-const tracks = () => store.list("tracks/").map((x) => ({ id: x.key.slice(7), ...x.value }))
+const allTracks = () => store.list("tracks/").map((x) => ({ id: x.key.slice(7), ...x.value }));
+const crate = () => allTracks().filter((t) => t.found).sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+const tracks = () => allTracks().filter((t) => !t.found)
   .sort((a, b) => (a.artist || "").localeCompare(b.artist || "") || (a.title || "").localeCompare(b.title || ""));
 const pieces = () => desk.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value })).filter((p) => p.title)
   .sort((a, b) => a.title.localeCompare(b.title));
 const findEp = (id) => episodes().find((e) => e.id === id);
-const findTr = (id) => tracks().find((t) => t.id === id);
+const findTr = (id) => allTracks().find((t) => t.id === id);
 const saveEp = (e) => { const { id, ...v } = e; store.set("episodes/" + id, v); };
 const saveTr = (t) => { const { id, ...v } = t; store.set("tracks/" + id, v); };
+const mmss = (secs) => { const t = Math.round(secs || 0); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+const parseLen = (v) => { const m = String(v || "").trim().match(/^(\d{1,2}):([0-5]\d)$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const slotSecs = (x) => x.kind === "song" ? (findTr(x.track)?.secs || 0) : Math.round((Number(x.mins) || 0) * 60);
+const slotTitle = (x) => x.kind === "song" ? (findTr(x.track)?.title || "A song no longer in the log")
+  : (x.piece && desk.get("pieces/" + x.piece)?.title) || x.title || "A link";
 const epLabel = (e) => (e.number != null && e.number !== "" ? `Ep ${e.number}: ` : "") + (e.title || "Untitled");
 
 // ---------- Licences ----------
@@ -365,7 +438,9 @@ function useIssues(t, u) {
 /** Everything to say about an episode's music, plus the licence the episode itself must carry. */
 function epMusic(e) {
   const all = tracks();
-  const uses = (e.uses || []).map((u) => ({ ...u, t: all.find((t) => t.id === u.track) })).filter((u) => u.t);
+  const songs = (e.slots || []).filter((x) => x.kind === "song").map((x) => ({ track: x.track, use: "full", changes: "" }));
+  const listed = [...songs, ...(e.uses || [])];
+  const uses = listed.map((u) => ({ ...u, t: all.find((t) => t.id === u.track) })).filter((u) => u.t);
   const notes = [];
   const seen = new Set();
   uses.forEach((u) => {
@@ -374,7 +449,7 @@ function epMusic(e) {
   });
   const sa = [...new Set(uses.filter((u) => has(u.t.licence, "SA") && (u.use !== "full" || (u.changes || "").trim())).map((u) => `${u.t.licence} ${u.t.version || "4.0"}`))];
   if (sa.length > 1) notes.push({ level: "bad", text: `These share-alike licences can't be combined in one episode: ${sa.map((s) => "CC " + s).join(", ")}. Drop one.` });
-  const missing = (e.uses || []).length - uses.length;
+  const missing = listed.length - uses.length;
   if (missing > 0) notes.push({ level: "warn", text: `${missing} track${missing > 1 ? "s were" : " was"} removed from the licence log but still listed here.` });
   return { uses, notes: dedupe(notes), epLicence: sa.length === 1 ? sa[0] : null };
 }
@@ -438,6 +513,20 @@ function spoken(e) {
   return `Music in this episode: ${list}. ${sign}`;
 }
 
+const backAnnounce = (t) => `That was "${t.title}" by ${t.artist || "an artist whose name escapes me"}${isCC(t.licence) ? `, under a Creative Commons ${LICENCES[t.licence]} licence` : ""}.`;
+function cueSheet(e) {
+  const slots = e.slots || [];
+  if (!slots.length) return "No running order yet. Add the songs and links above.";
+  let at = 0;
+  const lines = slots.map((x, i) => {
+    const start = mmss(at); at += slotSecs(x);
+    const t = x.kind === "song" && findTr(x.track);
+    if (t) return `${start}  SONG  "${t.title}" by ${t.artist || "Unknown"} (${mmss(t.secs)}). Play it whole.\n       Back-announce: ${backAnnounce(t)}`;
+    return `${start}  LINK  ${slotTitle(x)} (about ${mmss(slotSecs(x))})${x.notes ? `\n       ${x.notes}` : ""}`;
+  });
+  return `${epLabel(e)}\n\n${lines.join("\n\n")}\n\n${mmss(at)}  END`;
+}
+
 // ---------- Render ----------
 let selected = null;   // the episode open on the desk; null = the next one due
 let outTab = "plain";
@@ -447,6 +536,33 @@ const current = () => {
   const open = all.filter((e) => e.stage !== "out");
   return open.sort((a, b) => (a.publish || "9999").localeCompare(b.publish || "9999") || (a.number ?? 1e9) - (b.number ?? 1e9))[0] || null;
 };
+
+function runningOrder(e) {
+  const slots = e.slots || [];
+  const target = (Number(e.length) || 30) * 60;
+  const total = slots.reduce((a, x) => a + slotSecs(x), 0);
+  const songSecs = slots.filter((x) => x.kind === "song").reduce((a, x) => a + slotSecs(x), 0);
+  const nSongs = slots.filter((x) => x.kind === "song").length;
+  const noLen = slots.filter((x) => x.kind === "song" && !findTr(x.track)?.secs).length;
+  const over = total - target;
+  const verdict = !slots.length ? "" : Math.abs(over) <= 120 ? "About right." : over > 0 ? `${mmss(over)} over. Trim a link, or let it run long.` : `${mmss(-over)} to fill.`;
+  const bar = slots.length ? `<div class="clock"><div class="bar" role="img" aria-label="${mmss(total)} of ${mmss(target)}">${slots.map((x) =>
+      `<span class="${x.kind}" style="width:${Math.max(0, Math.min(100, slotSecs(x) / Math.max(target, total) * 100))}%"></span>`).join("")}</div>
+    <span class="muted">${mmss(total)} of ${mmss(target)} · ${nSongs} song${nSongs === 1 ? "" : "s"} (${mmss(songSecs)}), ${mmss(total - songSecs)} of talking. ${verdict}${noLen ? ` ${noLen} song${noLen > 1 ? "s have" : " has"} no length logged.` : ""}</span></div>` : "";
+  if (!slots.length) return `<p class="empty">Nothing in the running order yet. Four songs with a link before each, and a sign-off, makes a half hour.</p>`;
+  return bar + `<ol class="ro">${slots.map((x, i) => {
+    let sub = "";
+    if (x.kind === "song") { const t = findTr(x.track); sub = t ? `${esc(t.artist || "Unknown")} · <span class="tag">${esc(licName(t))}</span>` : `<span class="tag bad">not in the log</span>`; }
+    else {
+      const p = x.piece && desk.get("pieces/" + x.piece);
+      const w = x.piece ? writingTime(focus, x.piece) : null;
+      sub = p ? `<a href="desk.html">in the Desk</a> · <span class="tag">${esc(p.stage || "Sketch")}</span>${w?.minutes ? ` · ${fmtMins(w.minutes)} written` : ""}` : "no script yet";
+    }
+    return `<li><button class="body" type="button" data-slot="${x.id}"><span class="title"><span class="k ${x.kind}">${x.kind === "song" ? "Song" : "Link"}</span> ${esc(slotTitle(x))} <span class="muted">${mmss(slotSecs(x))}</span></span>
+      <span class="sub">${sub}${x.notes ? ` · ${esc(x.notes)}` : ""}</span></button>
+      <span class="acts"><button class="btn sm quiet" type="button" data-move="${x.id}:-1" aria-label="Move up" ${i === 0 ? "disabled" : ""}>↑</button><button class="btn sm quiet" type="button" data-move="${x.id}:1" aria-label="Move down" ${i === slots.length - 1 ? "disabled" : ""}>↓</button></span></li>`;
+  }).join("")}</ol>`;
+}
 
 function render() {
   const all = episodes();
@@ -475,11 +591,11 @@ function render() {
     const done = items.filter((i) => ticks[i]).length;
     const piece = e.piece && desk.get("pieces/" + e.piece);
     const { uses, notes } = epMusic(e);
+    const extra = uses.slice((e.slots || []).filter((x) => x.kind === "song" && findTr(x.track)).length);
     const meta = [];
     if (e.record) meta.push(`<span class="tag">recording ${short(e.record)}</span>`);
     if (e.publish) meta.push(`<span class="tag ${e.publish < t && stage !== "out" ? "bad" : ""}">out ${short(e.publish)}</span>`);
-    if (e.length) meta.push(`<span>${Number(e.length)} min</span>`);
-    meta.push(`<span>${e.guest ? "with " + esc(e.guest) : "solo"}</span>`);
+    if (e.guest) meta.push(`<span>with ${esc(e.guest)}</span>`);
     if (e.guest && !e.release) meta.push(`<span class="tag warn">no release yet</span>`);
     if (piece) meta.push(`<a href="desk.html">idea: ${esc(piece.title)}</a>`);
     const nag = stage === "record" && e.record && e.record < t ? "The recording date has passed. Recorded, or shall we find another slot?"
@@ -497,17 +613,20 @@ function render() {
         ${si > 0 ? `<button class="btn sm quiet" type="button" data-stage="-1">← ${STAGE_NAME[STAGES[si - 1][0]]}</button>` : ""}
         ${si < STAGES.length - 1 ? `<button class="btn sm ${done === items.length ? "solid" : ""}" type="button" data-stage="1">On to ${STAGE_NAME[STAGES[si + 1][0]]} →</button>` : ""}
       </div>
-      <div class="head"><h3>Music</h3><button class="btn sm quiet" type="button" data-edit="${e.id}">Choose tracks</button></div>
-      ${uses.length ? `<ul class="mini">${uses.map((u) => `<li><span><span class="title">"${esc(u.t.title)}" · ${esc(u.t.artist || "Unknown")}</span>
-          <span class="sub"><span>${esc(USE_NAME[u.use] || u.use)}</span><span class="tag">${esc(licName(u.t))}</span>${u.changes ? `<span>${esc(u.changes)}</span>` : ""}</span></span></li>`).join("")}</ul>`
-        : `<p class="muted">No music chosen yet.</p>`}
+      <div class="head"><h3>Running order</h3><div class="row"><button class="btn sm" type="button" data-addslot="song">Add a song</button><button class="btn sm" type="button" data-addslot="bit">Add a link</button></div></div>
+      ${runningOrder(e)}
+      ${extra.length ? `<div class="head"><h3>Theme, stings and beds</h3><button class="btn sm quiet" type="button" data-edit="${e.id}">Change</button></div>
+        <ul class="mini">${extra.map((u) => `<li><span><span class="title">"${esc(u.t.title)}" · ${esc(u.t.artist || "Unknown")}</span>
+          <span class="sub"><span>${esc(USE_NAME[u.use] || u.use)}</span><span class="tag">${esc(licName(u.t))}</span>${u.changes ? `<span>${esc(u.changes)}</span>` : ""}</span></span></li>`).join("")}</ul>` : ""}
       ${notes.length ? `<ul class="notes">${notes.map((n) => `<li class="${n.level}">${esc(n.text)}</li>`).join("")}</ul>`
         : uses.length ? `<p class="muted"><span class="tag ok">All clear</span> Every track's licence fits how it's used.</p>` : ""}
       <div class="head"><h3>Credits and show notes</h3><button class="btn sm" type="button" data-copy>Copy</button></div>
-      <div class="tabs" role="group" aria-label="Format">${[["plain", "Show notes"], ["html", "Show notes (HTML)"], ["spoken", "Spoken credits"]]
+      <div class="tabs" role="group" aria-label="Format">${[["plain", "Show notes"], ["html", "Show notes (HTML)"], ["cue", "Cue sheet"], ["spoken", "Credits roll"]]
         .map(([k, n]) => `<button class="chip" type="button" data-tab="${k}" aria-pressed="${outTab === k}">${n}</button>`).join("")}</div>
-      <pre class="out" id="outText">${esc(outTab === "spoken" ? spoken(e) : showNotes(e, outTab === "html"))}</pre>
-      ${outTab === "plain" ? `<p class="muted">Most podcast apps strip links, so the plain version spells the addresses out.</p>` : ""}
+      <pre class="out" id="outText">${esc(outTab === "spoken" ? spoken(e) : outTab === "cue" ? cueSheet(e) : showNotes(e, outTab === "html"))}</pre>
+      ${outTab === "plain" ? `<p class="muted">Paste this into the Substack post. The addresses become links on their own.</p>`
+        : outTab === "cue" ? `<p class="muted">The running order with start times and a back-announcement after each song. Print it, or keep it beside the mic.</p>`
+        : outTab === "spoken" ? `<p class="muted">Every credit in one go, for the sign-off. Handy if you skip a back-announcement.</p>` : ""}
       ${e.notes ? `<details><summary style="font-size:16px">Notes</summary><p class="muted" style="white-space:pre-wrap;margin-top:6px">${esc(e.notes)}</p></details>` : ""}`;
   }
 
@@ -522,7 +641,7 @@ function render() {
 
   // Licence log
   const usedIn = {};
-  all.forEach((x) => (x.uses || []).forEach((u) => { (usedIn[u.track] ||= new Set()).add(x.number ?? "?"); }));
+  all.forEach((x) => [...(x.uses || []), ...(x.slots || [])].forEach((u) => { if (u.track) (usedIn[u.track] ||= new Set()).add(x.number ?? "?"); }));
   const trs = tracks();
   $("tracks").innerHTML = trs.length ? trs.map((x) => {
     const iss = trackIssues(x);
@@ -532,6 +651,13 @@ function render() {
       <span class="sub"><span class="tag ${worst}">${esc(licName(x))}</span>${used.length ? `<span>used in ep ${used.join(", ")}</span>` : "<span>not used yet</span>"}${iss.length ? `<span>${esc(iss[0].text)}${iss.length > 1 ? ` (+${iss.length - 1})` : ""}</span>` : ""}</span></button>
       ${x.source ? `<a class="btn sm quiet" href="${esc(x.source)}" target="_blank" rel="noopener" aria-label="Open the page for ${esc(x.title)}">Page</a>` : "<span></span>"}</li>`;
   }).join("") : `<li><span class="muted">Nothing logged yet. Log each track the day you download it.</span></li>`;
+
+  // The crate
+  const cr = crate();
+  $("crateN").textContent = cr.length ? `${cr.length} to check` : "";
+  $("crate").innerHTML = cr.map((x) => `<li><span style="min-width:0"><a class="title" href="${esc(x.source)}" target="_blank" rel="noopener">${esc(x.title || x.source.replace(/^https?:\/\/(www\.)?/, ""))}</a>
+      <span class="sub">${x.artist ? `<span>${esc(x.artist)}</span>` : ""}${x.notes ? `<span>${esc(x.notes)}</span>` : ""}<span>kept ${short(ymd(new Date(x.created)))}</span></span></span>
+      <span class="row" style="flex-wrap:nowrap"><button class="btn sm" type="button" data-track="${x.id}">Log it</button><button class="btn sm quiet" type="button" data-unkeep="${x.id}" aria-label="Remove from the crate">✕</button></span></li>`).join("");
 
   // The show
   const bits = [s.show ? `<b>${esc(s.show)}</b>` : `<span>No name yet</span>`];
@@ -558,7 +684,18 @@ document.addEventListener("click", async (ev) => {
   if (d.open) { selected = d.open; render(); $("current").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   if ("unselect" in d) { selected = null; render(); return; }
   if (d.track) { openTrack(d.track); return; }
+  if (d.unkeep) { const x = findTr(d.unkeep); if (!x) return; store.remove("tracks/" + x.id); toast("Out of the crate.", () => saveTr(x)); return; }
   if (d.tab) { outTab = d.tab; render(); return; }
+  if (d.addslot) { openSlot(null, d.addslot); return; }
+  if (d.slot) { openSlot(d.slot); return; }
+  if (d.move) {
+    const e = current(); if (!e) return;
+    const [id, dir] = d.move.split(":"); const slots = [...(e.slots || [])];
+    const i = slots.findIndex((x) => x.id === id), j = i + Number(dir);
+    if (i < 0 || j < 0 || j >= slots.length) return;
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+    selected = e.id; saveEp({ ...e, slots }); return;
+  }
   if ("copy" in d) {
     try { await navigator.clipboard.writeText($("outText").textContent); toast("Copied."); }
     catch { const r = document.createRange(); r.selectNodeContents($("outText")); getSelection().removeAllRanges(); getSelection().addRange(r); toast("Selected. Copy it from here."); }
@@ -583,6 +720,16 @@ document.addEventListener("change", (ev) => {
   const checks = { ...(e.checks || {}), [stage]: { ...(e.checks?.[stage] || {}) } };
   if (ev.target.checked) checks[stage][c] = true; else delete checks[stage][c];
   saveEp({ ...e, checks });
+});
+$("crateForm").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const url = $("crateUrl").value.trim(); if (!url) return;
+  const what = $("crateWhat").value.trim();
+  // "Title – Artist" (or "Title - Artist") splits; anything else is kept as the title.
+  const m = what.match(/^(.+?)\s+[–—-]\s+(.+)$/);
+  saveTr({ id: newId(), found: true, source: url, title: m ? m[1] : what, artist: m ? m[2] : "", created: new Date().toISOString() });
+  $("crateUrl").value = ""; $("crateWhat").value = "";
+  toast("In the crate.");
 });
 $("newEp").onclick = () => openEpisode(null);
 $("newTrack").onclick = () => openTrack(null);
@@ -676,7 +823,9 @@ $("trLic").addEventListener("change", syncLic);
 function openTrack(id) {
   const t = id ? findTr(id) : null;
   trEditing = t || { id: newId(), created: new Date().toISOString(), downloaded: today(), licence: "BY", version: "4.0" };
-  $("trdh").textContent = t ? "Track" : "Log a track";
+  $("trdh").textContent = t?.found ? "Log it from the crate" : t ? "Track" : "Log a track";
+  if (t?.found && !t.downloaded) trEditing.downloaded = today();
+  if (t?.found && !t.licence) trEditing.licence = "";
   $("trTitle").value = trEditing.title || "";
   $("trArtist").value = trEditing.artist || "";
   $("trArtistUrl").value = trEditing.artistUrl || "";
@@ -685,6 +834,7 @@ function openTrack(id) {
   $("trVer").value = trEditing.version || "4.0";
   $("trOther").value = trEditing.other || "";
   $("trGot").value = trEditing.downloaded || "";
+  $("trLen").value = trEditing.secs ? mmss(trEditing.secs) : "";
   $("trProof").value = trEditing.proof || "";
   $("trNotes").value = trEditing.notes || "";
   $("trDelete").hidden = !t;
@@ -693,22 +843,94 @@ function openTrack(id) {
 }
 $("trForm").addEventListener("submit", () => {
   if (!trEditing) return;
-  saveTr({ ...trEditing,
+  saveTr({ ...trEditing, found: false,
     title: $("trTitle").value.trim() || trEditing.title, artist: $("trArtist").value.trim(), artistUrl: $("trArtistUrl").value.trim(),
     source: $("trSource").value.trim(), licence: $("trLic").value, version: $("trVer").value, other: $("trOther").value.trim(),
-    downloaded: $("trGot").value || null, proof: $("trProof").value.trim(), notes: $("trNotes").value.trim(),
+    downloaded: $("trGot").value || null, secs: parseLen($("trLen").value) ?? trEditing.secs ?? null, proof: $("trProof").value.trim(), notes: $("trNotes").value.trim(),
   });
   trEditing = null;
 });
 $("trCancel").onclick = () => { trEditing = null; $("trDlg").close(); };
 $("trDelete").onclick = () => {
   if (!trEditing) return;
-  const used = episodes().filter((e) => (e.uses || []).some((u) => u.track === trEditing.id));
+  const used = episodes().filter((e) => (e.uses || []).some((u) => u.track === trEditing.id) || (e.slots || []).some((x) => x.track === trEditing.id));
   if (used.length) { toast(`Used in ${used.map(epLabel).join(", ")}. Take it out of ${used.length > 1 ? "those" : "that episode"} first.`); return; }
   const before = { ...trEditing };
   store.remove("tracks/" + trEditing.id);
   trEditing = null; $("trDlg").close();
   toast("Track removed from the log.", () => saveTr(before));
+};
+
+// ---------- Running order sheet ----------
+let slotEp = null, slotEditing = null;
+function openSlot(id, kind) {
+  const e = current(); if (!e) return;
+  slotEp = e;
+  const x = id ? (e.slots || []).find((s) => s.id === id) : null;
+  slotEditing = x ? { ...x } : { id: newId(), kind };
+  const song = slotEditing.kind === "song";
+  $("sldh").textContent = x ? (song ? "The song" : "The link") : song ? "Add a song" : "Add a link";
+  $("slSongF").hidden = !song; $("slBitF").hidden = song;
+  if (song) {
+    const trs = tracks();
+    $("slTrack").innerHTML = trs.length ? trs.map((t) => `<option value="${t.id}" ${t.id === slotEditing.track ? "selected" : ""}>${esc(t.title)} · ${esc(t.artist || "Unknown")} (${esc(licName(t))}${t.secs ? ", " + mmss(t.secs) : ""})</option>`).join("")
+      : `<option value="">Log a track first</option>`;
+    songHint();
+  } else {
+    const bits = pieces().filter((p) => p.track !== "ilkwim" || p.id === slotEditing.piece);
+    $("slPiece").innerHTML = `<option value="new">A new piece in the Desk</option><option value="">No script in the Desk</option>`
+      + bits.map((p) => `<option value="${p.id}">${esc(p.title)} (${esc(p.track === "comedy" ? "Comedy" : p.track === "fiction" ? "Fiction" : "ILKWIM")}, ${esc(p.stage || "")})</option>`).join("");
+    $("slPiece").value = x ? (slotEditing.piece || "") : "new";
+    $("slTitle").value = slotEditing.title || "";
+    $("slMins").value = slotEditing.mins || (x ? "" : 3);
+    syncPiece();
+  }
+  $("slNotes").value = slotEditing.notes || "";
+  $("slDelete").hidden = !x;
+  $("slotDlg").showModal();
+}
+function songHint() {
+  const t = findTr($("slTrack").value);
+  const iss = t ? trackIssues(t) : [];
+  $("slSongHint").textContent = !t ? "Log it in the licence log first, with its length." : iss.length ? iss[0].text
+    : has(t.licence, "ND") ? "ND: fine played whole. No fading or talking over it." : "Plays whole. Back-announce it once it ends.";
+}
+function syncPiece() { $("slNewF").hidden = $("slPiece").value !== "new" && $("slPiece").value !== ""; }
+$("slTrack").addEventListener("change", songHint);
+$("slPiece").addEventListener("change", syncPiece);
+$("slotForm").addEventListener("submit", () => {
+  if (!slotEp || !slotEditing) return;
+  const e = findEp(slotEp.id) || slotEp;
+  const x = { ...slotEditing, notes: $("slNotes").value.trim() };
+  if (x.kind === "song") { x.track = $("slTrack").value; if (!x.track) { slotEditing = null; return; } }
+  else {
+    const pick = $("slPiece").value;
+    x.mins = $("slMins").value ? Number($("slMins").value) : null;
+    x.title = $("slTitle").value.trim();
+    if (pick === "new") {
+      // The script gets written in the Writing Desk, as a comedy piece, with a note saying where it airs.
+      const pid = newId();
+      desk.set("pieces/" + pid, { title: x.title || `A link for ${epLabel(e)}`, track: "comedy", stage: "Sketch",
+        notes: `A link for ${epLabel(e)} in the Recording Booth.`, created: new Date().toISOString() });
+      mirrorSoon("desk");
+      x.piece = pid;
+    } else x.piece = pick || null;
+  }
+  const slots = [...(e.slots || [])];
+  const i = slots.findIndex((s) => s.id === x.id);
+  if (i >= 0) slots[i] = x; else slots.push(x);
+  selected = e.id;
+  saveEp({ ...e, slots });
+  slotEditing = null; slotEp = null;
+});
+$("slCancel").onclick = () => { slotEditing = null; $("slotDlg").close(); };
+$("slDelete").onclick = () => {
+  if (!slotEp || !slotEditing) return;
+  const e = findEp(slotEp.id) || slotEp;
+  const before = { ...e };
+  saveEp({ ...e, slots: (e.slots || []).filter((s) => s.id !== slotEditing.id) });
+  slotEditing = null; $("slotDlg").close();
+  toast("Taken out of the running order.", () => saveEp(before));
 };
 
 // ---------- Show sheet ----------
@@ -733,6 +955,8 @@ $("shCancel").onclick = () => $("showDlg").close();
 
 // ---------- Go ----------
 $("date").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+selected = new URLSearchParams(location.search).get("ep") || null;
 store.subscribe(render);
 desk.subscribe(render);
+focus.subscribe(render);
 </script>
