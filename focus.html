@@ -153,6 +153,13 @@ input[type=range]{width:auto;accent-color:var(--green)}
 .toast.show{opacity:1;transform:none}
 .toast div{background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;font-size:14px;max-width:520px}
 .toast .who{font-weight:700;margin-right:6px;color:var(--brass-soft)}
+/* Tablets in landscape and desktops: the dial stays put on the left, its settings beside it. */
+@media (min-width:1000px){
+  .wrap{max-width:1040px}
+  #v-focus:not([hidden]),#v-breathe:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+  #v-focus>.panel:first-child{grid-row:1 / span 3;position:sticky;top:16px}
+  #breakSlot:empty{display:none}
+}
 @media (prefers-reduced-motion: reduce){ .dial .arc,.toast{transition:none} }
 </style>
 

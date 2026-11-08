@@ -48,7 +48,8 @@ h1{font-size:30px;line-height:1.1}
 
 .book{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
 .col{display:flex;flex-direction:column;gap:14px;min-width:0}
-@media (max-width:820px){ .book{grid-template-columns:minmax(0,1fr)} }
+/* One column on phones and portrait tablets, kept to a readable width. */
+@media (max-width:820px){ .wrap{max-width:680px} .book{grid-template-columns:minmax(0,1fr)} }
 
 .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .card h2{font-size:19px}

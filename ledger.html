@@ -137,6 +137,13 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 .toast.show div{opacity:1;transform:none}
 .toast .who{font-family:var(--display);color:var(--brass);margin-right:6px}
 .status{font-size:13px;color:var(--muted);text-align:center}
+.tmain,.tside{display:flex;flex-direction:column;gap:14px;min-width:0}
+/* Tablets in landscape and desktops: today's habits on the left, the week and streaks beside them. */
+@media (min-width:1000px){
+  body>.wrap{max-width:1040px}
+  #v-today{max-width:none;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
+  #v-store,#v-habits{width:100%;max-width:680px}
+}
 @media (prefers-reduced-motion: reduce){.toast div{transition:none}}
 @media (max-width:420px){form.edit{grid-template-columns:1fr}.variants{padding-left:0}}
 </style>
@@ -289,13 +296,13 @@ function renderToday(R){
       <span class="dot" style="background:${n?`linear-gradient(90deg,var(--green) ${pct}%,var(--line) ${pct}%)`:""}"></span></button>`;
   }
   const nextWeekDisabled = addDays(S.weekStart,7) > t;
-  let html = `<div class="week"><button class="arrow" id="prevWeek" aria-label="Previous week">‹</button><div class="days">${strip}</div><button class="arrow" id="nextWeek" aria-label="Next week" ${nextWeekDisabled?"disabled":""}>›</button></div>`;
+  let html = `<div class="tmain"><div class="week"><button class="arrow" id="prevWeek" aria-label="Previous week">‹</button><div class="days">${strip}</div><button class="arrow" id="nextWeek" aria-label="Next week" ${nextWeekDisabled?"disabled":""}>›</button></div>`;
   const dayPts = R.byDate[sel]||0;
   html += `<div class="dayhead"><h2>${sel===t?"Today":esc(fmtLong(sel))}</h2><span class="pts num">${dayPts} points ${sel===t?"so far":"earned"}${dayPts&&monday(sel)>=R.cfg.start?` · about ${worth(dayPts,R.cfg,!!(S.weekDocs[monday(sel)]||{}).light)}`:""}</span>
     <button class="restbtn" id="restBtn" aria-pressed="${isRest}">${isRest?"Rest day ✓":"Mark as rest day"}</button></div>`;
   if (sel===t && parse(t).getDay()===0) html += `<a class="sunday" href="shutdown.html"><span><b>It's Sunday.</b> Time for the shutdown: close out the week and set up the next.</span><span class="go">Open Sunday Shutdown →</span></a>`;
   if (isRest) html += `<div class="restnote">Rest day. Streaks pause and this week's targets drop by a day. Anything you do still earns points.</div>`;
-  if (!S.loaded.habits){ html += `<div class="empty">Opening the ledger…</div>`; $("#v-today").innerHTML = html; bindToday(); return; }
+  if (!S.loaded.habits){ html += `<div class="empty">Opening the ledger…</div></div>`; $("#v-today").innerHTML = html; bindToday(); return; }
   if (!S.habits.length){ html += `<div class="empty">No habits yet. Add your first one under Habits.</div>`; }
   const daily = S.habits.filter(x=>x.kind!=="weekly"), weekly = S.habits.filter(x=>x.kind==="weekly");
   const row = hb => {
@@ -326,6 +333,7 @@ function renderToday(R){
   html += `<div class="list">${daily.map(row).join("")}</div>`;
   if (weekly.length) html += `<h3 style="font-size:16px;margin-top:4px">This week</h3><div class="list">${weekly.map(row).join("")}</div>`;
   // Week summary: points, bonuses and what they're worth
+  html += `</div><div class="tside">`; // Today on the left, the week beside it on wide screens
   const wk = monday(sel), W = R.byWeek[wk];
   const wo = S.habits.find(x=>x.id==="workout" && x.variants);
   let mixHtml = "";
@@ -357,6 +365,7 @@ function renderToday(R){
       ${daily2.map(hb=>{ const st=R.streak[hb.id]||0, bs=R.best[hb.id]||0; return `<span>${esc(hb.name)}</span><span class="c num">${st}</span><span class="b num">${bs}</span>`; }).join("")}</div>
       <div class="small">For the record only: streaks don't pay, so a missed day costs nothing. One grace day a week; rest days pause the count.</div></div>`;
   }
+  html += `</div>`;
   $("#v-today").innerHTML = html; bindToday();
 }
 

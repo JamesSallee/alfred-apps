@@ -153,6 +153,8 @@ textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:1
 /* tabs, sheet, toast */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-top:1px solid var(--line);
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
+/* On wide screens the bar stays edge to edge but its tabs line up with the column above. */
+nav.tabs{padding-inline:max(0px, calc((100% - 560px) / 2))}
 nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
 nav.tabs button[aria-current="page"]{color:var(--green)}
 nav.tabs svg{width:22px;height:22px}

@@ -48,7 +48,8 @@ h1{font-size:30px;line-height:1.1}
 
 .desk{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
 .col{display:flex;flex-direction:column;gap:14px;min-width:0}
-@media (max-width:820px){
+/* One column on phones and portrait tablets, kept to a readable width. */
+@media (max-width:820px){ .wrap{max-width:680px}
   .desk{grid-template-columns:minmax(0,1fr)}
   .col{display:contents}
   #comingCard{order:-3} #capture{order:-2} #bank{order:-1}
