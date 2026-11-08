@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fbf8f2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>The Recording Booth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Left: the episode on the desk (stage, checklist, music, credits) and the list of episodes.
+   Right: the licence log, the licences in brief, and the show's settings. Same family as the Errand Book. */
+:root{
+  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
+  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
+  --rust:#a4472f; --rust-soft:#f6e1d9; --on-green:#f4f7f2;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
+  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
+  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}
+html,body{background:var(--bg)}
+[hidden]{display:none!important}
+body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+a{color:var(--green)}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+header .t{display:flex;flex-direction:column;gap:4px}
+h1{font-size:30px;line-height:1.1}
+.back{color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
+.greet{color:var(--muted)}
+
+.book{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:820px){ .book{grid-template-columns:minmax(0,1fr)} }
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{font-size:19px}
+.card h3{font-size:16px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--green);background:transparent;color:var(--green);border-radius:10px;padding:7px 12px;font-weight:600;font-size:13.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn.solid{background:var(--green);color:var(--on-green)}
+.btn.brass{border-color:var(--brass);color:var(--brass)}
+.btn.quiet{border-color:var(--line);color:var(--muted)}
+.btn.danger{border-color:var(--rust);color:var(--rust)}
+.btn.sm{padding:4px 9px;font-size:12.5px}
+.btn:disabled{opacity:.5;cursor:default}
+.link{background:none;border:0;padding:0;color:var(--green);font-weight:600;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.muted{color:var(--muted);font-size:13px}
+.empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+.tag{border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;letter-spacing:.02em;background:var(--bg);color:var(--muted);white-space:nowrap}
+.tag.ok{background:var(--green-soft);color:var(--green)}
+.tag.warn{background:var(--brass-soft);color:var(--brass)}
+.tag.bad{background:var(--rust-soft);color:var(--rust)}
+.meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+
+/* Stage stepper */
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:0;padding:0;list-style:none}
+.steps li{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);text-align:center}
+.steps li::before{content:"";height:5px;border-radius:3px;background:var(--line)}
+.steps li.done::before{background:var(--green)}
+.steps li.now{color:var(--ink);font-weight:600}
+.steps li.now::before{background:var(--brass)}
+
+/* Checklist */
+.checks{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.checks li{border-top:1px solid var(--line)}
+.checks li:first-child{border-top:0}
+.checks label{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:start;padding:7px 0;cursor:pointer;font-size:14.5px}
+.tick{appearance:none;width:20px;height:20px;border:1.6px solid var(--green);border-radius:6px;margin:1px 0 0;display:grid;place-items:center;cursor:pointer;background:transparent}
+.tick:checked{background:var(--green)}
+.tick:checked::after{content:"";width:9px;height:5px;border:2px solid var(--on-green);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.checks input:checked + span{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+
+/* Lists */
+.mini{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.mini li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:14px;align-items:center}
+.mini li:first-child{border-top:0}
+.mini .sub{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:2px}
+.mini li.sel{background:var(--green-soft);margin-inline:-8px;padding-inline:8px;border-radius:8px}
+.body{min-width:0;display:flex;flex-direction:column;gap:2px;cursor:pointer;background:none;border:0;padding:0;text-align:left}
+.title{overflow-wrap:anywhere}
+.notes{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.notes li{border-radius:10px;padding:7px 10px;font-size:13.5px}
+.notes li.warn{background:var(--brass-soft)}
+.notes li.bad{background:var(--rust-soft)}
+.notes b{font-weight:700}
+.alfred{background:var(--brass-soft);border-radius:10px;padding:8px 10px;font-size:13.5px}
+.alfred .who{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass)}
+
+/* Running order */
+.ro{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;counter-reset:ro}
+.ro li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);counter-increment:ro}
+.ro li:first-child{border-top:0}
+.ro li::before{content:counter(ro);font-family:var(--display);color:var(--muted);text-align:center}
+.ro .k{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+.ro .k.song{color:var(--green)} .ro .k.bit{color:var(--rust)}
+.ro .acts{display:flex;gap:4px}
+.ro .acts .btn{padding:3px 7px}
+.clock{display:flex;flex-direction:column;gap:4px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;display:flex}
+.bar span{display:block;height:100%}
+.bar .song{background:var(--green)} .bar .bit{background:var(--rust)}
+
+/* Credits output */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 11px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.out{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13.5px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;font-family:var(--body);max-height:320px;overflow:auto}
+
+/* The licences, briefly */
+details summary{cursor:pointer;font-family:var(--display);font-size:19px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"+";font-family:var(--body);color:var(--muted);font-size:18px}
+details[open] summary::after{content:"–"}
+.lic{margin:10px 0 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;font-size:13.5px}
+.lic dt{font-weight:700}
+.lic dd{margin:0}
+
+/* Sheets */
+dialog{border:0;padding:0;background:transparent;max-width:min(560px,calc(100% - 24px));width:100%;color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:10px;max-height:88vh;overflow:auto}
+.sheet h2{font-size:20px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f input,.f select,.f textarea{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:14px;min-width:0}
+.f textarea{min-height:64px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{accent-color:var(--green)}
+.uses{display:flex;flex-direction:column;gap:8px}
+.use{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px}
+.use input[type=text]{grid-column:1 / -1}
+.use select,.use input{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:6px 8px;font-size:13.5px;min-width:0}
+.sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px}
+.toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);border-radius:10px;padding:9px 14px;font-size:14px;display:flex;gap:12px;align-items:center;z-index:60;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast button{background:none;border:0;color:var(--brass-soft);font-weight:700;text-decoration:underline}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="t">
+      <a class="back" href="./">← Alfred's Study</a>
+      <span class="eyebrow" id="date"></span>
+      <h1>The Recording Booth</h1>
+    </div>
+    <span class="greet" id="greet"></span>
+  </header>
+
+  <div class="book">
+    <div class="col">
+      <article class="card" id="current" aria-labelledby="curh"></article>
+
+      <article class="card" aria-labelledby="eph">
+        <div class="head"><h2 id="eph">Episodes</h2><button class="btn sm" type="button" id="newEp">New episode</button></div>
+        <ul class="mini" id="episodes"></ul>
+        <p class="muted">Ideas live in the <a href="desk.html">Writing Desk</a>. Link one to an episode when you plan it.</p>
+      </article>
+    </div>
+
+    <div class="col">
+      <article class="card" aria-labelledby="crateh">
+        <div class="head"><h2 id="crateh">The crate</h2><span class="eyebrow" id="crateN"></span></div>
+        <p class="muted">Heard something good? Drop the link here before you lose it. Check the licence when you're ready to use it.</p>
+        <form class="f" id="crateForm" style="gap:8px">
+          <label class="label" for="crateUrl" hidden>Link</label>
+          <input id="crateUrl" type="url" required placeholder="Paste the song's link">
+          <div class="row" style="flex-wrap:nowrap"><label class="label" for="crateWhat" hidden>What it is</label>
+            <input id="crateWhat" style="flex:1;min-width:0" placeholder="Title – artist, or a note (optional)"><button class="btn solid" type="submit">Keep</button></div>
+        </form>
+        <ul class="mini" id="crate"></ul>
+      </article>
+
+      <article class="card" aria-labelledby="logh">
+        <div class="head"><h2 id="logh">Licence log</h2><button class="btn sm" type="button" id="newTrack">Log a track</button></div>
+        <p class="muted">Every piece of music, logged once, with proof of its licence on the day you took it.</p>
+        <ul class="mini" id="tracks"></ul>
+      </article>
+
+      <article class="card" aria-labelledby="whereh">
+        <h2 id="whereh">Where to look</h2>
+        <ul class="mini" id="places">
+          <li><span><a href="https://freemusicarchive.org/" target="_blank" rel="noopener">Free Music Archive</a><span class="sub">Filter by licence. Strong on indie, folk and electronic.</span></span></li>
+          <li><span><a href="https://ccmixter.org/" target="_blank" rel="noopener">ccMixter</a><span class="sub">Remixes and vocals. Lots of BY-NC; check each one.</span></span></li>
+          <li><span><a href="https://www.jamendo.com/" target="_blank" rel="noopener">Jamendo</a><span class="sub">Big catalogue. Use the free listening licences, not its paid ones.</span></span></li>
+          <li><span><a href="https://archive.org/details/netlabels" target="_blank" rel="noopener">Internet Archive netlabels</a><span class="sub">Whole albums from small labels, mostly CC.</span></span></li>
+          <li><span><a href="https://bandcamp.com/tag/creative-commons" target="_blank" rel="noopener">Bandcamp, tagged Creative Commons</a><span class="sub">Check the licence line at the foot of each album page.</span></span></li>
+          <li><span><a href="https://openverse.org/search/audio?q=" target="_blank" rel="noopener">Openverse</a><span class="sub">Searches several archives at once, filtered by licence.</span></span></li>
+        </ul>
+        <p class="muted">Or ask the artist. Small artists often say yes, even for an NC or ND song. Alfred will draft the email.</p>
+      </article>
+
+      <article class="card">
+        <details id="brief">
+          <summary>The licences, briefly</summary>
+          <dl class="lic">
+            <dt>BY</dt><dd>Credit the artist: title, artist, source link, licence and its link, and say if you changed it.</dd>
+            <dt>SA</dt><dd>Share-alike. If you talk over it, trim it or mix it, the episode must go out under the same licence.</dd>
+            <dt>NC</dt><dd>Non-commercial. No ads, sponsors or paid tiers on any episode that uses it.</dd>
+            <dt>ND</dt><dd>No derivatives. Play it whole and untouched, or not at all. Fades and beds count as changes.</dd>
+            <dt>CC0</dt><dd>No conditions. A credit is still good manners.</dd>
+            <dt>Proof</dt><dd>Licences can change after you download. Keep a screenshot or an archived link of the page as it was.</dd>
+          </dl>
+        </details>
+      </article>
+
+      <article class="card" aria-labelledby="showh">
+        <div class="head"><h2 id="showh">The show</h2><button class="btn sm quiet" type="button" id="editShow">Edit</button></div>
+        <div id="showInfo" class="meta"></div>
+      </article>
+    </div>
+  </div>
+</div>
+
+<dialog id="epDlg" aria-labelledby="epdh">
+  <form class="sheet" method="dialog" id="epForm">
+    <h2 id="epdh">Episode</h2>
+    <div class="grid2">
+      <div class="f"><label class="label" for="epNum">Number</label><input id="epNum" type="number" min="0" step="1"></div>
+      <div class="f"><label class="label" for="epStage">Stage</label><select id="epStage"></select></div>
+    </div>
+    <div class="f"><label class="label" for="epTitle">Title</label><input id="epTitle" required placeholder="A title with a hook"></div>
+    <div class="f"><label class="label" for="epPiece">Idea from the Writing Desk</label><select id="epPiece"></select></div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="epRec">Record on</label><input id="epRec" type="date"></div>
+      <div class="f"><label class="label" for="epPub">Publish on</label><input id="epPub" type="date"></div>
+      <div class="f"><label class="label" for="epLen">Running time (min)</label><input id="epLen" type="number" min="1" step="1" placeholder="30"></div>
+      <div class="f"><label class="label" for="epGuest">Guest(s)</label><input id="epGuest" placeholder="Solo"></div>
+    </div>
+    <label class="check" id="epReleaseRow"><input type="checkbox" id="epRelease"> Guest release agreed</label>
+    <div class="f"><label class="label" for="epSummary">Summary for the show notes</label><textarea id="epSummary" placeholder="Two or three sentences. What it's about and why anyone should press play."></textarea></div>
+    <div class="f"><label class="label" for="epLinks">Links (one per line)</label><textarea id="epLinks" placeholder="https://…"></textarea></div>
+    <div class="f">
+      <span class="label">Theme, stings and beds</span>
+      <p class="muted">The four songs go in the running order. This is for music under or around the talking.</p>
+      <div class="uses" id="epUses"></div>
+      <div class="row"><button class="btn sm" type="button" id="epAddUse">Add a track</button><span class="muted" id="epNoTracks">Log a track in the licence log first.</span></div>
+    </div>
+    <div class="f"><label class="label" for="epNotes">Notes</label><textarea id="epNotes" placeholder="Outline, cold open, things to cut"></textarea></div>
+    <div class="foot">
+      <button class="btn danger" type="button" id="epDelete">Delete</button>
+      <div class="row"><button class="btn quiet" type="button" id="epCancel">Cancel</button><button class="btn solid" type="submit">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="trDlg" aria-labelledby="trdh">
+  <form class="sheet" method="dialog" id="trForm">
+    <h2 id="trdh">Track</h2>
+    <div class="f"><label class="label" for="trTitle">Title</label><input id="trTitle" required></div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="trArtist">Artist</label><input id="trArtist"></div>
+      <div class="f"><label class="label" for="trArtistUrl">Artist's page (optional)</label><input id="trArtistUrl" type="url" placeholder="https://…"></div>
+    </div>
+    <div class="f"><label class="label" for="trSource">Where you got it (the track's page)</label><input id="trSource" type="url" placeholder="https://freemusicarchive.org/…"></div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="trLic">Licence</label><select id="trLic"></select></div>
+      <div class="f"><label class="label" for="trVer">Version</label><select id="trVer"><option>4.0</option><option>3.0</option><option>2.5</option><option>2.0</option></select></div>
+    </div>
+    <div class="f" id="trOtherF"><label class="label" for="trOther">How they ask to be credited</label><textarea id="trOther" placeholder="Paste the licence's own credit wording"></textarea></div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="trLen">Length (m:ss)</label><input id="trLen" placeholder="3:45" inputmode="numeric" pattern="\\d{1,2}:[0-5]\\d"></div>
+      <div class="f"><label class="label" for="trGot">Downloaded on</label><input id="trGot" type="date"></div>
+      </div>
+    <div class="f"><label class="label" for="trProof">Proof (screenshot or archive link)</label><input id="trProof" placeholder="https://web.archive.org/…"></div>
+    <div class="f"><label class="label" for="trNotes">Notes</label><textarea id="trNotes" placeholder="Good as a bed; loud ending"></textarea></div>
+    <div class="foot">
+      <button class="btn danger" type="button" id="trDelete">Delete</button>
+      <div class="row"><button class="btn quiet" type="button" id="trCancel">Cancel</button><button class="btn solid" type="submit">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="showDlg" aria-labelledby="shdh">
+  <form class="sheet" method="dialog" id="showForm">
+    <h2 id="shdh">The show</h2>
+    <div class="grid2">
+      <div class="f"><label class="label" for="shName">Show name</label><input id="shName"></div>
+      <div class="f"><label class="label" for="shHost">Host</label><input id="shHost"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="shPaid"> The show may earn money (ads, sponsors, a paid tier)</label>
+    <p class="muted">While this is ticked, NC music is flagged. When unsure, leave it ticked.</p>
+    <div class="f"><label class="label" for="shSign">Sign-off for the spoken credits</label><input id="shSign" placeholder="Links are in the show notes."></div>
+    <span class="label">Checklists, one item per line</span>
+    <div id="shLists" class="col"></div>
+    <div class="foot">
+      <button class="btn quiet" type="button" id="shReset">Restore the default checklists</button>
+      <div class="row"><button class="btn quiet" type="button" id="shCancel">Cancel</button><button class="btn solid" type="submit">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="slotDlg" aria-labelledby="sldh">
+  <form class="sheet" method="dialog" id="slotForm">
+    <h2 id="sldh">Running order</h2>
+    <div class="f" id="slSongF"><label class="label" for="slTrack">Song</label><select id="slTrack"></select>
+      <span class="muted" id="slSongHint"></span></div>
+    <div id="slBitF" class="col" style="gap:10px">
+      <div class="f"><label class="label" for="slPiece">The link's script, from the Writing Desk</label><select id="slPiece"></select></div>
+      <div class="f" id="slNewF"><label class="label" for="slTitle">What the link is about</label><input id="slTitle" placeholder="Cold open: a word from our sponsor"></div>
+      <div class="f"><label class="label" for="slMins">Roughly how long (min)</label><input id="slMins" type="number" min="0.5" step="0.5" placeholder="3"></div>
+    </div>
+    <div class="f"><label class="label" for="slNotes">Notes</label><input id="slNotes" placeholder="Into the song cold; mention the weather"></div>
+    <div class="foot">
+      <button class="btn danger" type="button" id="slDelete">Take it out</button>
+      <div class="row"><button class="btn quiet" type="button" id="slCancel">Cancel</button><button class="btn solid" type="submit">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<script type="module">
+import { mountShell } from "./js/shell.js";
+import { openStore } from "./js/sync.js";
+import { ymd, writingTime, fmtMins, mirrorSoon } from "./js/rooms.js";
+mountShell("podcast");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+// ---------- Data ----------
+// Store "podcast":
+//   episodes/<id> { number, title, piece (Writing Desk piece id), stage: plan|record|edit|publish|out,
+//                   record, publish (dates), length (min), guest, release, summary, links, notes,
+//                   slots: [{ id, kind: song|bit, track, piece (Desk piece id, bits), title, mins, notes }]
+//                          the running order: songs play whole; bits are the spoken links between them,
+//                   uses: [{ track, use: theme|bed|segment|sting|full, changes }] (music under or around the talking),
+//                   checks: { <stage>: { <item text>: true } }, created, outAt }
+//   tracks/<id>   { title, artist, artistUrl, source, licence: CC0|PD|BY|BY-SA|BY-NC|BY-ND|BY-NC-SA|BY-NC-ND|Other,
+//                   version, other (credit wording for non-CC), secs (length), downloaded, proof, notes, created }
+//   settings      { show, host, paid, signoff, checklists: { plan: [..], record: [..], edit: [..], publish: [..] } }
+// Ideas and the links' scripts live in the Writing Desk ("desk" / pieces/<id>). The Booth reads them, and adds a
+// comedy piece there when a new link is written from the running order; the Desk shows which episode uses a piece.
+// Personal content lives in the database, never in this public file.
+const store = openStore("podcast");
+const desk = openStore("desk");
+const focus = openStore("focus"); // writing sessions on a link's script, logged against its Desk piece
+
+const STAGES = [["plan", "Plan"], ["record", "Record"], ["edit", "Edit"], ["publish", "Publish"], ["out", "Out"]];
+const STAGE_NAME = Object.fromEntries(STAGES);
+const USES = [["theme", "Theme (intro)"], ["bed", "Bed under talking"], ["segment", "Between segments"], ["sting", "Sting or outro"], ["full", "Played whole, untouched"]];
+const USE_NAME = Object.fromEntries(USES);
+const DEFAULT_LISTS = {
+  plan: ["Pick the month's idea from the Writing Desk", "Choose four songs and log each one", "Check every song can be played whole",
+    "Running order: cold open, song, link, song, link, song, link, song, sign-off", "Write the links in the Writing Desk",
+    "Running order adds up to about 30 minutes", "Book the recording slot"],
+  record: ["Phone on silent, notifications off", "Door shut, something soft on the walls", "Water within reach",
+    "Mic check: 30 seconds, peaks near -12 dB", "Record each link as its own take, WAV, 48 kHz",
+    "Record the back-announcements", "Back up the raw files straight after"],
+  edit: ["Assemble the links and songs in running order", "Songs untouched: no fades, no talking over intros or endings",
+    "Clean up the links: long pauses, ums, mouth noise", "Theme and stings in", "Loudness to -16 LUFS, peaks under -1 dB",
+    "Export MP3, 128 kbps", "One full listen at 1x"],
+  publish: ["Title and episode number", "Post it in the show's section of ILKWIM", "Show notes and music credits pasted",
+    "Cover art", "Schedule it", "A Substack Note with one funny line"],
+};
+const LICENCES = {
+  "BY": "Attribution", "BY-SA": "Attribution-ShareAlike", "BY-NC": "Attribution-NonCommercial", "BY-ND": "Attribution-NoDerivatives",
+  "BY-NC-SA": "Attribution-NonCommercial-ShareAlike", "BY-NC-ND": "Attribution-NonCommercial-NoDerivatives",
+  "CC0": "CC0 (no rights reserved)", "PD": "Public domain", "Other": "Not Creative Commons",
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const today = () => ymd(new Date());
+const parse = (s) => new Date(s + "T12:00");
+const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const days = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const settings = () => store.get("settings") || {};
+const lists = () => ({ ...DEFAULT_LISTS, ...(settings().checklists || {}) });
+const paid = () => settings().paid !== false;
+const episodes = () => store.list("episodes/").map((x) => ({ id: x.key.slice(9), ...x.value }))
+  .sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9) || (a.created || "").localeCompare(b.created || ""));
+const allTracks = () => store.list("tracks/").map((x) => ({ id: x.key.slice(7), ...x.value }));
+const crate = () => allTracks().filter((t) => t.found).sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+const tracks = () => allTracks().filter((t) => !t.found)
+  .sort((a, b) => (a.artist || "").localeCompare(b.artist || "") || (a.title || "").localeCompare(b.title || ""));
+const pieces = () => desk.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value })).filter((p) => p.title)
+  .sort((a, b) => a.title.localeCompare(b.title));
+const findEp = (id) => episodes().find((e) => e.id === id);
+const findTr = (id) => allTracks().find((t) => t.id === id);
+const saveEp = (e) => { const { id, ...v } = e; store.set("episodes/" + id, v); };
+const saveTr = (t) => { const { id, ...v } = t; store.set("tracks/" + id, v); };
+const mmss = (secs) => { const t = Math.round(secs || 0); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+const parseLen = (v) => { const m = String(v || "").trim().match(/^(\d{1,2}):([0-5]\d)$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const slotSecs = (x) => x.kind === "song" ? (findTr(x.track)?.secs || 0) : Math.round((Number(x.mins) || 0) * 60);
+const slotTitle = (x) => x.kind === "song" ? (findTr(x.track)?.title || "A song no longer in the log")
+  : (x.piece && desk.get("pieces/" + x.piece)?.title) || x.title || "A link";
+const epLabel = (e) => (e.number != null && e.number !== "" ? `Ep ${e.number}: ` : "") + (e.title || "Untitled");
+
+// ---------- Licences ----------
+const isCC = (code) => code && code.startsWith("BY");
+const has = (code, part) => isCC(code) && code.split("-").includes(part);
+const licName = (t) => t.licence === "CC0" ? "CC0 1.0" : t.licence === "PD" ? "Public domain" : t.licence === "Other" ? "Own licence"
+  : isCC(t.licence) ? `CC ${t.licence} ${t.version || "4.0"}` : "Licence unknown";
+const licUrl = (t) => t.licence === "CC0" ? "https://creativecommons.org/publicdomain/zero/1.0/"
+  : isCC(t.licence) ? `https://creativecommons.org/licenses/${t.licence.toLowerCase()}/${t.version || "4.0"}/` : "";
+const needsCredit = (t) => isCC(t.licence) || t.licence === "Other" || !t.licence;
+
+/** Problems with a track on its own: [{ level: warn|bad, text }]. */
+function trackIssues(t) {
+  const out = [];
+  if (!t.licence) out.push({ level: "bad", text: "No licence recorded. Don't use it until you know." });
+  if (needsCredit(t)) {
+    const miss = [!t.artist && "artist", !t.source && "link to the track"].filter(Boolean);
+    if (miss.length) out.push({ level: "warn", text: `The credit needs the ${miss.join(" and ")}.` });
+  }
+  if (has(t.licence, "NC") && paid()) out.push({ level: "bad", text: "NC: the show is set to earn money, which this licence forbids." });
+  if (t.licence === "Other") out.push({ level: "warn", text: "Not Creative Commons. Read its terms before using it." });
+  if (needsCredit(t) && !t.proof) out.push({ level: "warn", text: "No proof saved. Screenshot or archive the licence page." });
+  return out;
+}
+/** Problems with one use of a track in an episode. */
+function useIssues(t, u) {
+  const out = [];
+  const changed = u.use !== "full" || (u.changes || "").trim();
+  if (has(t.licence, "ND") && changed) out.push({ level: "bad", text: `ND: "${t.title}" can't be faded, trimmed or talked over. Play it whole or choose another track.` });
+  if (has(t.licence, "SA") && changed) out.push({ level: "warn", text: `SA: using "${t.title}" this way means the episode goes out under ${t.licence.replace("BY", "CC BY")}.` });
+  if (has(t.licence, "NC") && !paid()) out.push({ level: "warn", text: `NC: "${t.title}" is fine while the show earns nothing. Remember it if that changes.` });
+  return out;
+}
+/** Everything to say about an episode's music, plus the licence the episode itself must carry. */
+function epMusic(e) {
+  const all = tracks();
+  const songs = (e.slots || []).filter((x) => x.kind === "song").map((x) => ({ track: x.track, use: "full", changes: "" }));
+  const listed = [...songs, ...(e.uses || [])];
+  const uses = listed.map((u) => ({ ...u, t: all.find((t) => t.id === u.track) })).filter((u) => u.t);
+  const notes = [];
+  const seen = new Set();
+  uses.forEach((u) => {
+    if (!seen.has(u.t.id)) { seen.add(u.t.id); trackIssues(u.t).forEach((n) => notes.push({ ...n, text: `"${u.t.title}": ${n.text}` })); }
+    notes.push(...useIssues(u.t, u));
+  });
+  const sa = [...new Set(uses.filter((u) => has(u.t.licence, "SA") && (u.use !== "full" || (u.changes || "").trim())).map((u) => `${u.t.licence} ${u.t.version || "4.0"}`))];
+  if (sa.length > 1) notes.push({ level: "bad", text: `These share-alike licences can't be combined in one episode: ${sa.map((s) => "CC " + s).join(", ")}. Drop one.` });
+  const missing = listed.length - uses.length;
+  if (missing > 0) notes.push({ level: "warn", text: `${missing} track${missing > 1 ? "s were" : " was"} removed from the licence log but still listed here.` });
+  return { uses, notes: dedupe(notes), epLicence: sa.length === 1 ? sa[0] : null };
+}
+const dedupe = (list) => { const s = new Set(); return list.filter((n) => !s.has(n.text) && s.add(n.text)); };
+
+// ---------- Credits ----------
+function credited(e) {
+  const { uses } = epMusic(e);
+  const byTrack = new Map();
+  uses.forEach((u) => {
+    const c = byTrack.get(u.t.id) || { t: u.t, changes: new Set() };
+    if ((u.changes || "").trim()) c.changes.add(u.changes.trim().replace(/\.$/, ""));
+    byTrack.set(u.t.id, c);
+  });
+  return [...byTrack.values()];
+}
+function creditPlain({ t, changes }) {
+  if (t.licence === "Other" && t.other) return t.other.trim();
+  let s = `"${t.title}" by ${t.artist || "Unknown artist"}`;
+  if (t.source) s += ` (${t.source})`;
+  s += `. ${licName(t)}`;
+  if (licUrl(t)) s += ` (${licUrl(t)})`;
+  s += ".";
+  if (changes.size) s += ` Changes: ${[...changes].join("; ")}.`;
+  return s;
+}
+function creditHtml({ t, changes }) {
+  if (t.licence === "Other" && t.other) return esc(t.other.trim());
+  const title = t.source ? `<a href="${esc(t.source)}">${esc(t.title)}</a>` : esc(t.title);
+  const artist = t.artistUrl ? `<a href="${esc(t.artistUrl)}">${esc(t.artist || "Unknown artist")}</a>` : esc(t.artist || "Unknown artist");
+  const lic = licUrl(t) ? `<a href="${esc(licUrl(t))}">${esc(licName(t))}</a>` : esc(licName(t));
+  return `"${title}" by ${artist}, licensed under ${lic}.${changes.size ? ` Changes: ${esc([...changes].join("; "))}.` : ""}`;
+}
+const linesOf = (s) => (s || "").split("\n").map((x) => x.trim()).filter(Boolean);
+function showNotes(e, html) {
+  const c = credited(e);
+  const { epLicence } = epMusic(e);
+  const links = linesOf(e.links);
+  const parts = [];
+  if (html) {
+    if (e.summary) parts.push(linesOf(e.summary).map((p) => `<p>${esc(p)}</p>`).join("\n"));
+    if (e.guest) parts.push(`<p>With ${esc(e.guest)}.</p>`);
+    if (links.length) parts.push(`<p><strong>Links</strong></p>\n<ul>\n${links.map((l) => `  <li>${/^https?:\/\//.test(l) ? `<a href="${esc(l)}">${esc(l)}</a>` : esc(l)}</li>`).join("\n")}\n</ul>`);
+    if (c.length) parts.push(`<p><strong>Music</strong></p>\n<ul>\n${c.map((x) => `  <li>${creditHtml(x)}</li>`).join("\n")}\n</ul>`);
+    if (epLicence) parts.push(`<p>This episode is licensed under <a href="https://creativecommons.org/licenses/${epLicence.split(" ")[0].toLowerCase()}/${epLicence.split(" ")[1]}/">CC ${esc(epLicence)}</a>.</p>`);
+  } else {
+    if (e.summary) parts.push(e.summary.trim());
+    if (e.guest) parts.push(`With ${e.guest}.`);
+    if (links.length) parts.push("Links\n" + links.map((l) => "• " + l).join("\n"));
+    if (c.length) parts.push("Music\n" + c.map((x) => "• " + creditPlain(x)).join("\n"));
+    if (epLicence) parts.push(`This episode is licensed under CC ${epLicence} (https://creativecommons.org/licenses/${epLicence.split(" ")[0].toLowerCase()}/${epLicence.split(" ")[1]}/).`);
+  }
+  return parts.join(html ? "\n\n" : "\n\n") || "Nothing yet. Add a summary, links or music to the episode.";
+}
+function spoken(e) {
+  const c = credited(e).filter(({ t }) => needsCredit(t));
+  if (!c.length) return "No music needs a spoken credit.";
+  const one = ({ t }) => `"${t.title}" by ${t.artist || "an unknown artist"}${isCC(t.licence) ? `, under a Creative Commons ${LICENCES[t.licence]} licence` : ""}`;
+  const list = c.length === 1 ? one(c[0]) : c.slice(0, -1).map(one).join("; ") + "; and " + one(c[c.length - 1]);
+  const sign = (settings().signoff || "Links are in the show notes.").trim();
+  return `Music in this episode: ${list}. ${sign}`;
+}
+
+const backAnnounce = (t) => `That was "${t.title}" by ${t.artist || "an artist whose name escapes me"}${isCC(t.licence) ? `, under a Creative Commons ${LICENCES[t.licence]} licence` : ""}.`;
+function cueSheet(e) {
+  const slots = e.slots || [];
+  if (!slots.length) return "No running order yet. Add the songs and links above.";
+  let at = 0;
+  const lines = slots.map((x, i) => {
+    const start = mmss(at); at += slotSecs(x);
+    const t = x.kind === "song" && findTr(x.track);
+    if (t) return `${start}  SONG  "${t.title}" by ${t.artist || "Unknown"} (${mmss(t.secs)}). Play it whole.\n       Back-announce: ${backAnnounce(t)}`;
+    return `${start}  LINK  ${slotTitle(x)} (about ${mmss(slotSecs(x))})${x.notes ? `\n       ${x.notes}` : ""}`;
+  });
+  return `${epLabel(e)}\n\n${lines.join("\n\n")}\n\n${mmss(at)}  END`;
+}
+
+// ---------- Render ----------
+let selected = null;   // the episode open on the desk; null = the next one due
+let outTab = "plain";
+const current = () => {
+  const all = episodes();
+  if (selected) { const e = all.find((x) => x.id === selected); if (e) return e; selected = null; }
+  const open = all.filter((e) => e.stage !== "out");
+  return open.sort((a, b) => (a.publish || "9999").localeCompare(b.publish || "9999") || (a.number ?? 1e9) - (b.number ?? 1e9))[0] || null;
+};
+
+function runningOrder(e) {
+  const slots = e.slots || [];
+  const target = (Number(e.length) || 30) * 60;
+  const total = slots.reduce((a, x) => a + slotSecs(x), 0);
+  const songSecs = slots.filter((x) => x.kind === "song").reduce((a, x) => a + slotSecs(x), 0);
+  const nSongs = slots.filter((x) => x.kind === "song").length;
+  const noLen = slots.filter((x) => x.kind === "song" && !findTr(x.track)?.secs).length;
+  const over = total - target;
+  const verdict = !slots.length ? "" : Math.abs(over) <= 120 ? "About right." : over > 0 ? `${mmss(over)} over. Trim a link, or let it run long.` : `${mmss(-over)} to fill.`;
+  const bar = slots.length ? `<div class="clock"><div class="bar" role="img" aria-label="${mmss(total)} of ${mmss(target)}">${slots.map((x) =>
+      `<span class="${x.kind}" style="width:${Math.max(0, Math.min(100, slotSecs(x) / Math.max(target, total) * 100))}%"></span>`).join("")}</div>
+    <span class="muted">${mmss(total)} of ${mmss(target)} · ${nSongs} song${nSongs === 1 ? "" : "s"} (${mmss(songSecs)}), ${mmss(total - songSecs)} of talking. ${verdict}${noLen ? ` ${noLen} song${noLen > 1 ? "s have" : " has"} no length logged.` : ""}</span></div>` : "";
+  if (!slots.length) return `<p class="empty">Nothing in the running order yet. Four songs with a link before each, and a sign-off, makes a half hour.</p>`;
+  return bar + `<ol class="ro">${slots.map((x, i) => {
+    let sub = "";
+    if (x.kind === "song") { const t = findTr(x.track); sub = t ? `${esc(t.artist || "Unknown")} · <span class="tag">${esc(licName(t))}</span>` : `<span class="tag bad">not in the log</span>`; }
+    else {
+      const p = x.piece && desk.get("pieces/" + x.piece);
+      const w = x.piece ? writingTime(focus, x.piece) : null;
+      sub = p ? `<a href="desk.html">in the Desk</a> · <span class="tag">${esc(p.stage || "Sketch")}</span>${w?.minutes ? ` · ${fmtMins(w.minutes)} written` : ""}` : "no script yet";
+    }
+    return `<li><button class="body" type="button" data-slot="${x.id}"><span class="title"><span class="k ${x.kind}">${x.kind === "song" ? "Song" : "Link"}</span> ${esc(slotTitle(x))} <span class="muted">${mmss(slotSecs(x))}</span></span>
+      <span class="sub">${sub}${x.notes ? ` · ${esc(x.notes)}` : ""}</span></button>
+      <span class="acts"><button class="btn sm quiet" type="button" data-move="${x.id}:-1" aria-label="Move up" ${i === 0 ? "disabled" : ""}>↑</button><button class="btn sm quiet" type="button" data-move="${x.id}:1" aria-label="Move down" ${i === slots.length - 1 ? "disabled" : ""}>↓</button></span></li>`;
+  }).join("")}</ol>`;
+}
+
+function render() {
+  const all = episodes();
+  const e = current();
+  const t = today();
+  const s = settings();
+
+  // Greeting
+  const open = all.filter((x) => x.stage !== "out");
+  const nextPub = open.filter((x) => x.publish).sort((a, b) => a.publish.localeCompare(b.publish))[0];
+  const banked = open.filter((x) => x.stage === "publish").length;
+  $("greet").textContent = !all.length ? "Quiet in here. Shall we plan the first one?"
+    : nextPub && nextPub.publish < t ? `${epLabel(nextPub)} was due out ${short(nextPub.publish)}. Publish the banked one, or move the date.`
+    : nextPub ? `Next out ${days(t, nextPub.publish) === 0 ? "today" : short(nextPub.publish)}.${banked > 1 ? ` ${banked - 1} banked behind it.` : ""}`
+    : open.length ? "Nothing dated yet. Give the next one a publish date." : "Every episode is out. Time for the next idea.";
+
+  // The episode on the desk
+  if (!e) {
+    $("current").innerHTML = `<h2 id="curh">On the desk</h2><p class="empty">No episode in progress. Start one from an idea in the Writing Desk.</p>
+      <div class="row"><button class="btn solid" type="button" data-new>Plan an episode</button></div>`;
+  } else {
+    const si = STAGES.findIndex(([k]) => k === (e.stage || "plan"));
+    const stage = STAGES[si]?.[0] || "plan";
+    const items = stage === "out" ? [] : (lists()[stage] || []);
+    const ticks = e.checks?.[stage] || {};
+    const done = items.filter((i) => ticks[i]).length;
+    const piece = e.piece && desk.get("pieces/" + e.piece);
+    const { uses, notes } = epMusic(e);
+    const extra = uses.slice((e.slots || []).filter((x) => x.kind === "song" && findTr(x.track)).length);
+    const meta = [];
+    if (e.record) meta.push(`<span class="tag">recording ${short(e.record)}</span>`);
+    if (e.publish) meta.push(`<span class="tag ${e.publish < t && stage !== "out" ? "bad" : ""}">out ${short(e.publish)}</span>`);
+    if (e.guest) meta.push(`<span>with ${esc(e.guest)}</span>`);
+    if (e.guest && !e.release) meta.push(`<span class="tag warn">no release yet</span>`);
+    if (piece) meta.push(`<a href="desk.html">idea: ${esc(piece.title)}</a>`);
+    const nag = stage === "record" && e.record && e.record < t ? "The recording date has passed. Recorded, or shall we find another slot?"
+      : stage !== "out" && e.publish && e.publish < t ? "This was due out already. Ship what's there, or move the date and say no more about it."
+      : null;
+    $("current").innerHTML = `
+      <div class="head"><div><span class="eyebrow">${selected ? "On the desk" : "Next up"}</span><h2 id="curh">${esc(epLabel(e))}</h2></div>
+        <div class="row"><button class="btn sm quiet" type="button" data-edit="${e.id}">Edit</button>${selected ? `<button class="btn sm quiet" type="button" data-unselect>Back to next up</button>` : ""}</div></div>
+      <div class="meta">${meta.join("")}</div>
+      <ol class="steps" aria-label="Stage">${STAGES.map(([k, n], i) => `<li class="${i < si ? "done" : i === si ? "now" : ""}"${i === si ? ' aria-current="step"' : ""}>${n}</li>`).join("")}</ol>
+      ${nag ? `<div class="alfred"><span class="who">Alfred</span>${nag}</div>` : ""}
+      ${items.length ? `<div class="head"><h3>${STAGE_NAME[stage]}</h3><span class="eyebrow">${done} of ${items.length}</span></div>
+        <ul class="checks">${items.map((i) => `<li><label><input class="tick" type="checkbox" data-check="${esc(i)}" ${ticks[i] ? "checked" : ""}><span>${esc(i)}</span></label></li>`).join("")}</ul>` : ""}
+      <div class="row">
+        ${si > 0 ? `<button class="btn sm quiet" type="button" data-stage="-1">← ${STAGE_NAME[STAGES[si - 1][0]]}</button>` : ""}
+        ${si < STAGES.length - 1 ? `<button class="btn sm ${done === items.length ? "solid" : ""}" type="button" data-stage="1">On to ${STAGE_NAME[STAGES[si + 1][0]]} →</button>` : ""}
+      </div>
+      <div class="head"><h3>Running order</h3><div class="row"><button class="btn sm" type="button" data-addslot="song">Add a song</button><button class="btn sm" type="button" data-addslot="bit">Add a link</button></div></div>
+      ${runningOrder(e)}
+      ${extra.length ? `<div class="head"><h3>Theme, stings and beds</h3><button class="btn sm quiet" type="button" data-edit="${e.id}">Change</button></div>
+        <ul class="mini">${extra.map((u) => `<li><span><span class="title">"${esc(u.t.title)}" · ${esc(u.t.artist || "Unknown")}</span>
+          <span class="sub"><span>${esc(USE_NAME[u.use] || u.use)}</span><span class="tag">${esc(licName(u.t))}</span>${u.changes ? `<span>${esc(u.changes)}</span>` : ""}</span></span></li>`).join("")}</ul>` : ""}
+      ${notes.length ? `<ul class="notes">${notes.map((n) => `<li class="${n.level}">${esc(n.text)}</li>`).join("")}</ul>`
+        : uses.length ? `<p class="muted"><span class="tag ok">All clear</span> Every track's licence fits how it's used.</p>` : ""}
+      <div class="head"><h3>Credits and show notes</h3><button class="btn sm" type="button" data-copy>Copy</button></div>
+      <div class="tabs" role="group" aria-label="Format">${[["plain", "Show notes"], ["html", "Show notes (HTML)"], ["cue", "Cue sheet"], ["spoken", "Credits roll"]]
+        .map(([k, n]) => `<button class="chip" type="button" data-tab="${k}" aria-pressed="${outTab === k}">${n}</button>`).join("")}</div>
+      <pre class="out" id="outText">${esc(outTab === "spoken" ? spoken(e) : outTab === "cue" ? cueSheet(e) : showNotes(e, outTab === "html"))}</pre>
+      ${outTab === "plain" ? `<p class="muted">Paste this into the Substack post. The addresses become links on their own.</p>`
+        : outTab === "cue" ? `<p class="muted">The running order with start times and a back-announcement after each song. Print it, or keep it beside the mic.</p>`
+        : outTab === "spoken" ? `<p class="muted">Every credit in one go, for the sign-off. Handy if you skip a back-announcement.</p>` : ""}
+      ${e.notes ? `<details><summary style="font-size:16px">Notes</summary><p class="muted" style="white-space:pre-wrap;margin-top:6px">${esc(e.notes)}</p></details>` : ""}`;
+  }
+
+  // Episode list
+  $("episodes").innerHTML = all.length ? all.map((x) => {
+    const tagCls = x.stage === "out" ? "ok" : x.publish && x.publish < t ? "bad" : "";
+    const bad = epMusic(x).notes.some((n) => n.level === "bad");
+    return `<li class="${e && x.id === e.id ? "sel" : ""}"><button class="body" type="button" data-open="${x.id}"><span class="title">${esc(epLabel(x))}</span>
+      <span class="sub"><span class="tag ${tagCls}">${STAGE_NAME[x.stage || "plan"]}</span>${x.publish ? `<span>${x.stage === "out" ? "out" : "due"} ${short(x.publish)}</span>` : ""}${bad ? `<span class="tag bad">music problem</span>` : ""}</span></button>
+      <button class="btn sm quiet" type="button" data-edit="${x.id}" aria-label="Edit ${esc(epLabel(x))}">Edit</button></li>`;
+  }).join("") : `<li><span class="muted">None yet.</span></li>`;
+
+  // Licence log
+  const usedIn = {};
+  all.forEach((x) => [...(x.uses || []), ...(x.slots || [])].forEach((u) => { if (u.track) (usedIn[u.track] ||= new Set()).add(x.number ?? "?"); }));
+  const trs = tracks();
+  $("tracks").innerHTML = trs.length ? trs.map((x) => {
+    const iss = trackIssues(x);
+    const worst = iss.some((i) => i.level === "bad") ? "bad" : iss.length ? "warn" : "ok";
+    const used = usedIn[x.id] ? [...usedIn[x.id]] : [];
+    return `<li><button class="body" type="button" data-track="${x.id}"><span class="title">"${esc(x.title)}" · ${esc(x.artist || "Unknown")}</span>
+      <span class="sub"><span class="tag ${worst}">${esc(licName(x))}</span>${used.length ? `<span>used in ep ${used.join(", ")}</span>` : "<span>not used yet</span>"}${iss.length ? `<span>${esc(iss[0].text)}${iss.length > 1 ? ` (+${iss.length - 1})` : ""}</span>` : ""}</span></button>
+      ${x.source ? `<a class="btn sm quiet" href="${esc(x.source)}" target="_blank" rel="noopener" aria-label="Open the page for ${esc(x.title)}">Page</a>` : "<span></span>"}</li>`;
+  }).join("") : `<li><span class="muted">Nothing logged yet. Log each track the day you download it.</span></li>`;
+
+  // The crate
+  const cr = crate();
+  $("crateN").textContent = cr.length ? `${cr.length} to check` : "";
+  $("crate").innerHTML = cr.map((x) => `<li><span style="min-width:0"><a class="title" href="${esc(x.source)}" target="_blank" rel="noopener">${esc(x.title || x.source.replace(/^https?:\/\/(www\.)?/, ""))}</a>
+      <span class="sub">${x.artist ? `<span>${esc(x.artist)}</span>` : ""}${x.notes ? `<span>${esc(x.notes)}</span>` : ""}<span>kept ${short(ymd(new Date(x.created)))}</span></span></span>
+      <span class="row" style="flex-wrap:nowrap"><button class="btn sm" type="button" data-track="${x.id}">Log it</button><button class="btn sm quiet" type="button" data-unkeep="${x.id}" aria-label="Remove from the crate">✕</button></span></li>`).join("");
+
+  // The show
+  const bits = [s.show ? `<b>${esc(s.show)}</b>` : `<span>No name yet</span>`];
+  if (s.host) bits.push(`<span>hosted by ${esc(s.host)}</span>`);
+  bits.push(`<span class="tag ${paid() ? "warn" : ""}">${paid() ? "may earn money: NC music flagged" : "non-commercial"}</span>`);
+  bits.push(`<span>${all.filter((x) => x.stage === "out").length} out, ${open.length} in progress</span>`);
+  $("showInfo").innerHTML = bits.join("");
+}
+
+// ---------- Actions ----------
+function toast(msg, undo) {
+  document.querySelector(".toast")?.remove();
+  const el = Object.assign(document.createElement("div"), { className: "toast", role: "status" });
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Undo</button>' : ""}`;
+  if (undo) el.querySelector("button").onclick = () => { undo(); el.remove(); };
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  const d = b.dataset;
+  if ("new" in d) { openEpisode(null); return; }
+  if (d.edit) { openEpisode(d.edit); return; }
+  if (d.open) { selected = d.open; render(); $("current").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  if ("unselect" in d) { selected = null; render(); return; }
+  if (d.track) { openTrack(d.track); return; }
+  if (d.unkeep) { const x = findTr(d.unkeep); if (!x) return; store.remove("tracks/" + x.id); toast("Out of the crate.", () => saveTr(x)); return; }
+  if (d.tab) { outTab = d.tab; render(); return; }
+  if (d.addslot) { openSlot(null, d.addslot); return; }
+  if (d.slot) { openSlot(d.slot); return; }
+  if (d.move) {
+    const e = current(); if (!e) return;
+    const [id, dir] = d.move.split(":"); const slots = [...(e.slots || [])];
+    const i = slots.findIndex((x) => x.id === id), j = i + Number(dir);
+    if (i < 0 || j < 0 || j >= slots.length) return;
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+    selected = e.id; saveEp({ ...e, slots }); return;
+  }
+  if ("copy" in d) {
+    try { await navigator.clipboard.writeText($("outText").textContent); toast("Copied."); }
+    catch { const r = document.createRange(); r.selectNodeContents($("outText")); getSelection().removeAllRanges(); getSelection().addRange(r); toast("Selected. Copy it from here."); }
+    return;
+  }
+  if (d.stage) {
+    const e = current(); if (!e) return;
+    const si = STAGES.findIndex(([k]) => k === (e.stage || "plan"));
+    const next = STAGES[Math.min(STAGES.length - 1, Math.max(0, si + Number(d.stage)))][0];
+    const before = { ...e };
+    saveEp({ ...e, stage: next, outAt: next === "out" ? (e.outAt || new Date().toISOString()) : null });
+    if (next === "out") { selected = null; toast(`${epLabel(e)} is out. Well done.`, () => saveEp(before)); }
+    else selected = e.id;
+    render();
+    return;
+  }
+});
+document.addEventListener("change", (ev) => {
+  const c = ev.target.dataset?.check; if (c === undefined) return;
+  const e = current(); if (!e) return;
+  const stage = e.stage || "plan";
+  const checks = { ...(e.checks || {}), [stage]: { ...(e.checks?.[stage] || {}) } };
+  if (ev.target.checked) checks[stage][c] = true; else delete checks[stage][c];
+  saveEp({ ...e, checks });
+});
+$("crateForm").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const url = $("crateUrl").value.trim(); if (!url) return;
+  const what = $("crateWhat").value.trim();
+  // "Title – Artist" (or "Title - Artist") splits; anything else is kept as the title.
+  const m = what.match(/^(.+?)\s+[–—-]\s+(.+)$/);
+  saveTr({ id: newId(), found: true, source: url, title: m ? m[1] : what, artist: m ? m[2] : "", created: new Date().toISOString() });
+  $("crateUrl").value = ""; $("crateWhat").value = "";
+  toast("In the crate.");
+});
+$("newEp").onclick = () => openEpisode(null);
+$("newTrack").onclick = () => openTrack(null);
+$("editShow").onclick = openShow;
+
+// ---------- Episode sheet ----------
+let editing = null;
+$("epStage").innerHTML = STAGES.map(([k, n]) => `<option value="${k}">${n}</option>`).join("");
+function useRow(u = {}) {
+  const opts = tracks().map((t) => `<option value="${t.id}" ${t.id === u.track ? "selected" : ""}>${esc(t.title)} · ${esc(t.artist || "Unknown")} (${esc(licName(t))})</option>`).join("");
+  const el = document.createElement("div");
+  el.className = "use";
+  el.innerHTML = `<select aria-label="Track" data-u="track">${opts}</select>
+    <select aria-label="How it's used" data-u="use">${USES.map(([k, n]) => `<option value="${k}" ${k === (u.use || "bed") ? "selected" : ""}>${n}</option>`).join("")}</select>
+    <button class="btn sm quiet" type="button" aria-label="Remove this track">✕</button>
+    <input type="text" aria-label="Changes made" data-u="changes" placeholder="Changes made, e.g. trimmed to 0:45 and faded out" value="${esc(u.changes || "")}">`;
+  el.querySelector("button").onclick = () => el.remove();
+  $("epUses").appendChild(el);
+}
+function openEpisode(id) {
+  const e = id ? findEp(id) : null;
+  const all = episodes();
+  editing = e || { id: newId(), number: all.length ? Math.max(...all.map((x) => Number(x.number) || 0)) + 1 : 1, stage: "plan", created: new Date().toISOString() };
+  $("epdh").textContent = e ? "Edit episode" : "New episode";
+  $("epNum").value = editing.number ?? "";
+  $("epStage").value = editing.stage || "plan";
+  $("epTitle").value = editing.title || "";
+  $("epPiece").innerHTML = `<option value="">None</option>` + pieces().map((p) => `<option value="${p.id}" ${p.id === editing.piece ? "selected" : ""}>${esc(p.title)}</option>`).join("");
+  $("epRec").value = editing.record || "";
+  $("epPub").value = editing.publish || "";
+  $("epLen").value = editing.length || "";
+  $("epGuest").value = editing.guest || "";
+  $("epRelease").checked = !!editing.release;
+  $("epSummary").value = editing.summary || "";
+  $("epLinks").value = editing.links || "";
+  $("epNotes").value = editing.notes || "";
+  $("epUses").innerHTML = "";
+  (editing.uses || []).forEach(useRow);
+  const none = !tracks().length;
+  $("epAddUse").hidden = none; $("epNoTracks").hidden = !none;
+  $("epDelete").hidden = !e;
+  syncRelease();
+  $("epDlg").showModal();
+}
+function syncRelease() { $("epReleaseRow").hidden = !$("epGuest").value.trim(); }
+$("epGuest").addEventListener("input", syncRelease);
+$("epPiece").addEventListener("change", () => {
+  const p = $("epPiece").value && desk.get("pieces/" + $("epPiece").value);
+  if (p && !$("epTitle").value.trim()) $("epTitle").value = p.title;
+});
+$("epAddUse").onclick = () => useRow();
+$("epForm").addEventListener("submit", () => {
+  if (!editing) return;
+  const uses = [...$("epUses").children].map((el) => ({
+    track: el.querySelector('[data-u="track"]').value, use: el.querySelector('[data-u="use"]').value,
+    changes: el.querySelector('[data-u="changes"]').value.trim(),
+  })).filter((u) => u.track);
+  const num = $("epNum").value;
+  const stage = $("epStage").value;
+  saveEp({ ...editing,
+    number: num === "" ? null : Number(num), stage, title: $("epTitle").value.trim() || editing.title,
+    piece: $("epPiece").value || null, record: $("epRec").value || null, publish: $("epPub").value || null,
+    length: $("epLen").value ? Number($("epLen").value) : null, guest: $("epGuest").value.trim(),
+    release: !!$("epGuest").value.trim() && $("epRelease").checked, summary: $("epSummary").value.trim(),
+    links: $("epLinks").value.trim(), notes: $("epNotes").value.trim(), uses,
+    outAt: stage === "out" ? (editing.outAt || new Date().toISOString()) : null,
+  });
+  if (stage !== "out") selected = editing.id;
+  editing = null;
+  render();
+});
+$("epCancel").onclick = () => { editing = null; $("epDlg").close(); };
+$("epDelete").onclick = () => {
+  if (!editing) return;
+  const before = { ...editing };
+  store.remove("episodes/" + editing.id);
+  if (selected === editing.id) selected = null;
+  editing = null; $("epDlg").close();
+  toast("Episode deleted.", () => saveEp(before));
+};
+
+// ---------- Track sheet ----------
+let trEditing = null;
+$("trLic").innerHTML = `<option value="">Not sure yet</option>` + Object.entries(LICENCES).map(([k, n]) => `<option value="${k}">${isCC(k) ? "CC " + k + ": " : ""}${n}</option>`).join("");
+function syncLic() {
+  const l = $("trLic").value;
+  $("trVer").disabled = !isCC(l);
+  $("trOtherF").hidden = l !== "Other";
+}
+$("trLic").addEventListener("change", syncLic);
+function openTrack(id) {
+  const t = id ? findTr(id) : null;
+  trEditing = t || { id: newId(), created: new Date().toISOString(), downloaded: today(), licence: "BY", version: "4.0" };
+  $("trdh").textContent = t?.found ? "Log it from the crate" : t ? "Track" : "Log a track";
+  if (t?.found && !t.downloaded) trEditing.downloaded = today();
+  if (t?.found && !t.licence) trEditing.licence = "";
+  $("trTitle").value = trEditing.title || "";
+  $("trArtist").value = trEditing.artist || "";
+  $("trArtistUrl").value = trEditing.artistUrl || "";
+  $("trSource").value = trEditing.source || "";
+  $("trLic").value = trEditing.licence || "";
+  $("trVer").value = trEditing.version || "4.0";
+  $("trOther").value = trEditing.other || "";
+  $("trGot").value = trEditing.downloaded || "";
+  $("trLen").value = trEditing.secs ? mmss(trEditing.secs) : "";
+  $("trProof").value = trEditing.proof || "";
+  $("trNotes").value = trEditing.notes || "";
+  $("trDelete").hidden = !t;
+  syncLic();
+  $("trDlg").showModal();
+}
+$("trForm").addEventListener("submit", () => {
+  if (!trEditing) return;
+  saveTr({ ...trEditing, found: false,
+    title: $("trTitle").value.trim() || trEditing.title, artist: $("trArtist").value.trim(), artistUrl: $("trArtistUrl").value.trim(),
+    source: $("trSource").value.trim(), licence: $("trLic").value, version: $("trVer").value, other: $("trOther").value.trim(),
+    downloaded: $("trGot").value || null, secs: parseLen($("trLen").value) ?? trEditing.secs ?? null, proof: $("trProof").value.trim(), notes: $("trNotes").value.trim(),
+  });
+  trEditing = null;
+});
+$("trCancel").onclick = () => { trEditing = null; $("trDlg").close(); };
+$("trDelete").onclick = () => {
+  if (!trEditing) return;
+  const used = episodes().filter((e) => (e.uses || []).some((u) => u.track === trEditing.id) || (e.slots || []).some((x) => x.track === trEditing.id));
+  if (used.length) { toast(`Used in ${used.map(epLabel).join(", ")}. Take it out of ${used.length > 1 ? "those" : "that episode"} first.`); return; }
+  const before = { ...trEditing };
+  store.remove("tracks/" + trEditing.id);
+  trEditing = null; $("trDlg").close();
+  toast("Track removed from the log.", () => saveTr(before));
+};
+
+// ---------- Running order sheet ----------
+let slotEp = null, slotEditing = null;
+function openSlot(id, kind) {
+  const e = current(); if (!e) return;
+  slotEp = e;
+  const x = id ? (e.slots || []).find((s) => s.id === id) : null;
+  slotEditing = x ? { ...x } : { id: newId(), kind };
+  const song = slotEditing.kind === "song";
+  $("sldh").textContent = x ? (song ? "The song" : "The link") : song ? "Add a song" : "Add a link";
+  $("slSongF").hidden = !song; $("slBitF").hidden = song;
+  if (song) {
+    const trs = tracks();
+    $("slTrack").innerHTML = trs.length ? trs.map((t) => `<option value="${t.id}" ${t.id === slotEditing.track ? "selected" : ""}>${esc(t.title)} · ${esc(t.artist || "Unknown")} (${esc(licName(t))}${t.secs ? ", " + mmss(t.secs) : ""})</option>`).join("")
+      : `<option value="">Log a track first</option>`;
+    songHint();
+  } else {
+    const bits = pieces().filter((p) => p.track !== "ilkwim" || p.id === slotEditing.piece);
+    $("slPiece").innerHTML = `<option value="new">A new piece in the Desk</option><option value="">No script in the Desk</option>`
+      + bits.map((p) => `<option value="${p.id}">${esc(p.title)} (${esc(p.track === "comedy" ? "Comedy" : p.track === "fiction" ? "Fiction" : "ILKWIM")}, ${esc(p.stage || "")})</option>`).join("");
+    $("slPiece").value = x ? (slotEditing.piece || "") : "new";
+    $("slTitle").value = slotEditing.title || "";
+    $("slMins").value = slotEditing.mins || (x ? "" : 3);
+    syncPiece();
+  }
+  $("slNotes").value = slotEditing.notes || "";
+  $("slDelete").hidden = !x;
+  $("slotDlg").showModal();
+}
+function songHint() {
+  const t = findTr($("slTrack").value);
+  const iss = t ? trackIssues(t) : [];
+  $("slSongHint").textContent = !t ? "Log it in the licence log first, with its length." : iss.length ? iss[0].text
+    : has(t.licence, "ND") ? "ND: fine played whole. No fading or talking over it." : "Plays whole. Back-announce it once it ends.";
+}
+function syncPiece() { $("slNewF").hidden = $("slPiece").value !== "new" && $("slPiece").value !== ""; }
+$("slTrack").addEventListener("change", songHint);
+$("slPiece").addEventListener("change", syncPiece);
+$("slotForm").addEventListener("submit", () => {
+  if (!slotEp || !slotEditing) return;
+  const e = findEp(slotEp.id) || slotEp;
+  const x = { ...slotEditing, notes: $("slNotes").value.trim() };
+  if (x.kind === "song") { x.track = $("slTrack").value; if (!x.track) { slotEditing = null; return; } }
+  else {
+    const pick = $("slPiece").value;
+    x.mins = $("slMins").value ? Number($("slMins").value) : null;
+    x.title = $("slTitle").value.trim();
+    if (pick === "new") {
+      // The script gets written in the Writing Desk, as a comedy piece, with a note saying where it airs.
+      const pid = newId();
+      desk.set("pieces/" + pid, { title: x.title || `A link for ${epLabel(e)}`, track: "comedy", stage: "Sketch",
+        notes: `A link for ${epLabel(e)} in the Recording Booth.`, created: new Date().toISOString() });
+      mirrorSoon("desk");
+      x.piece = pid;
+    } else x.piece = pick || null;
+  }
+  const slots = [...(e.slots || [])];
+  const i = slots.findIndex((s) => s.id === x.id);
+  if (i >= 0) slots[i] = x; else slots.push(x);
+  selected = e.id;
+  saveEp({ ...e, slots });
+  slotEditing = null; slotEp = null;
+});
+$("slCancel").onclick = () => { slotEditing = null; $("slotDlg").close(); };
+$("slDelete").onclick = () => {
+  if (!slotEp || !slotEditing) return;
+  const e = findEp(slotEp.id) || slotEp;
+  const before = { ...e };
+  saveEp({ ...e, slots: (e.slots || []).filter((s) => s.id !== slotEditing.id) });
+  slotEditing = null; $("slotDlg").close();
+  toast("Taken out of the running order.", () => saveEp(before));
+};
+
+// ---------- Show sheet ----------
+function openShow() {
+  const s = settings(); const l = lists();
+  $("shName").value = s.show || "";
+  $("shHost").value = s.host || "";
+  $("shPaid").checked = paid();
+  $("shSign").value = s.signoff || "";
+  $("shLists").innerHTML = STAGES.filter(([k]) => k !== "out").map(([k, n]) =>
+    `<div class="f"><label class="label" for="sl-${k}">${n}</label><textarea id="sl-${k}" rows="5">${esc(l[k].join("\n"))}</textarea></div>`).join("");
+  $("showDlg").showModal();
+}
+$("showForm").addEventListener("submit", () => {
+  const checklists = {};
+  STAGES.filter(([k]) => k !== "out").forEach(([k]) => { checklists[k] = linesOf($("sl-" + k).value); });
+  store.set("settings", { ...settings(), show: $("shName").value.trim(), host: $("shHost").value.trim(), paid: $("shPaid").checked,
+    signoff: $("shSign").value.trim(), checklists });
+});
+$("shReset").onclick = () => { STAGES.filter(([k]) => k !== "out").forEach(([k]) => { $("sl-" + k).value = DEFAULT_LISTS[k].join("\n"); }); };
+$("shCancel").onclick = () => $("showDlg").close();
+
+// ---------- Go ----------
+$("date").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+selected = new URLSearchParams(location.search).get("ep") || null;
+store.subscribe(render);
+desk.subscribe(render);
+focus.subscribe(render);
+</script>

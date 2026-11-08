@@ -12,6 +12,7 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 | `desk.html` | The Writing Desk: Coming up (next post opened out; dates follow the publish date), bank, idea shelf, and a collapsed Everything list | `desk` |
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 | `todo.html` | The Errand Book: to-dos by Today / This week / Later / Someday, snooze, waiting on, done shelf, slot requests | `todo` |
+| `podcast.html` | The Recording Booth: podcast episodes from plan to publish, stage checklists, the music licence log and the credits | `podcast` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works
@@ -160,3 +161,30 @@ Peloton classes come in on their own; James only confirms the weights.
 
 1. Add the secrets (Supabase → Edge Functions → Secrets): `PELOTON_USERNAME`, `PELOTON_PASSWORD`.
 2. Deploy the function: `supabase functions deploy peloton` (or via the Supabase connector).
+
+## The Recording Booth
+
+The podcast's workbench: a monthly radio half hour (four songs played whole, spoken links between them), published in ILKWIM.
+
+- **Episodes** (`podcast` / `episodes/<id>`) move through Plan, Record, Edit, Publish and Out, each with its own checklist
+  (editable in `settings.checklists`; ticks are kept per stage on the episode).
+- **Running order** (`slots` on the episode): songs from the licence log and spoken links, each timed, with a total kept
+  against the running time (30 minutes unless set). Music under or around the talking (theme, stings, beds) is `uses`.
+- **The crate** holds songs found but not yet checked (`tracks/<id>` with `found: true`): a link and a note. "Log it" opens
+  the track sheet; once saved it leaves the crate for the licence log.
+- **The licence log** (`tracks/<id>`) holds each track once: title, artist, source link, licence and version, length, the date
+  downloaded, and a link to proof of the licence as it was then.
+- **Checks.** Songs in the running order play whole, so ND and SA are fine there. Theme, stings and beds are changes: ND tracks
+  can't be used that way, SA tracks make the episode share-alike (two different SA licences can't be mixed), and NC tracks are
+  flagged while the show might earn money (`settings.paid`, on by default).
+- **Output.** Show notes (plain for Substack, or HTML), a cue sheet with start times and a back-announcement after each song,
+  and a credits roll for the sign-off.
+
+## How the Booth and the Desk connect
+
+- **Ideas** stay in the Writing Desk; an episode links to one (`piece`).
+- **Link scripts** are Desk pieces too. Adding a link in the running order can create a comedy piece in the Desk, and the
+  running order shows its stage and writing time.
+- **The Desk** tags any piece an unfinished episode uses ("On air · Ep 3 link"), linking to `podcast.html?ep=<id>`.
+- **The Focus Room** lists link scripts in its writing picker, so writing time lands on the right piece and ticks Write.
+- The joins are `onAir` and `radioScripts` in `js/rooms.js`.

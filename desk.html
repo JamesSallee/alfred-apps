@@ -132,6 +132,7 @@ details.all[open] summary{margin-bottom:10px}
 .kind{letter-spacing:.06em;text-transform:uppercase;font-weight:700}
 .kind.ilkwim{color:var(--brass)} .kind.fiction{color:var(--green)} .kind.comedy{color:var(--rust)}
 .idea .ser{color:var(--muted)}
+.air{border-radius:999px;padding:0 7px;font-size:11px;white-space:nowrap;background:var(--rust-soft);color:var(--rust);text-decoration:none;font-weight:600}
 .stg{border:1px solid var(--line);border-radius:999px;padding:0 7px;font-size:11px;white-space:nowrap}
 .idea .acts{display:flex;gap:14px;flex-wrap:wrap}
 .empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
@@ -269,7 +270,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { writingTime, fmtMins, mirrorSoon } from "./js/rooms.js";
+import { writingTime, fmtMins, mirrorSoon, onAir } from "./js/rooms.js";
 mountShell("desk");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -283,6 +284,9 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // Personal content lives in the database, never in this public file.
 const store = openStore("desk");
 const focusStore = openStore("focus"); // writing sessions from the Focus Room, logged against a piece
+const podStore = openStore("podcast"); // the Recording Booth: which pieces are ideas or link scripts for an episode
+const airTag = (p) => (onAir(podStore)[p.id] || []).map((a) =>
+  `<a class="air" href="podcast.html?ep=${encodeURIComponent(a.ep)}" title="Open it in the Recording Booth">On air · ${esc(a.label)}${a.role === "link" ? " link" : ""}</a>`).join("");
 const STAGES = {
   ilkwim: ["Idea", "Gather", "Draft", "Polish", "Scheduled", "Out"],
   fiction: ["Sketch", "Outline", "Draft", "Revise", "Done"],
@@ -481,7 +485,7 @@ function renderShelf(all) {
     if (p.track === "ilkwim") acts.push(`<button class="link" type="button" data-edit="${p.id}" data-slot="1">Give it a date</button>`);
     acts.push(`<button class="link" type="button" data-edit="${p.id}">Edit</button>`);
     const ask = !p.link && i >= st.indexOf("Draft") && p.askSnooze !== ymd(today0());
-    return `<div class="idea"><div class="meta"><span><span class="kind ${p.track}">${kind}</span><span class="stg">${esc(p.stage)}${p.banked ? " · banked" : ""}</span></div>
+    return `<div class="idea"><div class="meta"><span><span class="kind ${p.track}">${kind}</span><span style="display:flex;gap:6px;align-items:center">${airTag(p)}<span class="stg">${esc(p.stage)}${p.banked ? " · banked" : ""}</span></span></div>
       <span>${esc(p.title)}</span>${p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ""}
       ${ask ? askHtml(p) : ""}<div class="acts">${acts.join("")}</div></div>`;
   }).join("") : `<p class="empty">The shelf is clear. Catch an idea above and it lands here.</p>`;
@@ -504,7 +508,7 @@ function renderAll(all) {
   $("allList").innerHTML = list.length ? list.map(({ p, w }) => {
     const sub = [TRACK[p.track], p.series, w === "Out" || w === "Done" ? "" : p.stage, p.banked ? "banked" : ""].filter(Boolean).join(" · ");
     return `<li><span class="when">${p.publish ? esc(dm(p.publish)) : "–"}</span>
-      <span style="min-width:0">${esc(p.title)}<span class="sub"><span class="where">${esc(w)}</span> · ${esc(sub)}</span></span>
+      <span style="min-width:0">${esc(p.title)}<span class="sub"><span class="where">${esc(w)}</span> · ${esc(sub)} ${airTag(p)}</span></span>
       <button class="link" type="button" data-edit="${p.id}">Edit</button></li>`;
   }).join("") : `<li class="empty" style="display:block">${q ? "Nothing matches that." : "No pieces yet."}</li>`;
 }
