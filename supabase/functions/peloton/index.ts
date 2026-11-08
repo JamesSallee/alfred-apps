@@ -46,6 +46,10 @@ Deno.serve(async (req) => {
     });
     const { data: { user } } = await db.auth.getUser();
     if (!user) throw new HttpError(401, "Please sign in first.");
+    // Only accounts on the allow-list (supabase/allow-list.sql); a stranger's account must never reach the Peloton login.
+    const { data: allowed, error: allowErr } = await db.rpc("is_allowed");
+    if (allowErr) throw allowErr;
+    if (!allowed) throw new HttpError(403, "This account isn't on the list.");
     // Private to the owner: a Larder household member is signed in too, but must not reach this.
     const { data: memberships, error: memErr } = await db
       .from("household_members").select("app").eq("member_id", user.id).limit(1);

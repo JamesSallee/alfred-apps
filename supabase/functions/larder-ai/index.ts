@@ -56,6 +56,10 @@ Deno.serve(async (req) => {
     });
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) throw new HttpError(401, "Please sign in first.");
+    // Only accounts on the allow-list (supabase/allow-list.sql) may spend the Claude budget.
+    const { data: allowed, error: allowErr } = await userClient.rpc("is_allowed");
+    if (allowErr) throw allowErr;
+    if (!allowed) throw new HttpError(403, "This account isn't on the list.");
     const { data: ownerId, error: ownerErr } = await userClient.rpc("shared_owner", { p_app: "larder" });
     if (ownerErr) throw ownerErr;
 

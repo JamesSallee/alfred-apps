@@ -199,7 +199,7 @@ export function weekTally(ledger, from, to) {
 const FINISHED = { ilkwim: "Out", fiction: "Done", comedy: "Done" };
 export const openIlkwim = (desk) => desk.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value }))
   .filter((p) => p.track === "ilkwim" && p.stage !== FINISHED.ilkwim && p.stage !== "Skipped");
-/** The next ILKWIM post by publish date: the one writing time goes to unless James picks another. */
+/** The next ILKWIM post by publish date: the one writing time goes to unless another is picked. */
 export function nextPost(desk) {
   const t = ymd(new Date());
   return openIlkwim(desk).filter((p) => p.publish && p.publish >= t).sort((a, b) => a.publish.localeCompare(b.publish))[0];
