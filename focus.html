@@ -291,84 +291,186 @@ function addLog(k,mins,label){ mins=Math.round(mins); if(mins<1) return; const e
   if(k==="focus"&&label==="Writing"&&S.deskPiece!=="none"){ const p=deskPick(); if(p){ entry.piece=p.id; entry.pieceTitle=p.title; } } LOG.push(entry); focusStore.set("log/"+entry.t,entry); renderTally(); if(!$("#v-log").hidden) renderLog(); }
 
 /* ---------- audio engine ---------- */
-let ctx=null, master=null, duckG=null, BAG=null;
+// Nothing here is a loop, because the ear finds a loop within a minute and then can't stop hearing it.
+// Beds are long stereo noise read out in random stretches with soft crossfades. Drops, crackles and chirps
+// are rendered fresh a couple of seconds at a time, just ahead of the play head. Swells and gusts drift at
+// random, each sound's "weather" eases up and down over minutes, and now and then something rare happens.
+let ctx=null, master=null, duckG=null, B=null, pump=null;
 const bufs={}, active={};
+const AHEAD=3, CHUNK=2, TAIL=2.5; // seconds: how far ahead to schedule, and the size of each fresh texture chunk
 function ac(){
   if(!ctx){ const C=window.AudioContext||window.webkitAudioContext; ctx=new C();
     master=ctx.createGain(); master.gain.value=S.vol*S.vol; duckG=ctx.createGain(); master.connect(duckG); duckG.connect(ctx.destination); }
   if(ctx.state==="suspended") ctx.resume();
   return ctx;
 }
-// A seamless loop: render a little extra, then crossfade the tail into the head.
-function makeLoop(sec,fill){
-  const sr=ctx.sampleRate,n=Math.round(sr*sec),F=Math.round(sr*.25),g=new Float32Array(n+F);
-  fill(g,sr);
-  const b=ctx.createBuffer(1,n,sr),d=b.getChannelData(0);
-  for(let i=0;i<n;i++) d[i]=g[i];
-  for(let i=0;i<F;i++){const a=i/F; d[i]=g[i]*a+g[n+i]*(1-a);}
-  return b;
+// One timer feeds every playing sound. Background tabs slow timers to once a second, so it stays 3 s ahead.
+function pumpAll(){
+  if(!ctx) return; const ids=Object.keys(active);
+  if(!ids.length){ clearInterval(pump); pump=null; return; }
+  const now=ctx.currentTime; ids.forEach(id=>active[id].jobs.forEach(j=>{ try{ j(now); }catch(e){ console.warn(e); } }));
 }
-function noise(kind){
+function track(a,src,...rest){ a.nodes.add(src); src.onended=()=>{ a.nodes.delete(src); try{ src.disconnect(); rest.forEach(n=>n.disconnect()); }catch(e){} }; return src; }
+const n0=x=>Math.floor(x+R());          // a random whole number that averages x
+const pick1=xs=>xs[Math.floor(R()*xs.length)];
+const side=(w=.8)=>(R()*2-1)*w;         // a random spot between left and right
+
+// Noise beds: 31 s of independent left and right noise per colour, shared by every sound.
+function fillNoise(kind,g){
+  if(kind==="white"){ for(let i=0;i<g.length;i++) g[i]=(R()*2-1)*.5; }
+  else if(kind==="pink"){ let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for(let i=0;i<g.length;i++){const w=R()*2-1; b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898; g[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926;} }
+  else { let last=0; for(let i=0;i<g.length;i++){const w=R()*2-1; last=(last+.02*w)/1.02; g[i]=last*3.5;} }
+}
+function noiseBuf(kind){
   const key="n_"+kind; if(bufs[key]) return bufs[key];
-  return bufs[key]=makeLoop(9,(g)=>{
-    if(kind==="white"){ for(let i=0;i<g.length;i++) g[i]=(R()*2-1)*.5; }
-    else if(kind==="pink"){ let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-      for(let i=0;i<g.length;i++){const w=R()*2-1; b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898; g[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926;} }
-    else { let last=0; for(let i=0;i<g.length;i++){const w=R()*2-1; last=(last+.02*w)/1.02; g[i]=last*3.5;} }
-  });
+  const sr=ctx.sampleRate,b=ctx.createBuffer(2,Math.round(sr*31),sr);
+  fillNoise(kind,b.getChannelData(0)); fillNoise(kind,b.getChannelData(1));
+  return bufs[key]=b;
 }
-// Texture helpers write straight into the sample array.
-function burst(g,sr,t,dur,amp,freq,shape){ // band of noise around freq
-  const s=Math.floor(t*sr),len=Math.floor(dur*sr),w=2*Math.PI*freq/sr;
-  for(let i=0;i<len&&s+i<g.length;i++){const p=i/len; const env=shape==="swell"?Math.sin(Math.PI*p):Math.exp(-5*p); g[s+i]+=(R()*2-1)*Math.sin(w*i)*amp*env;}
+const XF=1.5, FADE_IN=new Float32Array(64).map((_,i)=>Math.sin(i/63*Math.PI/2)), FADE_OUT=FADE_IN.slice().reverse();
+// A bed plays 4–11 s stretches from random places in its buffer, crossfaded (equal power), so no order ever repeats.
+function bed(kind,gain,filters){
+  const a=B, buf=noiseBuf(kind), head=ctx.createGain(); let n=head; const f=[];
+  for(const [type,fr,q] of filters){const b=ctx.createBiquadFilter(); b.type=type; b.frequency.value=fr; if(q) b.Q.value=q; n.connect(b); n=b; f.push(b);}
+  const g=ctx.createGain(); g.gain.value=gain; n.connect(g); g.connect(a.mix);
+  let next=ctx.currentTime+.05, first=true;
+  a.jobs.push(now=>{ while(next<now+AHEAD){
+    const len=4+R()*7, off=R()*(buf.duration-len-XF-.1), s=ctx.createBufferSource(), e=ctx.createGain();
+    s.buffer=buf; s.connect(e); e.connect(head);
+    if(!first){ e.gain.value=0; e.gain.setValueCurveAtTime(FADE_IN,next,XF); }
+    e.gain.setValueCurveAtTime(FADE_OUT,next+len,XF);
+    s.start(next,off); s.stop(next+len+XF+.05); track(a,s,e);
+    next+=len; first=false; } });
+  return {g,f};
 }
-function tone(g,sr,t,dur,amp,f0,f1,att){ // sine glide with a soft tail
-  const s=Math.floor(t*sr),len=Math.floor(dur*sr),a=Math.max(1,(att||.005)*sr); let ph=0;
-  for(let i=0;i<len&&s+i<g.length;i++){const p=i/len; ph+=2*Math.PI*f0*Math.pow(f1/f0,p)/sr; g[s+i]+=Math.sin(ph)*amp*Math.min(1,i/a)*(1-p)*(1-p);}
+// An offset added to an AudioParam, for drifting and swelling it.
+function offs(param){ const cs=ctx.createConstantSource(); cs.offset.value=0; cs.connect(param); cs.start(); track(B,cs); return cs.offset; }
+// Wander a parameter by up to ±depth, heading somewhere new every tmin–tmax seconds. Never a steady cycle.
+function drift(param,depth,tmin,tmax){
+  const o=offs(param); let next=0;
+  B.jobs.push(now=>{ if(now<next) return; const d=tmin+R()*(tmax-tmin); o.setTargetAtTime(depth*(R()*2-1),now,d/3); next=now+d; });
+}
+
+// Texture helpers write into a stereo chunk c = {L, R, sr, D (seconds of events), k (weather), st (state kept between chunks)}.
+function pan(p){ const a=(p+1)*Math.PI/4; return [Math.SQRT2*Math.cos(a),Math.SQRT2*Math.sin(a)]; }
+function burst(c,t,dur,amp,freq,shape,p){ // band of noise around freq
+  const [l,r]=pan(p||0),s=Math.floor(t*c.sr),len=Math.floor(dur*c.sr),w=2*Math.PI*freq/c.sr,N=c.L.length;
+  for(let i=0;i<len&&s+i<N;i++){const q=i/len, env=shape==="swell"?Math.sin(Math.PI*q):Math.exp(-5*q), v=(R()*2-1)*Math.sin(w*i)*amp*env; c.L[s+i]+=v*l; c.R[s+i]+=v*r;}
+}
+function tone(c,t,dur,amp,f0,f1,att,p){ // sine glide with a soft tail
+  const [l,r]=pan(p||0),s=Math.floor(t*c.sr),len=Math.floor(dur*c.sr),A=Math.max(1,(att||.005)*c.sr),N=c.L.length; let ph=0;
+  for(let i=0;i<len&&s+i<N;i++){const q=i/len; ph+=2*Math.PI*f0*Math.pow(f1/f0,q)/c.sr; const v=Math.sin(ph)*amp*Math.min(1,i/A)*(1-q)*(1-q); c.L[s+i]+=v*l; c.R[s+i]+=v*r;}
 }
 const TEX={
-  rain:[12,(g,sr)=>{ for(let k=0;k<12*30;k++) burst(g,sr,R()*12,.006+R()*.02,.04+Math.pow(R(),3)*.3,1500+R()*4500);
-                     for(let k=0;k<18;k++) burst(g,sr,R()*12,.03+R()*.03,.15+R()*.2,700+R()*900); }],
-  cafe:[20,(g,sr)=>{ for(let k=0;k<20*8;k++) burst(g,sr,R()*20,.15+R()*.35,.05+R()*.06,250+R()*700,"swell");
-                     for(let k=0;k<9;k++){const t=R()*19.4,f=2200+R()*2200,a=.05+R()*.06; tone(g,sr,t,.5,a,f,f,.001); tone(g,sr,t,.3,a*.5,f*2.76,f*2.76,.001);}
-                     for(let k=0;k<4;k++){const t=R()*19.4; burst(g,sr,t,.012,.25,2600); burst(g,sr,t+.09,.01,.12,3000);} }],
-  fire:[16,(g,sr)=>{ let t=.1; while(t<15.6){ t+=-Math.log(1-R())*.45; let u=t; const n=1+Math.floor(R()*5);
-                       for(let p=0;p<n;p++){ burst(g,sr,u,.002+R()*.01,.12+Math.pow(R(),2)*.55,2500+R()*5000); u+=.01+R()*.08; } }
-                     for(let k=0;k<4;k++){const t=R()*15.5; burst(g,sr,t,.04,.5,900); burst(g,sr,t+.03,.008,.5,4000);} }],
-  stream:[10,(g,sr)=>{ for(let k=0;k<10*45;k++){const f=300+R()*900; tone(g,sr,R()*10,.01+R()*.035,.03+R()*.08,f,f*(1.4+R()*.8),.001);} }],
-  birds:[30,(g,sr)=>{ let t=.4; while(t<29){ const ty=R(),amp=.03+R()*.08; let u=t;
-      if(ty<.4){ const base=1800+R()*1600,n=2+Math.floor(R()*3); for(let j=0;j<n;j++){const f=base*(.85+R()*.4),d=.12+R()*.2; tone(g,sr,u,d,amp,f,f*(.9+R()*.25),.02); u+=d+.05+R()*.1;} }
-      else if(ty<.7){ const f=3800+R()*1800,n=6+Math.floor(R()*9); for(let j=0;j<n;j++){ tone(g,sr,u,.045,amp*.8,f*(1-j*.01),f*(.92-j*.01),.003); u+=.06; } }
-      else { const n=1+Math.floor(R()*3); for(let j=0;j<n;j++){ tone(g,sr,u,.06,amp,2800+R()*600,4200+R()*800,.003); u+=.18+R()*.15; } }
-      t=u+.8+R()*3; } }],
-  crickets:[12,(g,sr)=>{ for(let c=0;c<3;c++){ const car=4300+R()*900,per=.45+R()*.35,amp=.03+R()*.04; let t=R()*per;
-      while(t<12){ for(let p=0;p<3;p++){ const s=Math.floor((t+p*.035)*sr),len=Math.floor(.022*sr);
-          for(let i=0;i<len&&s+i<g.length;i++) g[s+i]+=Math.sin(2*Math.PI*car*i/sr)*Math.sin(Math.PI*i/len)*amp; }
-        t+=per*(.9+R()*.2); } } }],
-  clock:[2,(g,sr)=>{ burst(g,sr,.5,.012,.45,3400); tone(g,sr,.5,.04,.12,2700,2600,.0005);
-                     burst(g,sr,1.5,.014,.4,2300); tone(g,sr,1.5,.05,.12,1900,1850,.0005); }]
+  rain(c){ const D=c.D,k=c.k;
+    for(let i=n0(30*D*k);i--;) burst(c,R()*D,.006+R()*.02,.04+Math.pow(R(),3)*.3,1500+R()*4500,0,side(.9));
+    for(let i=n0(1.5*D*k);i--;) burst(c,R()*D,.03+R()*.03,.15+R()*.2,700+R()*900,0,side()); },
+  cafe(c){ const D=c.D,k=c.k;
+    for(let i=n0(8*D*k);i--;) burst(c,R()*D,.15+R()*.35,.05+R()*.06,250+R()*700,"swell",side());
+    for(let i=n0(.45*D*k);i--;){const t=R()*D,f=2200+R()*2200,a=.05+R()*.06,p=side(); tone(c,t,.5,a,f,f,.001,p); tone(c,t,.3,a*.5,f*2.76,f*2.76,.001,p);}
+    for(let i=n0(.2*D);i--;){const t=R()*D,p=side(); burst(c,t,.012,.25,2600,0,p); burst(c,t+.09,.01,.12,3000,0,p);} },
+  fire(c){ let t=c.st.t||0;
+    while(t<c.D){ let u=t; const n=1+Math.floor(R()*5), p=side(.6);
+      for(let j=0;j<n;j++){ burst(c,u,.002+R()*.01,.12+Math.pow(R(),2)*.55,2500+R()*5000,0,p); u+=.01+R()*.08; }
+      t+=-Math.log(1-R())*.45/c.k; }
+    c.st.t=t-c.D;
+    for(let i=n0(.25*c.D);i--;){const t=R()*c.D,p=side(.5); burst(c,t,.04,.5,900,0,p); burst(c,t+.03,.008,.5,4000,0,p);} },
+  stream(c){ for(let i=n0(45*c.D*c.k);i--;){const f=300+R()*900; tone(c,R()*c.D,.01+R()*.035,.03+R()*.08,f,f*(1.4+R()*.8),.001,side(.7));} },
+  birds(c){ let t=c.st.t==null?.4:c.st.t;
+    while(t<c.D){ const ty=R(),amp=(.03+R()*.08)*(R()<.3?.45:1),p=side(.9); let u=t; // some birds are further off
+      if(ty<.4){ const base=1800+R()*1600,n=2+Math.floor(R()*3); for(let j=0;j<n;j++){const f=base*(.85+R()*.4),d=.12+R()*.2; tone(c,u,d,amp,f,f*(.9+R()*.25),.02,p); u+=d+.05+R()*.1;} }
+      else if(ty<.7){ const f=3800+R()*1800,n=6+Math.floor(R()*9); for(let j=0;j<n;j++){ tone(c,u,.045,amp*.8,f*(1-j*.01),f*(.92-j*.01),.003,p); u+=.06; } }
+      else { const n=1+Math.floor(R()*3); for(let j=0;j<n;j++){ tone(c,u,.06,amp,2800+R()*600,4200+R()*800,.003,p); u+=.18+R()*.15; } }
+      t=u+(.8+R()*3)/c.k; }
+    c.st.t=t-c.D; },
+  crickets(c){ const st=c.st;
+    if(!st.cr) st.cr=[0,1,2,3].map(j=>({car:4300+R()*900,per:.45+R()*.35,amp:.03+R()*.04,t:j<3?R()*.6:8+R()*20,p:side()}));
+    for(const q of st.cr){ const [l,r]=pan(q.p);
+      while(q.t<c.D){
+        if(R()<.012/c.k){ q.t+=4+R()*12; continue; } // a cricket falls quiet for a while, then carries on
+        for(let p=0;p<3;p++){ const s=Math.floor((q.t+p*.035)*c.sr),len=Math.floor(.022*c.sr);
+          for(let i=0;i<len&&s+i<c.L.length;i++){ const v=Math.sin(2*Math.PI*q.car*i/c.sr)*Math.sin(Math.PI*i/len)*q.amp; c.L[s+i]+=v*l; c.R[s+i]+=v*r; } }
+        q.t+=q.per*(.9+R()*.2); }
+      q.t-=c.D; } },
+  clock(c){ // the tick stays steady; only the wood and the spring vary a hair
+    const v=()=>1+(R()-.5)*.06;
+    let m=v(); burst(c,.5,.012,.45*v(),3400*m,0,-.1); tone(c,.5,.04,.12*v(),2700*m,2600*m,.0005,-.1);
+    m=v(); burst(c,1.5,.014,.4*v(),2300*m,0,-.1); tone(c,1.5,.05,.12*v(),1900*m,1850*m,.0005,-.1); }
 };
-function texBuf(name){ if(!bufs[name]) bufs[name]=makeLoop(TEX[name][0],TEX[name][1]); return bufs[name]; }
-function loopSrc(buf,out){ const s=ctx.createBufferSource(); s.buffer=buf; s.loop=true; s.connect(out); s.start(0,R()*buf.duration); BAG.push(s); return s; }
-function bed(kind,out,gain,filters){
-  const s=ctx.createBufferSource(); s.buffer=noise(kind); s.loop=true; let n=s; const f=[];
-  for(const [type,fr,q] of filters){const b=ctx.createBiquadFilter(); b.type=type; b.frequency.value=fr; if(q) b.Q.value=q; n.connect(b); n=b; f.push(b);}
-  const g=ctx.createGain(); g.gain.value=gain; n.connect(g); g.connect(out); s.start(0,R()*8); BAG.push(s); return {g,f};
+// Render the next CHUNK seconds of a texture just before it's needed. Tails spill into the next chunk and simply add up.
+function tex(name,gain){
+  const a=B, g=ctx.createGain(), st={}; g.gain.value=gain; g.connect(a.mix);
+  let next=ctx.currentTime+.05;
+  a.jobs.push(now=>{ while(next<now+AHEAD){
+    const sr=ctx.sampleRate, b=ctx.createBuffer(2,Math.round((CHUNK+TAIL)*sr),sr);
+    TEX[name]({L:b.getChannelData(0),R:b.getChannelData(1),sr,D:CHUNK,k:a.scene.v,st});
+    const s=ctx.createBufferSource(); s.buffer=b; s.connect(g); s.start(next); track(a,s);
+    next+=CHUNK; } });
 }
-function tex(name,out,gain){ const g=ctx.createGain(); g.gain.value=gain; g.connect(out); loopSrc(texBuf(name),g); }
-function lfo(rate,depth,param){ const o=ctx.createOscillator(); o.frequency.value=rate; const g=ctx.createGain(); g.gain.value=depth; o.connect(g); g.connect(param); o.start(); BAG.push(o); }
+// Rare moments, a few minutes apart: [seconds long, peak level, render].
+const RARE={
+  thunder:[11,.28,c=>{ // distant thunder: a few rolls, nothing sharp
+    const rolls=[[.2,1]]; for(let i=1+Math.floor(R()*3);i--;) rolls.push([.8+R()*3.5,.4+R()*.6]);
+    const al=2*Math.PI*(90+R()*60)/c.sr;
+    for(const ch of [c.L,c.R]){ let x=0,y=0;
+      for(let i=0;i<ch.length;i++){ const t=i/c.sr; let e=0;
+        for(const [t0,g] of rolls) if(t>t0){ const d=t-t0; e+=g*(1-Math.exp(-d/.35))*Math.exp(-d/1.8); }
+        x+=(R()*2-1-x)*al; y+=(x-y)*al; ch[i]=y*e; } } }],
+  log:[3,.4,c=>{ // a log settling into the grate
+    const p=side(.6); tone(c,.05,.35,.6,95,55,.01,p); burst(c,.05,.08,.5,400,0,p);
+    let t=.15; for(let i=12+Math.floor(R()*18);i--&&t<2.5;){ burst(c,t,.002+R()*.01,.1+R()*.5,2500+R()*5000,0,p+side(.2)); t+=.02+Math.pow(R(),2)*.25; } }],
+  cafe:[3.5,.15,c=>{ const v=R(),p=side();
+    if(v<.4){ burst(c,.05,.06,.5,180,0,p); burst(c,.06,.01,.3,1500,0,p); // the door, and its little bell
+      for(let i=0;i<4;i++){ const f=2600*(i%2?1.19:1),t=.25+i*.11+R()*.03; tone(c,t,1.2,.12,f,f,.001,p); tone(c,t,.8,.05,f*2.7,f*2.7,.001,p); } }
+    else if(v<.75){ let t=.05; for(let i=6+Math.floor(R()*8);i--;){ const f=2500+R()*3000; tone(c,t,.25,.05+R()*.08,f,f,.001,p); burst(c,t,.01,.2,f,0,p); t+=.02+R()*.09; } } // cutlery into a tray
+    else { const f=250+R()*200; for(let i=0;i<25;i++) burst(c,.05+i*.022,.03,.12+.1*Math.sin(Math.PI*i/25),f*(1+i*.01),"swell",p); } }], // a chair scraping back
+  garden:[4.5,.06,c=>{ const p=side();
+    if(R()<.5){ const f=450+R()*80; [[0,.35,.6],[.45,.55,1],[1.1,.3,.6],[1.55,.3,.55],[1.95,.3,.5]].forEach(([t,d,a])=>tone(c,.1+t,d,a,f*1.04,f*.97,.06,p)); } // a wood pigeon
+    else { const f=700+R()*400; for(let i=0;i<18;i++) burst(c,.1+i*.055,.02,1-i/22,f,0,p); } }], // a woodpecker, some way off
+  owl:[3.5,.08,c=>{ const p=side(),f=520+R()*80; tone(c,.1,.6,.5,f,f*.93,.08,p); tone(c,1.3,.25,.35,f*.95,f*.9,.04,p); tone(c,1.65,1.4,.5,f,f*.9,.12,p); }],
+  plop:[1.5,.15,c=>{ const p=side(.7); tone(c,.05,.12,.6,280+R()*80,900+R()*300,.002,p); for(let i=0;i<5;i++) burst(c,.1+R()*.25,.01+R()*.02,.1+R()*.15,1500+R()*2000,0,p); }],
+  gull:[4,.15,c=>{ const p=side(); let t=.1;
+    for(let i=2+Math.floor(R()*4);i--;){ const d=.25+R()*.2,f=1300+R()*300; tone(c,t,d,.5,f,f*.65,.03,p); tone(c,t,d,.25,f*2,f*1.3,.03,p); tone(c,t,d,.1,f*3,f*1.95,.03,p); t+=d+.08+R()*.15; } }],
+  chime:[5,.18,c=>{ const sc=[1,1.125,1.25,1.5,1.667,2],b=900+R()*300,p=side(.6); let t=.05; // a wind chime next door
+    for(let i=3+Math.floor(R()*5);i--&&t<2.2;){ const f=b*pick1(sc); tone(c,t,2.6,.25+R()*.2,f,f,.001,p); tone(c,t,1.2,.08,f*2.76,f*2.76,.001,p); t+=.08+R()*.5; } }]
+};
+function rare(name,tmin,tmax){
+  const a=B; let next=ctx.currentTime+tmin*(.3+R()*.7);
+  a.jobs.push(now=>{ if(next>now+AHEAD) return;
+    const [dur,peak,fill]=RARE[name], sr=ctx.sampleRate, b=ctx.createBuffer(2,Math.round(dur*sr),sr), L=b.getChannelData(0), Rc=b.getChannelData(1);
+    fill({L,R:Rc,sr}); let m=1e-9; for(let i=0;i<L.length;i++) m=Math.max(m,Math.abs(L[i]),Math.abs(Rc[i]));
+    const F=Math.round(.3*sr); for(let i=0;i<L.length;i++){ const g=peak/m*Math.min(1,(L.length-i)/F); L[i]*=g; Rc[i]*=g; }
+    const s=ctx.createBufferSource(); s.buffer=b; s.connect(a.mix); s.start(Math.max(next,now+.05)); track(a,s);
+    next+=tmin+R()*(tmax-tmin); });
+}
+// Slow weather: each sound's intensity heads somewhere new every 40–150 s. It sets the density of events,
+// and moves the volume by `vol` of the change.
+function sceneJob(a,[lo,hi,vol]){ const s=a.scene;
+  return now=>{ if(now>=s.t1){ s.from=s.v; s.to=lo+R()*(hi-lo); s.t0=now; s.t1=now+40+R()*110; }
+    const p=Math.min(1,(now-s.t0)/(s.t1-s.t0)), e=p*p*(3-2*p); s.v=s.from+(s.to-s.from)*e;
+    a.mix.gain.setTargetAtTime(1+vol*(s.v-1),now,1.5); };
+}
+function waves(){ // each wave rises, breaks and drags back over the shingle; sets come and go
+  const a=B, w=bed("pink",.08,[["lowpass",350]]), h=bed("pink",0,[["highpass",2500],["lowpass",7000]]);
+  const A=offs(w.g.gain), Fq=offs(w.f[0].frequency), H=offs(h.g.gain); let t=ctx.currentTime+.3;
+  a.jobs.push(now=>{ while(t<now+AHEAD+4){ const k=a.scene.v, rise=2+R()*2.5, fall=4+R()*4, pk=(.22+R()*.32)*k;
+    A.setTargetAtTime(pk,t,rise/3); Fq.setTargetAtTime((400+R()*700)*k,t,rise/3); H.setTargetAtTime(pk*.22,t+rise*.8,.6);
+    A.setTargetAtTime(0,t+rise,fall/3); Fq.setTargetAtTime(0,t+rise,fall/2); H.setTargetAtTime(0,t+rise+.8,fall/2.5);
+    t+=rise+fall*(.55+R()*.5)+(R()<.15?3+R()*5:R()*1.5); } });
+}
 
 const SOUNDS=[
-  {id:"rain",name:"Rain",note:"Steady, on the window",trim:0.9,build(o){ bed("pink",o,.4,[["highpass",450],["lowpass",6000]]); bed("brown",o,.3,[["lowpass",220]]); tex("rain",o,.7); }},
-  {id:"cafe",name:"Café",note:"Murmur and the odd cup",trim:1.2,build(o){ const m=bed("pink",o,.35,[["bandpass",550,.9]]); lfo(.11,.1,m.g.gain); bed("brown",o,.2,[["lowpass",300]]); tex("cafe",o,.9); }},
-  {id:"fire",name:"Fireside",note:"Crackle and low roar",trim:0.65,build(o){ const r=bed("brown",o,.5,[["lowpass",450]]); lfo(.23,.15,r.g.gain); lfo(.07,.1,r.g.gain); bed("pink",o,.04,[["bandpass",1500,.7]]); tex("fire",o,.8); }},
-  {id:"brown",name:"Brown noise",note:"Deep, even hush",trim:0.45,build(o){ bed("brown",o,.75,[["lowpass",1000]]); }},
-  {id:"waves",name:"Waves",note:"Slow surf on shingle",trim:0.85,build(o){ const w=bed("pink",o,.3,[["lowpass",800]]); lfo(.075,.25,w.g.gain); lfo(.075,550,w.f[0].frequency); lfo(.029,.08,w.g.gain); bed("brown",o,.25,[["lowpass",180]]); }},
-  {id:"wind",name:"Wind",note:"Gusts round the house",trim:0.9,build(o){ const w=bed("pink",o,.9,[["bandpass",450,1.8]]); lfo(.06,220,w.f[0].frequency); lfo(.17,90,w.f[0].frequency); lfo(.045,.35,w.g.gain); lfo(.13,.15,w.g.gain); bed("brown",o,.25,[["lowpass",160]]); }},
-  {id:"stream",name:"Stream",note:"Water over stones",trim:1.8,build(o){ bed("white",o,.06,[["bandpass",2200,.6]]); bed("pink",o,.25,[["highpass",250],["lowpass",2500]]); tex("stream",o,.8); }},
-  {id:"birds",name:"Birdsong",note:"A garden in spring",trim:3,build(o){ bed("pink",o,.06,[["highpass",300],["lowpass",1500]]); tex("birds",o,.8); }},
-  {id:"crickets",name:"Crickets",note:"A warm night outside",trim:2,build(o){ bed("pink",o,.04,[["lowpass",600]]); tex("crickets",o,.8); }},
-  {id:"clock",name:"Study clock",note:"Tick, tock, once a second",trim:1.3,build(o){ tex("clock",o,.6); }}
+  {id:"rain",name:"Rain",note:"Steady, on the window",trim:0.9,scene:[.55,1.3,.5],build(){ bed("pink",.4,[["highpass",450],["lowpass",6000]]); bed("brown",.3,[["lowpass",220]]); tex("rain",.7); rare("thunder",240,540); }},
+  {id:"cafe",name:"Café",note:"Murmur and the odd cup",trim:1.2,scene:[.6,1.3,.3],build(){ const m=bed("pink",.35,[["bandpass",550,.9]]); drift(m.g.gain,.1,3,10); bed("brown",.2,[["lowpass",300]]); tex("cafe",.9); rare("cafe",90,240); }},
+  {id:"fire",name:"Fireside",note:"Crackle and low roar",trim:0.65,scene:[.7,1.25,.3],build(){ const r=bed("brown",.5,[["lowpass",450]]); drift(r.g.gain,.15,1,4); drift(r.g.gain,.1,6,15); bed("pink",.04,[["bandpass",1500,.7]]); tex("fire",.8); rare("log",100,260); }},
+  {id:"brown",name:"Brown noise",note:"Deep, even hush",trim:0.45,build(){ bed("brown",.75,[["lowpass",1000]]); }},
+  {id:"waves",name:"Waves",note:"Slow surf on shingle",trim:0.85,scene:[.6,1.35,.2],build(){ waves(); bed("brown",.25,[["lowpass",180]]); rare("gull",120,300); }},
+  {id:"wind",name:"Wind",note:"Gusts round the house",trim:0.9,scene:[.6,1.4,.4],build(){ const w=bed("pink",.9,[["bandpass",450,1.8]]); drift(w.f[0].frequency,250,4,12); drift(w.f[0].frequency,90,1.5,4); drift(w.g.gain,.35,5,15); drift(w.g.gain,.15,1.5,5); bed("brown",.25,[["lowpass",160]]); rare("chime",150,360); }},
+  {id:"stream",name:"Stream",note:"Water over stones",trim:1.8,scene:[.8,1.15,.2],build(){ bed("white",.06,[["bandpass",2200,.6]]); bed("pink",.25,[["highpass",250],["lowpass",2500]]); tex("stream",.8); rare("plop",90,240); }},
+  {id:"birds",name:"Birdsong",note:"A garden in spring",trim:3,scene:[.25,1.4,.15],build(){ bed("pink",.06,[["highpass",300],["lowpass",1500]]); tex("birds",.8); rare("garden",80,200); }},
+  {id:"crickets",name:"Crickets",note:"A warm night outside",trim:2,scene:[.5,1.3,.2],build(){ bed("pink",.04,[["lowpass",600]]); tex("crickets",.72); rare("owl",180,420); }},
+  {id:"clock",name:"Study clock",note:"Tick, tock, once a second",trim:1.3,build(){ tex("clock",.6); }}
 ];
 const MIXES=[
   {name:"Rainy study",set:{rain:.7,fire:.5}},
@@ -380,15 +482,17 @@ const lvl=id=>S.levels[id]==null?.6:S.levels[id];
 const gainFor=id=>{const s=SOUNDS.find(x=>x.id===id); const l=lvl(id); return l*l*1.6*s.trim;};
 function startSound(id){
   ac(); if(active[id]) return;
-  const snd=SOUNDS.find(x=>x.id===id), out=ctx.createGain(); out.gain.value=0; out.connect(master);
-  BAG=[]; snd.build(out); const bag=BAG; BAG=null;
+  const snd=SOUNDS.find(x=>x.id===id), out=ctx.createGain(), mix=ctx.createGain(); out.gain.value=0; mix.connect(out); out.connect(master);
+  const a={out,mix,jobs:[],nodes:new Set(),scene:{v:1,from:1,to:1,t0:0,t1:0}};
+  if(snd.scene) a.jobs.push(sceneJob(a,snd.scene));
+  B=a; snd.build(); B=null;
   out.gain.setTargetAtTime(gainFor(id),ctx.currentTime,.4);
-  active[id]={out,bag};
+  active[id]=a; pumpAll(); if(!pump) pump=setInterval(pumpAll,250);
 }
 function stopSound(id){
   const a=active[id]; if(!a) return; delete active[id];
   a.out.gain.setTargetAtTime(0,ctx.currentTime,.25);
-  setTimeout(()=>{a.bag.forEach(n=>{try{n.stop()}catch(e){}}); a.out.disconnect();},1600);
+  setTimeout(()=>{a.nodes.forEach(n=>{try{n.stop()}catch(e){}}); a.out.disconnect();},1600);
 }
 function setDuck(on){ if(!ctx) return; duckG.gain.setTargetAtTime(on&&S.duck?.35:1,ctx.currentTime,.8); }
 
