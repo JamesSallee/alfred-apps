@@ -629,7 +629,7 @@ $("#settle").checked=S.settle; $("#settle").onchange=e=>{ S.settle=e.target.chec
 const CIRC=2*Math.PI*108; $("#arc").style.strokeDasharray=CIRC;
 const run={ringing:null,running:false,paused:false,phases:[],i:-1,endAt:0,start:0,pausedAt:0,chime:null,focusSecs:0};
 const LINES={
-  settle:["Phone face down. Water to hand. One tab open.","Close what you won't need. The rest can wait an hour.","Take a breath. Decide what done looks like for this block."],
+  settle:["Water to hand. One tab open.","Close what you won't need. The rest can wait an hour.","Take a breath. Decide what done looks like for this block."],
   focus:["Heads down. I'll call you when it's time.","One thing at a time. The inbox will keep.","Steady work beats heroic work.","If you drift, come back. No harm done."],
 };
 const pick=a=>a[Math.floor(R()*a.length)];
