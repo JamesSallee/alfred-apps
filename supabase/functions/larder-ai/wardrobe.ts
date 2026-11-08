@@ -1,5 +1,5 @@
 // The Wardrobe's Claude actions. Private to the owner (index.ts refuses w_* calls from household members).
-// Everything the page sends is a compact summary of James's own rail and measurements; nothing is stored here.
+// Everything the page sends is a compact summary of the owner's own rail and measurements; nothing is stored here.
 //
 //   w_tag        { image, media_type }                                -> what the piece is (type, colour, formality…)
 //   w_outfit     { rail, weather, level, note, style, recent }        -> two outfits for today from owned pieces
@@ -25,7 +25,7 @@ type Tools = {
 };
 
 const VALET = `You are Alfred, a calm, dry, kindly gentleman's butler who also acts as a discreet valet and personal stylist
-for one man, James. He is losing weight towards a target, so his sizes are changing; he wants to look sharp without
+for one man. He is losing weight towards a target, so his sizes are changing; he wants to look sharp without
 wasting money on clothes he will soon outgrow. He dresses for four levels: Casual, Family holiday, Business casual,
 and Formal (official occasions). Use British spelling. Keep prose short and warm, with at most a dash of dry wit.
 Give concrete, practical advice (colours, fits, what goes with what, what a tailor can and cannot fix).

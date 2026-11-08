@@ -3,7 +3,7 @@
 
 -- 1. Who shares what. One row per (owner, member, app). The owner's rows for that app become
 --    readable and writable by the member; nothing else of the owner's is visible to them.
---    Rows are added by hand (see README: "Inviting Maggie"), never from the apps.
+--    Rows are added by hand (see README: "Inviting a household member"), never from the apps.
 create table if not exists public.household_members (
   owner_id  uuid not null references auth.users (id) on delete cascade,
   member_id uuid not null references auth.users (id) on delete cascade,

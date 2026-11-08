@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
-/* The Wardrobe: James's clothes while his size changes. Today (what to wear), the Rail (everything he owns),
+/* The Wardrobe: clothes while a size changes. Today (what to wear), the Rail (everything he owns),
    Fit (measurements, sizes, tailoring), Plan (style brief, buying list, before-you-buy) and Occasions
    (formal kit, events, packing). Same paper, green and brass as the Study. Private to its owner. */
 :root{
@@ -1308,7 +1308,7 @@ async function runFit() {
   try {
     const res = await ai("w_fit", { ...aboutMe(), rail: railLines((p) => !["Retire", "Donate"].includes(p.verdict)) });
     store.set("fit", { ...res, at: Date.now(), measured: measures()[0]?.date, applied: {} });
-    // Fold Claude's sizes into "My sizes", keeping anything James typed for garments it didn't mention.
+    // Fold Claude's sizes into "My sizes", keeping anything typed by hand for garments it didn't mention.
     const sizes = { ...(settings().sizes || {}) };
     (res.sizes || []).forEach(({ garment, size }) => { sizes[garmentOf(garment)] = size; });
     setSettings({ sizes });
@@ -1444,7 +1444,7 @@ async function runGap() {
   try {
     const occ = occasions().filter((o) => daysUntil(o.end || o.date) >= 0).map((o) => `${o.date}: ${o.kind === "trip" ? `trip, ${o.levels?.join("/") || o.level}` : o.level}`).join("; ");
     const res = await ai("w_gap", { ...aboutMe(), rail: railLines(), levels: LEVELS.join(", "), occasions: occ });
-    // Replace Alfred's earlier open suggestions; keep James's own entries and anything already bought.
+    // Replace Alfred's earlier open suggestions; keep his own entries and anything already bought.
     buys().filter((x) => x.fromAlfred && !x.done).forEach((x) => store.remove("buy/" + x.id));
     (res.items || []).forEach((x) => store.set("buy/" + uid(), { item: x.item, why: x.why, priority: x.priority, when: x.when, budget: x.budget_usd, where: x.where, fromAlfred: true, done: false, created: Date.now() }));
     store.set("gap", { note: res.note, at: Date.now() });

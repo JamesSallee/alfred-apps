@@ -1,4 +1,4 @@
-// Fun money: how the Daily Ledger turns a week of habits into dollars James may spend on himself.
+// Fun money: how the Daily Ledger turns a week of habits into dollars to spend on yourself.
 // Pure functions only, so the sums can be checked without a browser.
 //
 // The $500 a month still lands in the fun-money account by direct deposit. Points don't create money;
@@ -127,7 +127,7 @@ export function allWeeks({ habits, days, weekDocs, cfg, today }) {
   return { weeks: out, phoneNext: phone.next };
 }
 
-/** The purse: unlocked dollars less spending, held under the last bank balance James typed in. */
+/** The purse: unlocked dollars less spending, held under the last bank balance typed in. */
 export function wallet({ weeks, spends, bank }) {
   const unlocked = round2(weeks.reduce((a, w) => a + (Number(w.dollars) || 0), 0));
   const spent = round2(spends.reduce((a, s) => a + (Number(s.dollars) || 0), 0));

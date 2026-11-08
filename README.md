@@ -1,6 +1,6 @@
 # Alfred's apps
 
-James's personal habit apps, hosted on GitHub Pages with data synced through Supabase.
+Personal habit apps, hosted on GitHub Pages with data synced through Supabase.
 
 | Page | What it is | Store name |
 | --- | --- | --- |
@@ -33,6 +33,20 @@ James's personal habit apps, hosted on GitHub Pages with data synced through Sup
 4. Supabase → Authentication → URL Configuration: Site URL `https://jamessallee.github.io/alfred-apps/`.
 5. GitHub → Settings → Pages: deploy from `main`, root.
 6. After the first sign-in, turn off "Allow new users to sign up".
+7. After the Larder is set up (below), run `supabase/allow-list.sql` and redeploy `larder-ai` and `peloton`.
+
+## Who can get in
+
+The pages themselves are public (GitHub Pages), but they hold no data: everything lives in Supabase behind sign-in.
+
+- **Per-owner rules.** Each account sees only its own rows; a Larder household member also sees the owner's `larder` rows.
+- **The allow-list** (`supabase/allow-list.sql`). Only accounts in `allowed_users` can read or write any table or photo,
+  or call `larder-ai` and `peloton` (`alfred-notion` is the owner's only already). It is keyed by account id, so no
+  addresses live in this repo. A stranger who somehow made an account would see nothing and spend nothing.
+- **No new accounts.** A trigger on `auth.users` refuses every sign-up unless that email is in `signup_passes` first.
+  To add someone: insert their email (lower case) into `signup_passes`, invite them, add their id to `allowed_users`
+  (and `household_members` if they share the Larder), then delete the pass.
+- The Notion copies, the weekly backup and pg_cron use the service role and the cron secret, so the list doesn't touch them.
 
 ## The Larder
 
@@ -55,12 +69,18 @@ The one app shared with another person. Everything else stays private to its own
 
 ### Inviting a household member
 
-1. Supabase → Authentication → Users → **Invite user** with their email (works with sign-ups switched off).
+1. Add a pass first (`insert into public.signup_passes (email) values ('member_email');`, lower case), then
+   Supabase → Authentication → Users → **Invite user** with their email.
 2. Once they've signed in once, link them (replace both emails):
    ```sql
    insert into public.household_members (owner_id, member_id, app)
    select o.id, m.id, 'larder' from auth.users o, auth.users m
    where o.email = 'OWNER_EMAIL' and m.email = 'MEMBER_EMAIL';
+   ```
+   Then put them on the allow-list and delete the pass:
+   ```sql
+   insert into public.allowed_users (user_id) select id from auth.users where email = 'MEMBER_EMAIL';
+   delete from public.signup_passes where email = 'member_email';
    ```
 3. They open `larder.html` and add it to the home screen. They'll see the owner's list from then on.
 
@@ -141,7 +161,7 @@ a fit verdict on every piece, a tailoring list, and a buying plan that waits on 
 
 ## The Training Room
 
-Peloton classes come in on their own; James only confirms the weights.
+Peloton classes come in on their own; you only confirm the weights.
 
 - **Peloton.** There's no public API, so `supabase/functions/peloton` uses the unofficial one (it may break
   without warning). It logs in with the `PELOTON_USERNAME` and `PELOTON_PASSWORD` secrets (a password used
@@ -150,7 +170,7 @@ Peloton classes come in on their own; James only confirms the weights.
 - **What's fetched.** Each new workout is saved as `training` / `workouts/<id>`: the class, and for strength
   classes every weighted move with its tier (light, medium, heavy) and time, from the class plan. Heart rate
   comes along when a monitor was connected (the Pixel Watch reaches Peloton, so no Strava). Cardio is kept only when it is a spin class (no walks, swims, runs or outdoor rides), and rides add total output, average watts and time in each power zone.
-- **What James adds.** `log/<workout id>`: the weight (and, optionally, reps) per move and tier, pre-filled
+- **What you add.** `log/<workout id>`: the weight (and, optionally, reps) per move and tier, pre-filled
   from last time. `settings.kit` holds the dumbbells he owns.
 - **Fetching.** On opening the page (at most every 30 minutes) or with **Fetch from Peloton**. Only the last
   14 days are fetched, and only those classes ask for weights; older history isn't worth remembering weights for.

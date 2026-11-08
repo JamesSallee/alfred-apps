@@ -193,7 +193,7 @@ const LINES = {
   piano: ["Ten minutes is still music.","The neighbours will thank you. Eventually.","An attempt is all I ask."],
   workout: ["The Peloton forgives you.","Changed and showered, I trust.","Your future knees send their regards."],
   write: ["The page is less blank than it was.","Words on paper. The rest is editing."],
-  "walk-mara": ["Walk done. Somebody is delighted."],
+  walk: ["Walk done. Somebody is delighted."],
   "bed-by-11": ["Bed before eleven. Practically heroic."],
   tidy: ["Ten minutes of order. The house exhales."],
   journal: ["Written down, and therefore real."],
@@ -269,7 +269,7 @@ function render(){
   $("#balance").textContent = fmtUsd(R.wallet.available);
   freezeWeeks(R);
   const h = new Date().getHours();
-  $("#greet").textContent = (h<12?"Good morning":h<18?"Good afternoon":"Good evening")+", James. Kept by Alfred.";
+  $("#greet").textContent = (h<12?"Good morning":h<18?"Good afternoon":"Good evening")+". Kept by Alfred.";
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", b.dataset.view===S.view);
   for (const v of ["today","store","habits"]) $("#v-"+v).hidden = S.view!==v;
   if (S.view==="today") renderToday(R);
@@ -403,7 +403,7 @@ function setDone(id, val){
   const after = compute(), wk = monday(S.sel);
   const b0 = (before.byWeek[wk]?.bonuses||[]).length, b1 = after.byWeek[wk]?.bonuses||[];
   if (b1.length > b0) { const nb = b1[b1.length-1]; say(`${nb.habit==="Good week"?"A good week":"Target met"}: +${nb.amount} points. The purse is heavier.`); }
-  else say(pick([...(LINES[id]||[]), ...LINES.done]));
+  else say(pick([...(LINES[id]||LINES[id.split("-")[0]]||[]), ...LINES.done]));
 }
 function saveWeek(wk, patch, msg){
   const body = { ...(S.weekDocs[wk]||{}), ...patch }; S.weekDocs[wk] = body; render(); say(typeof msg==="function"?msg(body):msg);
