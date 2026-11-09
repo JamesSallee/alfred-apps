@@ -5,6 +5,7 @@ Personal habit apps, hosted on GitHub Pages with data synced through Supabase.
 | Page | What it is | Store name |
 | --- | --- | --- |
 | `index.html` | Alfred's Study: the hub, today's note and a "This week" summary | (reads the others) |
+| `console.html` | The Study's tablet console: an always-on landscape view (clock, today's note, the next Focus Plan blocks, a Focus Room timer, today's Ledger, errands, the week, every room) | (reads the others; logs to `focus`, ticks `ledger`) |
 | `ledger.html` | The Daily Ledger: habits, points, and the fun-money store (points unlock spending; sums in `js/money.js`, one-off data change in `supabase/ledger-money.sql`) | `ledger` |
 | `focus.html` | The Focus Room: timer, soundscapes, focus log | `focus` |
 | `shutdown.html` | Sunday Shutdown: the weekly review | `shutdown` |
@@ -128,12 +129,20 @@ The one app shared with another person. Everything else stays private to its own
 - **Ledger → Sunday Shutdown.** The Shutdown opens with the week in figures (habits, workout mix, focus and
   writing time, lifts whose best this week beat their last weight), adds them to the note for Alfred and saves them with the record.
 - **Alfred → Sunday Shutdown (the work week).** The Load Profile usually comes in on Thursday or Friday and Alfred books the week
-  then, filing the Focus Plan at `plans/<Monday>` in the `shutdown` app: `{ week, focusPlan, plannedAt, afterHours?, by: "alfred" }`
-  (`focusPlan` must start `FOCUS PLAN`). Step 5 of the Shutdown shows that plan with its blocks, after-hours hours and anything unplaced.
+  then, filing the Focus Plan at `plans/<Monday>` in the `shutdown` app: `{ week, focusPlan, plannedAt, afterHours?, by: "alfred", blocks }`
+  (`focusPlan` must start `FOCUS PLAN`; `blocks` is `[{ day: "YYYY-MM-DD", id, start: "HH:MM", end: "HH:MM", overflow }]` in 24-hour time,
+  and the console falls back to reading the text when it's missing: see `js/study.js`). Step 5 of the Shutdown shows that plan with its blocks, after-hours hours and anything unplaced.
   Only when there's no plan for the coming week does it give the copy-ready request for Work Claude, a box for the profile
   (it rides along in the note for Alfred, never saved), "No work next week", and a fallback to paste a Focus Plan by hand.
   The shutdown record keeps `work`: `planned` | `none` | `profile` | `waiting`.
-- **The Study.** Each door shows one live figure in place of its arrow.
+- **The Study.** Each door shows one live figure in place of its arrow. Today's note and the greeting are built in `js/study.js`,
+  shared by the Study and the console.
+- **The console.** `console.html` is for a 10-inch tablet in landscape, kept on in a kiosk browser. It runs its own Focus Room
+  timer (not synced live: a session belongs to the device it started on) with the Focus Room's sounds from `js/focus-core.js`,
+  logs to the same focus log, and keeps a running session in local storage so a reload picks it up. Light from 7:00 to the day's
+  hard stop (from the Focus Plan, else 17:00), dark after, a dim clock from 22:30 to 6:30 (a tap wakes it for 30 seconds).
+  It nudges the layout a few pixels each hour against burn-in and reloads itself when `sw.js` changes, never mid-session.
+  To check it in a desktop browser at 1280×800: `console.html?at=2026-11-09T14:32&theme=light` (or `dark`, `night`).
 
 ## Updating
 
