@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111a16">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>Alfred's Study console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* The Study's always-on tablet console: a 10-inch tablet in landscape (1280×800 CSS px).
+   Left: the clock, today's note and the next blocks on the Focus Plan. Centre: the Focus Room's timer.
+   Right: today's Ledger, errands due today and the week's figures. Bottom: every room, one tap away.
+   The theme follows the clock, not the system: light from 7:00 to the day's hard stop, dark after,
+   and a dim clock-only night from 22:30 to 6:30. */
+:root{
+  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
+  --green:#7fbf9d; --green-soft:#21352c; --on-green:#10261c;
+  --brass:#d9ad55; --brass-ink:#d9ad55; --brass-soft:#3a3020; --on-brass:#2a2110;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
+  --green:#1f4d3a; --green-soft:#dce8e0; --on-green:#f4f7f2;
+  --brass:#a87a1f; --brass-ink:#7a5814; --brass-soft:#f3e7c8; --on-brass:#fffaf0;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+h2{font-family:var(--display);font-weight:400;margin:0;font-size:20px}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.clock,.dial .time,.week .big{font-variant-numeric:lining-nums tabular-nums}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.console{height:100vh;height:100dvh;padding:28px 32px;display:flex;flex-direction:column;gap:20px;transition:transform 2s ease}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr) 360px;gap:20px}
+.col{display:flex;flex-direction:column;gap:16px;min-height:0}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+
+/* ----- left ----- */
+.clockbox{display:flex;flex-direction:column;gap:2px}
+.clock{font-family:var(--display);font-size:84px;line-height:1;font-variant-numeric:tabular-nums}
+.greet{font-size:15px;color:var(--muted)}
+.note{background:var(--brass-soft);border-color:var(--brass);display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
+.note h2{color:var(--brass-ink)}
+.note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;overflow:auto}
+.note li::marker{color:var(--brass)}
+.note a{font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
+.plan{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.plan .rows{display:flex;flex-direction:column;gap:8px}
+.plan .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:18px}
+.plan .row .t{color:var(--muted);font-size:17px}
+.plan .row.now .id{font-weight:700}
+.plan .row.now .t{color:var(--green)}
+.plan .row .ov{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-ink);margin-left:6px;vertical-align:2px}
+.plan .empty{color:var(--muted);font-size:15px}
+
+/* ----- centre: the Focus Room ----- */
+.focus{display:flex;flex-direction:column;gap:14px;padding:22px 24px;min-height:0;position:relative;transition:background-color .6s,border-color .6s}
+.focus .top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.focus h2{font-size:24px}
+.badge{font-size:14px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--green-soft);color:var(--green);white-space:nowrap}
+.dialwrap{flex:1;min-height:0;display:grid;place-items:center}
+.dial{position:relative;height:100%;max-height:330px;max-width:100%;aspect-ratio:1;container-type:size}
+.dial svg{width:100%;height:100%;transform:rotate(-90deg)}
+.dial .track{stroke:var(--green-soft)}
+.dial .arc{stroke:var(--green);transition:stroke-dashoffset .9s linear}
+.dial .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+.dial .time{font-family:var(--display);font-size:92px;font-size:28cqh;line-height:1;font-variant-numeric:tabular-nums}
+.dial .sub{font-size:16px;color:var(--muted)}
+.dial .orb{position:absolute;inset:22%;border-radius:50%;background:var(--brass);opacity:.18;transform:scale(.55);transition:transform 4s ease-in-out}
+.dial .orb[hidden]{display:none}
+.controls{display:flex;justify-content:center;gap:16px}
+.pill{min-width:150px;height:52px;padding:0 26px;border-radius:999px;border:1px solid var(--line);background:transparent;font-size:18px;font-weight:600}
+.pill.primary{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.pill:active{transform:scale(.98)}
+.pickers{display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chips.scroll{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips.scroll .chip{flex:none;height:36px;padding:0 11px;font-size:14px}
+.chips.scroll::-webkit-scrollbar{display:none}
+.chip{height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:transparent;font-size:15px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--green-soft);border-color:var(--green);color:var(--green);font-weight:600}
+.sound{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.sound .chips{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.sound .chip{height:52px;font-size:16px}
+.sound .chip[aria-pressed="true"]{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
+.done-line{text-align:center;color:var(--muted);font-size:15px;max-width:34em;margin:0 auto}
+
+/* On a break the centre turns brass. */
+.focus.break{background:var(--brass-soft);border-color:var(--brass)}
+.focus.break h2{color:var(--brass-ink)}
+.focus.break .badge{background:var(--brass-ink);color:var(--on-brass)}
+.focus.break .dial .track{stroke:color-mix(in srgb,var(--brass) 22%,transparent)}
+.focus.break .dial .arc{stroke:var(--brass)}
+.focus.break .dial .sub{color:var(--ink)}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.qbtn{border:1px solid var(--line);border-radius:14px;background:var(--bg);padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.qbtn b{font-size:17px}
+.qbtn span{font-size:13px;color:var(--muted)}
+.qbtn[aria-pressed="true"]{border-color:var(--brass)}
+.idea{font-size:15px;text-align:center;margin:0}
+.idea b{display:block;font-family:var(--display);font-weight:400;font-size:18px;color:var(--brass-ink)}
+.upnext{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid color-mix(in srgb,var(--brass) 35%,transparent);padding-top:16px;font-size:18px}
+.pill.brass{background:var(--brass-ink);border-color:var(--brass-ink);color:var(--on-brass)}
+
+/* ----- right ----- */
+.ledger{display:flex;flex-direction:column;gap:8px;min-height:0;transition:box-shadow .3s}
+.ledger.flash{box-shadow:0 0 0 2px var(--brass)}
+.ledger .head,.errands .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ledger .head span{color:var(--muted);font-size:14px}
+.habits{display:flex;flex-direction:column;overflow:auto;min-height:0}
+.habit{display:flex;align-items:center;gap:16px;min-height:50px;background:none;border:0;padding:4px 4px;text-align:left;font-size:18px;width:100%}
+.box{flex:none;width:30px;height:30px;border-radius:6px;border:2px solid var(--muted);display:grid;place-items:center;background:var(--paper)}
+.habit.on .box{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.box svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.habit.on .box svg{opacity:1}
+.habit .hint{margin-left:auto;font-size:13px;color:var(--muted)}
+.variants{display:flex;flex-wrap:wrap;gap:8px;padding:0 0 8px 50px}
+.errands{display:flex;flex-direction:column;gap:6px}
+.erow{display:flex;justify-content:space-between;gap:12px;font-size:16px}
+.erow span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erow span:last-child{color:var(--muted);white-space:nowrap}
+.erow .wait{color:var(--brass-ink)!important}
+.erow .late{color:var(--brass-ink)!important;font-weight:600}
+.errands .more{font-size:14px;color:var(--muted);text-decoration:none}
+.week{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.week .big{font-family:var(--display);font-size:30px;color:var(--green);line-height:1.15;font-variant-numeric:tabular-nums}
+.week .sm{font-size:13.5px;color:var(--muted)}
+
+/* ----- the rooms ----- */
+.rooms{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}
+.room{height:64px;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:14px;color:var(--ink);text-decoration:none;font-size:15px;font-weight:500}
+.room svg{flex:none;width:22px;height:22px;color:var(--green)}
+.room.active{background:var(--green-soft);border-color:var(--green)}
+.room:active{transform:scale(.98)}
+
+/* ----- night: the clock alone, dim ----- */
+.night{position:fixed;inset:0;z-index:10001;background:#050807;color:#5b665f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.night[hidden]{display:none}
+.night .clock{font-size:180px;color:#56625b}
+.night .eyebrow{color:#47514b;font-size:14px}
+
+/* The sync pill sits small in the top margin, and only shows words when something's amiss. */
+.al-pill{top:5px!important;bottom:auto!important;right:32px!important;padding:3px 9px!important;font-size:11px!important;box-shadow:none!important;opacity:.85}
+.al-pill.quiet .al-txt{display:none}
+@media (prefers-reduced-motion: reduce){.dial .arc,.dial .orb,.console{transition:none}}
+</style>
+
+<div class="console" id="console">
+  <div class="cols">
+    <section class="col" aria-label="Today">
+      <div class="clockbox">
+        <span class="eyebrow" id="date"></span>
+        <span class="clock" id="clock">--:--</span>
+        <span class="greet" id="greet"></span>
+      </div>
+      <div class="card note" aria-labelledby="noteh">
+        <h2 id="noteh">Today's note</h2>
+        <ul id="notes"></ul>
+      </div>
+      <div class="card plan" aria-labelledby="planh">
+        <span class="eyebrow" id="planh">Next on the plan</span>
+        <div class="rows" id="plan"></div>
+      </div>
+    </section>
+
+    <section class="card focus" id="focus" aria-labelledby="focush">
+      <div class="top"><h2 id="focush">The Focus Room</h2><span class="badge" id="badge">Ready</span></div>
+      <div class="dialwrap">
+        <div class="dial">
+          <svg viewBox="0 0 240 240" aria-hidden="true"><circle class="track" cx="120" cy="120" r="108" fill="none" stroke-width="10"/><circle class="arc" id="arc" cx="120" cy="120" r="108" fill="none" stroke-width="10" stroke-linecap="round"/></svg>
+          <div class="orb" id="orb" hidden></div>
+          <div class="mid"><span class="time" id="time">50:00</span><span class="sub" id="sub"></span></div>
+        </div>
+      </div>
+      <div id="middle"></div>
+      <div id="bottom"></div>
+    </section>
+
+    <section class="col" aria-label="The rooms at a glance">
+      <div class="card ledger" id="ledger">
+        <div class="head"><h2>The Daily Ledger</h2><span id="ledgerN"></span></div>
+        <div class="habits" id="habits"></div>
+      </div>
+      <div class="card errands" id="errands"></div>
+      <div class="card week" id="week">
+        <div><div class="big" id="wk-ticks">0</div><div class="sm">habit ticks</div></div>
+        <div><div class="big" id="wk-focus">0</div><div class="sm">focus minutes</div></div>
+        <div><div class="big" id="wk-sun">–</div><div class="sm">last shutdown</div></div>
+      </div>
+    </section>
+  </div>
+  <nav class="rooms" id="rooms" aria-label="The rooms"></nav>
+</div>
+<div class="night" id="night" hidden><span class="eyebrow" id="nDate"></span><span class="clock" id="nClock"></span></div>
+
+<script type="module">
+import { mountShell } from "./js/shell.js";
+import { openStore, STATUS_TEXT } from "./js/sync.js";
+import { iconSvg } from "./js/icons.js";
+import { ymd, mondayOf, activeHabits, openTasks, todoBucket, workoutsOf, KIND, openIlkwim, nextPost, radioScripts, linkWritingToLedger } from "./js/rooms.js";
+import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
+import { createAudio, IDEAS } from "./js/focus-core.js";
+mountShell(null);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pad = (n) => String(n).padStart(2, "0");
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+// For checking the layout in a desktop browser: ?at=2026-11-09T14:32 runs the clock from that moment,
+// ?theme=light|dark|night holds a theme.
+const QS = new URLSearchParams(location.search);
+const OFFSET = QS.get("at") ? new Date(QS.get("at")).getTime() - Date.now() : 0;
+const now = () => new Date(Date.now() + (OFFSET || 0));
+const nowMs = () => Date.now() + (OFFSET || 0);
+const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + pad(s % 60); };
+const fmtM = (m) => { m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} m` : `${h} h`; };
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+
+const S_ = { study: "study", ledger: "ledger", focus: "focus", todo: "todo", shutdown: "shutdown", desk: "desk", wardrobe: "wardrobe", training: "training", podcast: "podcast" };
+const st = Object.fromEntries(Object.entries(S_).map(([k, v]) => [k, openStore(v)]));
+
+// ---------- the sync pill: quiet when all's well, and says since when when it isn't ----------
+{
+  let since = null;
+  st.study.onStatus((s) => {
+    const pill = document.querySelector(".al-pill"); if (!pill) return;
+    pill.classList.toggle("quiet", s === "saved");
+    if (s === "offline" || s === "error") { since = since || now(); pill.querySelector(".al-txt").textContent = `${STATUS_TEXT[s]} · figures as of ${hm(since)}`; }
+    else since = null;
+  });
+}
+
+// ---------- theme: light by day, dark after the hard stop, a dim clock at night ----------
+let plan = { blocks: [], hardStops: {} };
+let wakeUntil = 0;
+function hardStopToday() { return plan.hardStops[ymd(now())] || "17:00"; }
+function themeNow() {
+  const forced = QS.get("theme"); if (forced) return forced;
+  const m = now().getHours() * 60 + now().getMinutes();
+  if (m >= 22 * 60 + 30 || m < 6 * 60 + 30) return "night";
+  if (m >= 7 * 60 && m < mins(hardStopToday())) return "light";
+  return "dark";
+}
+function applyTheme() {
+  const t = themeNow();
+  const night = t === "night" && !run.running && nowMs() > wakeUntil;
+  const look = t === "light" ? "light" : "dark";
+  if (document.documentElement.dataset.theme !== look) {
+    document.documentElement.dataset.theme = look;
+    document.querySelector('meta[name="theme-color"]').content = look === "light" ? "#eef1ec" : "#111a16";
+  }
+  $("#night").hidden = !night;
+}
+$("#night").addEventListener("click", () => { wakeUntil = nowMs() + 30000; applyTheme(); });
+
+// ---------- left: clock, greeting, today's note, next on the plan ----------
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function todaysBlocks() {
+  const t = ymd(now()), m = now().getHours() * 60 + now().getMinutes();
+  return plan.blocks.filter((b) => b.day === t && mins(b.end) > m);
+}
+function renderClock() {
+  const d = now();
+  const date = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  $("#date").textContent = date; $("#nDate").textContent = date;
+  $("#clock").textContent = hm(d); $("#nClock").textContent = hm(d);
+}
+function renderGreet() {
+  if (run.running && cur().k === "break") { $("#greet").textContent = "Nice block. Step away for a few minutes."; return; }
+  const left = todaysBlocks(), hs = plan.hardStops[ymd(now())];
+  const base = greeting(st.study, now());
+  if (!left.length) { $("#greet").textContent = base; return; }
+  const first = base.split(/[.?]/)[0].replace(/,.*$/, "") + ".";
+  const n = left.length;
+  $("#greet").textContent = `${first} ${n < 10 ? WORDS[n] : n} focus block${n === 1 ? "" : "s"} left today${hs ? `, hard stop ${hs}` : ""}.`;
+}
+function renderNote() {
+  $("#notes").innerHTML = todaysNote(st, now()).map((n) => `<li>${n}</li>`).join("");
+}
+function renderPlan() {
+  plan = weekPlan(st.shutdown, now());
+  const m = now().getHours() * 60 + now().getMinutes(), t = ymd(now());
+  const next = plan.blocks.filter((b) => b.day > t || (b.day === t && mins(b.end) > m)).slice(0, 2);
+  $("#plan").innerHTML = next.length ? next.map((b) => {
+    const live = b.day === t && mins(b.start) <= m;
+    const day = b.day === t ? "" : DAYS[new Date(b.day + "T12:00").getDay()].slice(0, 3) + " ";
+    return `<div class="row${live ? " now" : ""}"><span class="id">${esc(b.id)}${b.overflow ? '<span class="ov">overflow</span>' : ""}</span><span class="t num">${live ? "now · until " + esc(b.end) : day + esc(b.start) + "–" + esc(b.end)}</span></div>`;
+  }).join("") : `<div class="empty">${st.shutdown.get("plans/" + mondayOf(t)) ? "Nothing else planned this week." : "No Focus Plan filed this week."}</div>`;
+  renderGreet(); applyTheme();
+}
+
+// ---------- centre: the Focus Room timer, run on this device ----------
+const DEF = { vol: .7, duck: true, settle: false, plan: { focus: 50, brk: 10, rounds: 1 }, label: "Writing", labels: ["Writing", "Bootcamp", "Reading", "Planning", "Admin"], levels: {},
+  alertFocus: "bell", alertBreak: "marimba", alertVol: .75, alertFade: true, alertRepeat: false };
+const S = Object.assign({}, DEF);
+function loadSettings() { Object.assign(S, DEF, st.focus.get("settings") || {}, { alertRepeat: false }); } // no repeating bell on a kiosk
+loadSettings();
+const AU = createAudio(S);
+const SOUNDSCAPES = [["rain", "Rain"], ["fire", "Fire"], ["cafe", "Café"], ["brown", "Brown"], ["white", "White"]];
+const PRESETS = [["25 · 5", { focus: 25, brk: 5, rounds: 1 }], ["50 · 10", { focus: 50, brk: 10, rounds: 1 }], ["45 · 5 · 45", { focus: 45, brk: 5, rounds: 2 }]];
+const CIRC = 2 * Math.PI * 108; $("#arc").style.strokeDasharray = CIRC;
+const RUNKEY = "alfred:console:run";
+// The running session is kept on this device, so a reload (the kiosk's nightly one, or a new version) picks it up.
+let run = Object.assign({ running: false, paused: false, phases: [], i: -1, start: 0, endAt: 0, pausedAt: 0, focusSecs: 0, label: "", done: null }, lsGet(RUNKEY, {}));
+let chime = null, mode = null, breath = null, idea = null;
+const cur = () => run.phases[run.i];
+const saveRun = () => lsSet(RUNKEY, { ...run });
+function settingsWrite(patch) { Object.assign(S, patch); st.focus.set("settings", { ...(st.focus.get("settings") || {}), ...patch }); }
+
+// Writing time goes to the Writing Desk's next post, as in the Focus Room (or the piece picked there).
+function deskPick() {
+  if (S.deskPiece === "none") return null;
+  const open = [...openIlkwim(st.desk), ...radioScripts(st.podcast, st.desk)];
+  return (S.deskPiece && open.find((p) => p.id === S.deskPiece)) || nextPost(st.desk) || null;
+}
+function addLog(k, m, label) {
+  m = Math.round(m); if (m < 1) return;
+  const t = Date.now(), entry = { t, k, m, label: label || "" };
+  if (k === "focus" && label === "Writing") { const p = deskPick(); if (p) { entry.piece = p.id; entry.pieceTitle = p.title; } }
+  st.focus.set("log/" + t, entry);
+}
+linkWritingToLedger(() => {});
+
+function buildPhases(p) {
+  const out = []; if (S.settle) out.push({ k: "settle", s: 120 });
+  for (let r = 1; r <= p.rounds; r++) { out.push({ k: "focus", s: p.focus * 60, r }); if (p.brk > 0) out.push({ k: "break", s: p.brk * 60, r }); }
+  return out;
+}
+function scheduleChime() {
+  if (chime) { chime.cancel(true); chime = null; }
+  if (!run.running || run.paused || !AU.ctx) return;
+  const last = run.i === run.phases.length - 1, ph = cur();
+  chime = AU.ring(AU.ctx.currentTime + (run.endAt - nowMs()) / 1000, last ? "final" : ph.k === "focus" ? "focus" : "break");
+}
+function enter(i, at) {
+  run.i = i; run.start = at; run.endAt = at + cur().s * 1000;
+  AU.setDuck(cur().k === "break"); stopBreath(); idea = null;
+  saveRun(); scheduleChime(); renderFocus(true); renderGreet(); renderRooms(); applyTheme();
+}
+function begin(p = S.plan, label = S.label) {
+  AU.ac();
+  run = { running: true, paused: false, phases: buildPhases(p), i: -1, start: 0, endAt: 0, pausedAt: 0, focusSecs: 0, label, rounds: p.rounds, done: null };
+  enter(0, nowMs());
+}
+const elapsed = () => Math.min(cur().s, ((run.paused ? run.pausedAt : nowMs()) - run.start) / 1000);
+function finishPhase(at) { // a phase ran its course
+  const ph = cur(); if (ph.k === "focus") { run.focusSecs += ph.s; addLog("focus", ph.s / 60, run.label); }
+  chime = null; // let it ring
+  if (run.i + 1 < run.phases.length) enter(run.i + 1, at); else complete();
+}
+function skip() { // "Start now" from a break, or end a phase early
+  const ph = cur(); if (ph.k === "focus") { const s = elapsed(); run.focusSecs += s; addLog("focus", s / 60, run.label); }
+  if (chime) { chime.cancel(true); chime = null; }
+  run.paused = false;
+  if (run.i + 1 < run.phases.length) enter(run.i + 1, nowMs()); else complete();
+}
+function finishEarly() { // log what's done and stop, as the Focus Room's Stop does
+  const ph = cur(); if (ph && ph.k === "focus") { const s = elapsed(); run.focusSecs += s; addLog("focus", s / 60, run.label); }
+  complete();
+}
+function complete() {
+  if (chime) { chime.cancel(true); chime = null; }
+  const total = run.focusSecs, label = run.label;
+  run = { running: false, paused: false, phases: [], i: -1, start: 0, endAt: 0, pausedAt: 0, focusSecs: 0, label: "", done: { m: Math.round(total / 60), label, at: nowMs() } };
+  AU.setDuck(false); stopBreath(); saveRun(); renderFocus(true); renderGreet(); renderRooms(); applyTheme();
+}
+function togglePause() {
+  AU.ac();
+  if (!run.paused) { run.paused = true; run.pausedAt = nowMs(); if (chime) { chime.cancel(true); chime = null; } }
+  else { const d = nowMs() - run.pausedAt; run.paused = false; run.endAt += d; run.start += d; scheduleChime(); }
+  saveRun(); renderFocus(true);
+}
+
+// Breathe on a break: two minutes of four in, six out, with the Focus Room's soft cues. Logged as meditation.
+function startBreath() {
+  AU.ac(); AU.chimeOnce("bowl");
+  const t0 = performance.now(), orb = $("#orb"); orb.hidden = false;
+  breath = { t0, last: -1, timer: setInterval(() => {
+    const e = (performance.now() - t0) / 1000;
+    if (e >= 120) { AU.chimeOnce("bowl"); addLog("breathe", 2); stopBreath(); renderFocus(true); return; }
+    const inhale = e % 10 < 4, step = Math.floor(e / 10) * 2 + (inhale ? 0 : 1);
+    if (step !== breath.last) { breath.last = step; AU.softTone(inhale ? 392 : 294); orb.style.transitionDuration = inhale ? "4s" : "6s"; orb.style.transform = inhale ? "scale(1)" : "scale(.55)"; }
+    const b = $("#qBreathe span"); if (b) b.textContent = (inhale ? "Breathe in" : "Breathe out") + " · " + mmss(120 - e);
+  }, 200) };
+}
+function stopBreath() {
+  if (!breath) return; clearInterval(breath.timer);
+  const e = (performance.now() - breath.t0) / 1000; if (e >= 60 && e < 120) addLog("breathe", e / 60);
+  breath = null; const orb = $("#orb"); orb.hidden = true; orb.style.transform = "scale(.55)";
+}
+
+// What comes after this break: another round, the next block on the plan, or nothing.
+function upNext() {
+  const ph = cur();
+  if (run.i + 1 < run.phases.length) { const n = run.phases[run.i + 1]; return { text: `<b>${esc(run.label || "Focus")}</b>, round ${n.r} of ${run.rounds}, ${Math.round(n.s / 60)} min`, go: skip }; }
+  const b = nextBlockSoon(90);
+  if (b) { const m = mins(b.end) - mins(b.start); return { text: `<b>${esc(b.id)}</b> at ${esc(b.start)}, ${m} min`, go: () => { stopBreath(); if (chime) { chime.cancel(true); chime = null; } begin({ focus: m, brk: S.plan.brk, rounds: 1 }, "Work"); } }; }
+  return { text: ph ? "Nothing else on the timer." : "", go: complete, label: "Done" };
+}
+// The block on the plan that's under way, or starts within `within` minutes.
+function nextBlockSoon(within) {
+  const m = now().getHours() * 60 + now().getMinutes();
+  return todaysBlocks().find((b) => mins(b.start) - m <= within);
+}
+
+function renderSound() {
+  return `<div class="sound"><span class="eyebrow">Soundscape</span><div class="chips">${SOUNDSCAPES.map(([id, n]) =>
+    `<button class="chip" data-snd="${id}" aria-pressed="${!!AU.active[id]}">${n}</button>`).join("")}</div></div>`;
+}
+function renderFocus(full) {
+  const box = $("#focus"), ph = run.running ? cur() : null, k = ph ? ph.k : "idle";
+  box.classList.toggle("break", k === "break");
+  if (full || mode !== k + run.paused + !!breath + !!idea) {
+    mode = k + run.paused + !!breath + !!idea;
+    if (k === "idle") {
+      const soon = nextBlockSoon(15);
+      $("#focush").textContent = "The Focus Room";
+      $("#badge").textContent = run.done && nowMs() - run.done.at < 3 * 3600e3 && run.done.m ? `${run.done.m} min of ${run.done.label || "focus"} logged` : "Ready";
+      $("#middle").innerHTML = `<div class="pickers">
+        <div class="chips scroll">${(S.labels || []).map((l) => `<button class="chip" data-label="${esc(l)}" aria-pressed="${l === S.label}">${esc(l)}</button>`).join("")}</div>
+        <div class="chips">${PRESETS.map(([n, p], i) => `<button class="chip num" data-preset="${i}" aria-pressed="${p.focus === S.plan.focus && p.brk === S.plan.brk && p.rounds === S.plan.rounds}">${n}</button>`).join("")}${soon ? `<button class="chip" data-plan="1">Plan: ${esc(soon.id)} · ${mins(soon.end) - mins(soon.start)} min</button>` : ""}</div>
+      </div><div class="controls" style="margin-top:14px"><button class="pill primary" data-a="begin">Begin</button></div>`;
+      $("#bottom").innerHTML = renderSound();
+    } else if (k === "break") {
+      const un = upNext(), habitsLeft = dailyHabits().filter((h) => !todayDone()[h.id]).length;
+      $("#focush").textContent = "Taking a break";
+      $("#badge").textContent = run.focusSecs >= 60 ? `${fmtM(run.focusSecs / 60)} of ${run.label || "focus"} logged` : "Break";
+      const ide = idea ? IDEAS[idea] : null;
+      $("#middle").innerHTML = `<div class="quick">
+          <button class="qbtn" id="qBreathe" data-a="breathe" aria-pressed="${!!breath}"><b>${breath ? "Stop" : "Breathe"}</b><span>2 minutes</span></button>
+          <button class="qbtn" data-a="stretch" aria-pressed="${!!idea}"><b>Stretch</b><span>${ide ? "another idea" : "away from the desk"}</span></button>
+          <button class="qbtn" data-a="tick"><b>Tick a habit</b><span>${habitsLeft ? habitsLeft + " left today" : "all done"}</span></button>
+        </div>${ide ? `<p class="idea" style="margin-top:12px"><b>${esc(ide.h)}</b>${esc(ide.p)}</p>` : ""}`;
+      $("#bottom").innerHTML = `<div class="upnext"><span>Up next: ${un.text}</span><button class="pill brass" data-a="next">${un.label || "Start now"}</button></div>`;
+    } else {
+      $("#focush").textContent = "The Focus Room";
+      $("#badge").textContent = k === "settle" ? "Settling in" : `${run.paused ? "Paused" : "Focusing"} · ${run.label || "Focus"}`;
+      $("#middle").innerHTML = `<div class="controls"><button class="pill primary" data-a="pause">${run.paused ? "Resume" : "Pause"}</button><button class="pill" data-a="finish">Finish early</button></div>`;
+      $("#bottom").innerHTML = renderSound();
+    }
+  }
+  // the dial
+  if (k === "idle") {
+    $("#time").textContent = mmss(S.plan.focus * 60);
+    $("#sub").textContent = `${S.label || "No label"} · ${S.plan.focus} min${S.plan.brk ? ` + ${S.plan.brk} break` : ""}${S.plan.rounds > 1 ? ` × ${S.plan.rounds}` : ""}`;
+    $("#arc").style.strokeDashoffset = CIRC; document.title = "Alfred's Study console"; return;
+  }
+  const left = (run.endAt - (run.paused ? run.pausedAt : nowMs())) / 1000, frac = 1 - Math.max(0, left) / ph.s;
+  $("#time").textContent = mmss(left);
+  const ends = hm(new Date(run.endAt));
+  $("#sub").textContent = k === "break" ? `left of ${Math.round(ph.s / 60)} · back at ${ends}`
+    : k === "settle" ? "The clock starts after this"
+    : `of ${Math.round(ph.s / 60)} minutes · ${run.paused ? "paused" : "ends " + ends}${run.rounds > 1 ? ` · round ${ph.r} of ${run.rounds}` : ""}`;
+  $("#arc").style.strokeDashoffset = CIRC * (1 - frac); // the arc fills as the time goes
+  document.title = `${mmss(left)} · ${k === "break" ? "Break" : "Focus"}`;
+}
+
+$("#focus").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.snd) { AU.ac(); const id = b.dataset.snd; const on = !!AU.active[id]; SOUNDSCAPES.forEach(([s]) => AU.stopSound(s)); if (!on) AU.startSound(id); if (run.running && cur().k === "break") AU.setDuck(true); renderFocus(true); return; }
+  if (b.dataset.label) { settingsWrite({ label: b.dataset.label }); renderFocus(true); return; }
+  if (b.dataset.preset) { settingsWrite({ plan: { ...PRESETS[+b.dataset.preset][1] } }); renderFocus(true); return; }
+  if (b.dataset.plan) { const s = nextBlockSoon(15); if (s) begin({ focus: mins(s.end) - mins(s.start), brk: S.plan.brk, rounds: 1 }, "Work"); return; }
+  const a = b.dataset.a;
+  if (a === "begin") begin();
+  if (a === "pause") togglePause();
+  if (a === "finish") finishEarly();
+  if (a === "next") { stopBreath(); upNext().go(); }
+  if (a === "breathe") { breath ? stopBreath() : startBreath(); renderFocus(true); }
+  if (a === "stretch") { const ok = IDEAS.map((_, i) => i).filter((i) => i !== idea && (!IDEAS[i].min || cur().s / 60 >= IDEAS[i].min)); idea = ok[Math.floor(Math.random() * ok.length)]; renderFocus(true); }
+  if (a === "tick") { const l = $("#ledger"); l.classList.add("flash"); setTimeout(() => l.classList.remove("flash"), 1600); }
+});
+
+// ---------- right: the Ledger, errands, the week ----------
+const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "weekly");
+const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
+let choosing = null;
+const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function renderLedger() {
+  const hs = dailyHabits(), done = todayDone();
+  $("#ledgerN").textContent = hs.length ? `${hs.filter((h) => done[h.id]).length} of ${hs.length} today` : "";
+  $("#habits").innerHTML = hs.length ? hs.map((h) => {
+    const v = done[h.id], on = !!v;
+    let hint = "";
+    if (h.variants && typeof v === "string") hint = (h.variants.find((x) => x.key === v) || {}).label || "";
+    if (h.minutes && typeof v === "number") hint = v + " min";
+    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
+    if (choosing === h.id) {
+      const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
+      row += `<div class="variants">${opts.map(([val, lab]) => `<button class="chip" data-for="${esc(h.id)}" data-val='${esc(JSON.stringify(val))}'>${esc(lab)}</button>`).join("")}</div>`;
+    }
+    return row;
+  }).join("") : `<p style="color:var(--muted);margin:4px 0">${st.ledger.status === "signed-out" ? "Sign in to see today's habits." : "No habits yet. Add them in the Ledger."}</p>`;
+}
+function setDone(id, val) {
+  const d = ymd(now()), r = st.ledger.get(`days/${d}`) || {};
+  const done = { ...(r.done || {}) };
+  if (val == null) delete done[id]; else done[id] = val;
+  st.ledger.set(`days/${d}`, { done, rest: !!r.rest });
+}
+$("#habits").addEventListener("click", (e) => {
+  const c = e.target.closest("[data-for]");
+  if (c) { setDone(c.dataset.for, JSON.parse(c.dataset.val)); choosing = null; renderLedger(); return; }
+  const b = e.target.closest("[data-h]"); if (!b) return;
+  const h = dailyHabits().find((x) => x.id === b.dataset.h); if (!h) return;
+  const cur = todayDone()[h.id];
+  if (cur) { setDone(h.id, null); choosing = null; }
+  else if (h.variants?.length || h.minutes?.length) choosing = choosing === h.id ? null : h.id;
+  else setDone(h.id, true);
+  renderLedger(); if (run.running && cur === undefined) mode = null;
+});
+
+// Errands due today; when there are none, the week's training takes the space.
+const TARGET = { strength: 4, cardio: 2, yoga: 1 };
+function renderErrands() {
+  const t = ymd(now());
+  const list = openTasks(st.todo, t).filter((x) => todoBucket(x, t) === "today" || (x.status === "waiting" && x.due && x.due <= t))
+    .sort((a, b) => (a.due || "9").localeCompare(b.due || "9") || (a.booked?.start || "").localeCompare(b.booked?.start || ""));
+  const el = $("#errands");
+  if (list.length) {
+    const rows = list.slice(0, 4).map((x) => {
+      const when = x.status === "waiting" ? '<span class="wait">Waiting on</span>'
+        : x.due && x.due < t ? '<span class="late">Overdue</span>'
+        : x.booked?.start && x.booked.start.slice(0, 10) === t ? `<span class="num">${hm(new Date(x.booked.start))}</span>` : "<span>Today</span>";
+      return `<div class="erow"><span>${esc(x.title)}</span>${when}</div>`;
+    }).join("");
+    el.innerHTML = `<div class="head"><h2>Errands due today</h2>${list.length > 4 ? `<a class="more" href="todo.html">+${list.length - 4} more</a>` : ""}</div>${rows}`;
+    return;
+  }
+  const from = mondayOf(t), wk = workoutsOf(st.training).filter((w) => { const d = ymd(new Date(w.start)); return d >= from && d <= t; });
+  const n = { strength: 0, cardio: 0, yoga: 0 }; wk.forEach((w) => { const k = KIND(w.discipline); if (k in n) n[k]++; });
+  const todayW = wk.find((w) => ymd(new Date(w.start)) === t);
+  el.innerHTML = `<div class="head"><h2>Training this week</h2></div>
+    ${[["strength", "Strength"], ["cardio", "Cardio"], ["yoga", "Yoga or stretch"]].map(([k, l]) => `<div class="erow"><span>${l}</span><span class="num">${n[k]} of ${TARGET[k]}</span></div>`).join("")}
+    <div class="erow"><span style="color:var(--muted)">${todayW ? "Today: " + esc(todayW.title || "a class") : "No errands due today, and no class yet today."}</span><span></span></div>`;
+}
+
+function renderWeek() {
+  const t = ymd(now()), monday = mondayOf(t);
+  let ticks = 0; for (let d = new Date(monday + "T12:00"); ymd(d) <= t; d.setDate(d.getDate() + 1)) ticks += Object.keys(st.ledger.get("days/" + ymd(d))?.done || {}).length;
+  const since = new Date(monday + "T00:00").getTime();
+  const m = st.focus.list("log/").map((x) => x.value).filter((e) => e.k === "focus" && e.t >= since).reduce((a, e) => a + (e.m || 0), 0);
+  const last = st.shutdown.list("shutdowns/").map((x) => x.value).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  $("#wk-ticks").textContent = ticks;
+  $("#wk-focus").textContent = m;
+  $("#wk-sun").textContent = last ? new Date(last.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "–";
+}
+
+// ---------- the rooms ----------
+const ROOMS = [["ledger", "Ledger", "ledger.html"], ["focus", "Focus", "focus.html"], ["todo", "Errands", "todo.html"], ["desk", "Desk", "desk.html"], ["training", "Training", "training.html"],
+  ["larder", "Larder", "larder.html"], ["podcast", "Booth", "podcast.html"], ["wardrobe", "Wardrobe", "wardrobe.html"], ["shutdown", "Shutdown", "shutdown.html"]];
+function renderRooms() {
+  const active = run.running ? "focus" : now().getDay() === 0 ? "shutdown" : "ledger";
+  $("#rooms").innerHTML = ROOMS.map(([id, name, href]) => `<a class="room${id === active ? " active" : ""}" href="${href}">${iconSvg(id)}<span>${name}</span></a>`).join("");
+}
+
+// ---------- wiring ----------
+const queue = new Set(); let raf = 0;
+const later = (fn) => { queue.add(fn); if (!raf) raf = requestAnimationFrame(() => { raf = 0; const fns = [...queue]; queue.clear(); fns.forEach((f) => f()); }); };
+[st.study, st.desk, st.wardrobe, st.todo].forEach((s) => s.subscribe(() => later(renderNote)));
+st.study.subscribe(() => later(renderGreet));
+st.shutdown.subscribe(() => { later(renderPlan); later(renderWeek); });
+st.ledger.subscribe(() => { later(renderLedger); later(renderWeek); if (run.running && cur().k === "break") { mode = null; later(() => renderFocus()); } });
+st.todo.subscribe(() => later(renderErrands));
+st.training.subscribe(() => later(renderErrands));
+st.focus.subscribe(() => { loadSettings(); later(renderWeek); if (!run.running) later(() => renderFocus(true)); });
+
+// Catch up a session left running across a reload: phases that ended while away are logged as finished.
+if (run.running) { let g = 0; while (run.running && !run.paused && nowMs() >= run.endAt && g++ < 50) finishPhase(run.endAt); }
+renderClock(); renderRooms(); renderPlan(); renderFocus(true);
+
+let lastMinute = -1;
+setInterval(() => {
+  if (run.running && !run.paused) { let g = 0; while (run.running && nowMs() >= run.endAt && g++ < 50) finishPhase(run.endAt); }
+  renderFocus();
+  const m = now().getMinutes();
+  if (m !== lastMinute) { // once a minute: the clock, the plan, the theme; the day's lists at midnight
+    lastMinute = m; renderClock(); renderPlan();
+    if (now().getHours() === 0 && m === 0) { renderNote(); renderLedger(); renderErrands(); renderWeek(); renderRooms(); }
+  }
+  if (!$("#night").hidden !== (themeNow() === "night" && !run.running && nowMs() > wakeUntil)) applyTheme();
+}, 500);
+
+// Always on, so: keep the screen awake where the browser allows it, nudge the layout a few pixels each hour
+// so nothing burns in, and pick up a new version of the site by itself (never mid-session).
+async function keepAwake() { try { if (navigator.wakeLock && document.visibilityState === "visible") await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", keepAwake); document.addEventListener("click", keepAwake, { once: true }); keepAwake();
+const SHIFTS = [[0, 0], [3, 0], [3, 3], [0, 3], [-3, 3], [-3, 0], [-3, -3], [0, -3], [3, -3]];
+function shift() { const [x, y] = SHIFTS[now().getHours() % SHIFTS.length]; $("#console").style.transform = `translate(${x}px,${y}px)`; }
+shift(); setInterval(shift, 60e3);
+let version = null;
+async function checkVersion() {
+  try {
+    const v = await (await fetch("sw.js", { cache: "no-store" })).text();
+    if (version && v !== version && !run.running) location.reload();
+    version = version || v;
+  } catch {}
+}
+checkVersion(); setInterval(checkVersion, 15 * 60e3);
+</script>

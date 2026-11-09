@@ -159,7 +159,8 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { doorFigures, openTasks } from "./js/rooms.js";
+import { doorFigures } from "./js/rooms.js";
+import { greeting, todaysNote } from "./js/study.js";
 mountShell(null);
 
 // ---------- One live figure on each door ----------
@@ -216,94 +217,18 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   const now = new Date();
   const day = now.getDay();           // 0 Sun … 6 Sat
   const date = now.getDate();
-  const hr = now.getHours();
   const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   document.getElementById("date").textContent = DAYS[day] + " " + date + " " + MONTHS[now.getMonth()];
 
-  // Today's note and the greeting come from the database ("study" / "notes"), not the code,
-  // so nothing personal sits in this public repo. Rule fields:
-  //   days: [0-6] weekdays (0 = Sunday) · dom: day of month · publish: "this" | "next"
-  //   (only in weeks whose Wednesday, this week's or next, is a publish day) · text: may use {shutdown}
-  const studyStore = openStore("study");
-  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const esc = (t) => String(t).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  function isPublishWed(wed, cfg) {
-    if (!cfg || !cfg.from) return false;
-    const first = new Date(cfg.from + "T00:00");
-    const weeks = Math.round((wed - first) / (7 * 864e5));
-    return wed >= first && weeks % (cfg.everyWeeks || 1) === 0;
-  }
+  // Today's note and the greeting come from the database ("study" / "notes") and the rooms, not the code,
+  // so nothing personal sits in this public repo. The rules live in js/study.js, shared with the console.
+  const stores = { study: openStore("study"), desk: openStore("desk"), wardrobe: openStore("wardrobe"), todo: openStore("todo") };
   function renderNote() {
-    const N = studyStore.get("notes") || {};
-    const name = N.name ? ", " + N.name : "";
-    const greet = hr < 5 ? `Still up${name}? Bed by eleven was the agreement.`
-      : hr < 12 ? `Good morning${name}. The kettle's on.`
-      : hr < 17 ? `Good afternoon${name}. Steady as she goes.`
-      : hr < 22 ? `Good evening${name}. Mind the unplanned hour.`
-      : `Nearly eleven${name}. The study is closing.`;
-    document.getElementById("greet").textContent = greet;
-    const wed = new Date(today0); wed.setDate(today0.getDate() + (3 - day));
-    const nextWed = new Date(wed); nextWed.setDate(wed.getDate() + 7);
-    const pub = { this: isPublishWed(wed, N.publish), next: isPublishWed(nextWed, N.publish) };
-    const link = '<a href="shutdown.html">Sunday Shutdown</a>';
-    const notes = (N.rules || []).filter(r =>
-      (!r.days || r.days.includes(day)) && (r.dom == null || r.dom === date) && (!r.publish || pub[r.publish]))
-      .map(r => esc(r.text).replace("{shutdown}", link));
-    notes.push(...deskNotes());
-    notes.push(...wardrobeNotes());
-    notes.push(...todoNotes());
-    if (!notes.length) notes.push(esc(N.fallback || (N.rules ? "Nothing pressing today." : "Sign in to see today's note.")));
-    document.getElementById("notes").innerHTML = notes.map(n => "<li><span>" + n + "</span></li>").join("");
+    document.getElementById("greet").textContent = greeting(stores.study, now);
+    document.getElementById("notes").innerHTML = todaysNote(stores, now).map(n => "<li><span>" + n + "</span></li>").join("");
   }
-  // The Writing Desk adds its own lines: publish day, draft day, and an empty bank (Sundays and Mondays).
-  const deskStore = openStore("desk");
-  function deskNotes() {
-    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
-    const ps = deskStore.list("pieces/").map(x => x.value);
-    const last = { ilkwim: "Out", fiction: "Done", comedy: "Done" };
-    const open = ps.filter(p => p.stage !== last[p.track]);
-    const next = open.filter(p => p.track === "ilkwim" && p.publish && p.publish >= t).sort((a,b) => a.publish.localeCompare(b.publish))[0];
-    const desk = '<a href="desk.html">Writing Desk</a>';
-    const out = [];
-    if (next && next.publish === t) out.push("Publish day: " + esc(next.title) + ". Final pass at the " + desk + ".");
-    else if (next && next.draft === t) out.push("Draft day: " + esc(next.title) + ". The link's on the " + desk + ".");
-    if ((day === 0 || day === 1) && ps.length && !open.some(p => p.banked)) out.push("The bank is empty. One finished post in reserve, when you can.");
-    return out;
-  }
-  // The Wardrobe adds a line when an occasion is close, the tailor is ready, or it's time to measure.
-  const wardrobeStore = openStore("wardrobe");
-  function wardrobeNotes() {
-    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
-    const days = (s) => Math.round((new Date(s + "T12:00") - new Date(t + "T12:00")) / 864e5);
-    const w = '<a href="wardrobe.html">Wardrobe</a>';
-    const out = [];
-    const occ = wardrobeStore.list("occasions/").map(x => x.value).filter(o => o.date >= t && days(o.date) <= 3).sort((a,b) => a.date.localeCompare(b.date))[0];
-    if (occ) out.push((occ.kind === "trip" ? "A trip" : esc(occ.level) + " occasion") + (days(occ.date) === 0 ? " today" : days(occ.date) === 1 ? " tomorrow" : " in " + days(occ.date) + " days") + (occ.plan ? ". The outfit's in the " : ". Plan it in the ") + w + ".");
-    if (wardrobeStore.list("tailoring/").some(x => x.value.status === "At the tailor" && x.value.ready && x.value.ready <= t)) out.push("The tailor should have your things ready. See the " + w + ".");
-    const ms = wardrobeStore.list("measures/").map(x => x.key.slice(9)).sort();
-    const every = (wardrobeStore.get("settings") || {}).remeasureDays || 30;
-    if (ms.length && days(ms.at(-1)) <= -every && day === 0) out.push("Time for the tape measure. Log it in the " + w + ".");
-    return out;
-  }
-  // The Errand Book adds a line for anything overdue, or booked for today.
-  const todoStore = openStore("todo");
-  function todoNotes() {
-    const t = today0.getFullYear() + "-" + String(today0.getMonth()+1).padStart(2,"0") + "-" + String(today0.getDate()).padStart(2,"0");
-    const open = openTasks(todoStore, t);
-    const b = '<a href="todo.html">Errand Book</a>';
-    const out = [];
-    const late = open.filter(x => x.due && x.due < t);
-    if (late.length) out.push((late.length === 1 ? esc(late[0].title) + " is" : late.length + " things are") + " overdue. See the " + b + ".");
-    const booked = open.filter(x => x.booked?.start && x.booked.start.slice(0, 10) === t)
-      .sort((a, b2) => a.booked.start.localeCompare(b2.booked.start))[0];
-    if (booked) out.push("Booked for today: " + esc(booked.title) + " at " + new Date(booked.booked.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + ".");
-    return out;
-  }
-  todoStore.subscribe(renderNote);
-  wardrobeStore.subscribe(renderNote);
-  deskStore.subscribe(renderNote);
-  studyStore.subscribe(renderNote);
+  Object.values(stores).forEach(s => s.subscribe(renderNote));
 
   // Highlight the room that matters today
   const todayRoom = day === 0 ? "r-shutdown" : "r-ledger";
