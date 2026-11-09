@@ -142,6 +142,7 @@ The one app shared with another person. Everything else stays private to its own
   logs to the same focus log, and keeps a running session in local storage so a reload picks it up. Light from 7:00 to the day's
   hard stop (from the Focus Plan, else 17:00), dark after, a dim clock from 22:30 to 6:30 (a tap wakes it for 30 seconds).
   It nudges the layout a few pixels each hour against burn-in and reloads itself when `sw.js` changes, never mid-session.
+  `console.webmanifest` makes Chrome's "Add to Home screen" open it full screen and landscape, with no address bar.
   To check it in a desktop browser at 1280×800: `console.html?at=2026-11-09T14:32&theme=light` (or `dark`, `night`).
 
 ## Updating
