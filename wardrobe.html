@@ -118,6 +118,7 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .rowi.isdone .t{text-decoration:line-through;color:var(--muted)}
 .badge{flex:none;font-size:12px;font-weight:700;color:var(--green);background:var(--green-soft);border-radius:999px;padding:3px 8px;white-space:nowrap}
 .badge.brass{color:var(--brass-ink);background:var(--brass-soft)}
+.badge.muted-badge{color:var(--muted);background:var(--rule)}
 .badge.danger{color:var(--danger);background:var(--danger-soft)}
 
 /* fit */
@@ -155,6 +156,9 @@ nav.tabs svg{width:22px;height:22px}
 .sheet{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
 .sheet .panel{width:min(600px,100%);background:var(--paper);border-radius:16px 16px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
 .sheet .panel > *{flex-shrink:0}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35}
+.check input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--green)}
+.alt-box{background:var(--brass-soft);border-color:var(--brass)}
 .hero{position:relative;width:100%;height:clamp(240px, 52vh, 560px);flex:none;border:0;padding:0;border-radius:12px;background:var(--rule);overflow:hidden;display:grid;place-items:center;cursor:zoom-in}
 .hero img{width:100%;height:100%;object-fit:contain;display:block}
 .hero .init{font-family:var(--display);font-size:40px;color:var(--muted)}
@@ -362,6 +366,7 @@ nav.tabs svg{width:22px;height:22px}
 <script type="module">
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase, currentUser } from "./js/sync.js";
+import { mirrorSoon } from "./js/rooms.js";
 
 // Private to its owner: "wardrobe" is not one of sync.js's shared apps.
 const store = openStore("wardrobe");
@@ -392,6 +397,9 @@ const LEVELS = ["Casual", "Family holiday", "Business casual", "Formal"];
 const VERDICTS = ["Fits", "Tailor", "Too big", "Too small", "Retire", "Donate"];
 const CARE = ["Machine wash", "Hand wash", "Dry clean", "Polish", "Spot clean"];
 const WEARABLE = new Set(["Fits", "Tailor"]);
+// "Tailor" is the stored value (and what Claude answers with); people see "Needs tailoring".
+const vLabel = (v) => v === "Tailor" ? "Needs tailoring" : v;
+const ALTERATIONS = ["Take in sleeves", "Shorten sleeves", "Take in body", "Take in waist", "Let out waist", "Hem trousers", "Shorten jacket"];
 const FLAG = { Tailor: "tailor", "Too big": "big", "Too small": "small", Retire: "go", Donate: "go" };
 const MEASURES = [
   ["weight", "Weight", "lb"], ["neck", "Neck", "in"], ["chest", "Chest", "in"], ["waist", "Waist", "in"],
@@ -493,7 +501,8 @@ function openSheet(html, wire) {
   hydratePhotos($("sheet-panel"));
   $("sheet-panel").querySelector("input:not([type=file]),textarea,select,button")?.focus();
 }
-const closeSheet = () => { $("sheet").hidden = true; sheetOpen = null; };
+// Changes made while the sheet was open skipped the redraw, so catch up on close.
+const closeSheet = () => { $("sheet").hidden = true; sheetOpen = null; render(); };
 $("sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
 
@@ -919,7 +928,7 @@ function renderRail() {
   $("rail-count").textContent = all.length ? `The Wardrobe · ${plural(all.length, "piece", "pieces")}` : "The Wardrobe";
   $("rail-filters").innerHTML = Object.keys(FILTERS).map((f) => {
     const n = f === "All" ? all.length : all.filter(FILTERS[f]).length;
-    return (n || f === railFilter || f === "All") ? `<button class="chip" type="button" data-f="${esc(f)}" aria-pressed="${f === railFilter}">${esc(f)} <span class="muted" style="color:inherit;opacity:.7">${n}</span></button>` : "";
+    return (n || f === railFilter || f === "All") ? `<button class="chip" type="button" data-f="${esc(f)}" aria-pressed="${f === railFilter}">${esc(vLabel(f))} <span class="muted" style="color:inherit;opacity:.7">${n}</span></button>` : "";
   }).join("");
   const cats = CATEGORIES.filter((c) => all.some((p) => p.category === c));
   $("rail-cats").innerHTML = cats.length > 1 ? ["All", ...cats].map((c) => `<button class="chip" type="button" data-c="${esc(c)}" aria-pressed="${c === railCat}">${esc(c === "All" ? "Every kind" : c)}</button>`).join("") : "";
@@ -929,7 +938,7 @@ function renderRail() {
 }
 function tile(p) {
   const v = p.verdict || "Fits";
-  const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(v)}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
+  const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(vLabel(v))}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
   return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
     <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "waiting to be tagged" : p.needsTag ? "needs tagging" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
 }
@@ -1035,11 +1044,24 @@ function renderTagBar() {
 window.addEventListener("online", () => runTagging({ onlyHere: true }));
 $("add-hand").onclick = () => pieceSheet(null);
 
+/** Keep the tailor list in step with a piece's fit. Returns a toast, or "" when nothing worth saying changed. */
+function syncTailorEntry(np, alteration, wait) {
+  const open = tailoring().find((x) => x.pieceId === np.id && x.status !== "Collected");
+  if (np.verdict === "Tailor") {
+    const status = wait ? "Waiting" : open && open.status !== "Waiting" ? open.status : "To drop off";
+    if (!open) { store.set("tailoring/" + uid(), { pieceId: np.id, alteration, cost: 0, status, created: Date.now() }); return wait ? "Saved. On the tailor list, held for now." : "Saved, and on the tailor list."; }
+    if (open.alteration !== alteration || open.status !== status) store.set("tailoring/" + open.id, { ...strip(open), alteration, status });
+    return "";
+  }
+  // No longer needs tailoring: take it off the list, unless it's already with the tailor.
+  if (open && (open.status === "To drop off" || open.status === "Waiting")) { store.remove("tailoring/" + open.id); return "Saved, and taken off the tailor list."; }
+  return "";
+}
 function pieceSheet(id) {
   const p = id ? piece(id) : { id: uid(), name: "", category: "Shirt", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today() };
   if (!p) return;
   const isNew = !id;
-  const opt = (list, cur) => list.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`).join("");
+  const opt = (list, cur) => list.map((x) => `<option value="${esc(x)}"${x === cur ? " selected" : ""}>${esc(vLabel(x))}</option>`).join("");
   const worn = (p.wears || []).length;
   const tl = tailoring().find((x) => x.pieceId === p.id && x.status !== "Collected");
   openSheet(`${p.photo ? `<button type="button" class="hero" id="ps-hero" aria-label="See ${esc(p.name || "this piece")} full screen"><span class="init">${esc((p.name || "?").trim()[0] || "?")}</span>
@@ -1056,6 +1078,11 @@ function pieceSheet(id) {
       <label class="field">Labelled size<input type="text" id="ps-size" value="${esc(p.size || "")}" placeholder="e.g. 16/34, 36x32, 42R"></label>
       <label class="field">Fit<select id="ps-verdict">${opt(VERDICTS, p.verdict || "Fits")}</select></label>
     </div>
+    <div class="card pad alt-box" id="ps-alt-box" ${p.verdict === "Tailor" ? "" : "hidden"}>
+      <label class="field">What needs doing<textarea id="ps-alt" placeholder="e.g. Take in the sleeves about an inch" style="min-height:56px">${esc(tl?.alteration || "")}</textarea></label>
+      <div class="chips">${ALTERATIONS.map((a) => `<button class="chip dash" type="button" data-alt="${esc(a)}">+ ${esc(a)}</button>`).join("")}</div>
+      <label class="check"><input type="checkbox" id="ps-wait" ${tl?.status === "Waiting" ? "checked" : ""}><span>Hold off for now <span class="muted">(stays on the list, but not in the drop-off pile)</span></span></label>
+    </div>
     <div class="two">
       <label class="field">Colour<input type="text" id="ps-colour" value="${esc(p.colour || "")}"></label>
       <label class="field">Fabric<input type="text" id="ps-fabric" value="${esc(p.fabric || "")}"></label>
@@ -1066,10 +1093,9 @@ function pieceSheet(id) {
     ${isNew ? `<label class="btn"><span id="ps-photo-label">Add a photo</span><input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>` :
       `<div class="chips"><label class="chip dash" style="cursor:pointer">${p.photo ? "Replace photo" : "Add a photo"}<input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>
        ${p.photo && !p.tagging ? `<button class="chip dash" type="button" id="ps-retag">Ask Alfred to tag this · 1¢</button>` : ""}
-       ${p.verdict === "Tailor" && !tl ? `<button class="chip dash" type="button" id="ps-tailor">+ Tailoring list</button>` : ""}
        ${p.care ? `<button class="chip dash" type="button" id="ps-clean">Just ${p.care === "Polish" ? "polished" : "cleaned"}</button>` : ""}</div>
       <div class="card pad" style="background:transparent">
-        <div class="row"><b>Fit check</b>${p.fitCheck ? `<span class="small muted">${esc(fmtDate(p.fitCheck.date))}: ${esc(p.fitCheck.verdict)}</span>` : ""}</div>
+        <div class="row"><b>Fit check</b>${p.fitCheck ? `<span class="small muted">${esc(fmtDate(p.fitCheck.date))}: ${esc(vLabel(p.fitCheck.verdict))}</span>` : ""}</div>
         ${p.fitCheck?.advice ? `<span class="small">${esc(p.fitCheck.advice)}</span>` : ""}
         <label class="btn stack" style="cursor:pointer">Photo of me wearing it <span class="cost">about 2¢ · the photo isn't kept</span><input type="file" accept="image/*" class="sr" id="ps-fitphoto"></label>
         <div id="ps-fit"></div>
@@ -1082,6 +1108,14 @@ function pieceSheet(id) {
       colour: panel.querySelector("#ps-colour").value.trim(), fabric: panel.querySelector("#ps-fabric").value.trim(), care: panel.querySelector("#ps-care").value,
       notes: panel.querySelector("#ps-notes").value.trim() });
     panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
+    panel.querySelector("#ps-verdict").addEventListener("change", (e) => {
+      panel.querySelector("#ps-alt-box").hidden = e.target.value !== "Tailor";
+      if (e.target.value === "Tailor") panel.querySelector("#ps-alt").focus();
+    });
+    panel.querySelectorAll("[data-alt]").forEach((b) => (b.onclick = () => {
+      const ta = panel.querySelector("#ps-alt"), cur = ta.value.trim();
+      if (!cur.toLowerCase().includes(b.dataset.alt.toLowerCase())) ta.value = cur ? `${cur}; ${b.dataset.alt.toLowerCase()}` : b.dataset.alt;
+    }));
     const hero = panel.querySelector("#ps-hero");
     if (hero) {
       const show = (u) => { if (!u || !hero.isConnected) return; const img = hero.querySelector("img") || document.createElement("img"); img.alt = ""; img.src = u; hero.querySelector(".init")?.remove(); hero.prepend(img); };
@@ -1101,14 +1135,11 @@ function pieceSheet(id) {
     panel.querySelector("#ps-save").onclick = async () => {
       const np = read();
       if (newPhoto) await storePhoto(np, newPhoto, newLarge); else savePiece(np);
-      if (np.verdict === "Tailor" && !tailoring().some((x) => x.pieceId === np.id && x.status !== "Collected") && (p.verdict !== "Tailor")) {
-        store.set("tailoring/" + uid(), { pieceId: np.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() });
-        toast("Saved, and added to the tailoring list.");
-      }
+      const msg = syncTailorEntry(np, panel.querySelector("#ps-alt").value.trim(), panel.querySelector("#ps-wait").checked);
+      if (msg) toast(msg);
       closeSheet();
     };
     panel.querySelector("#ps-wear")?.addEventListener("click", () => { savePiece(read()); wearToday([p.id]); closeSheet(); });
-    panel.querySelector("#ps-tailor")?.addEventListener("click", () => { savePiece(read()); store.set("tailoring/" + uid(), { pieceId: p.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() }); closeSheet(); toast("On the tailoring list."); });
     panel.querySelector("#ps-clean")?.addEventListener("click", () => { savePiece({ ...read(), cleaned: today() }); closeSheet(); toast("Noted."); });
     panel.querySelector("#ps-fitphoto")?.addEventListener("change", async (e) => {
       const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -1119,10 +1150,10 @@ function pieceSheet(id) {
         const cur = read();
         const r = await ai("w_fit_photo", { ...aboutMe(), image: img.b64, media_type: "image/jpeg", piece: lineOf(cur) });
         if (!r.can_judge) { box.innerHTML = `<p class="small">${esc(r.advice || "I couldn't see enough to judge. Try a full-length photo in good light.")}</p>`; return; }
-        box.innerHTML = `<div class="row"><span class="badge ${r.verdict === "Fits" ? "" : r.verdict === "Tailor" ? "brass" : "danger"}">${esc(r.verdict)}</span>${r.cost_usd ? `<span class="small muted">about ${money(r.cost_usd)}</span>` : ""}</div>
+        box.innerHTML = `<div class="row"><span class="badge ${r.verdict === "Fits" ? "" : r.verdict === "Tailor" ? "brass" : "danger"}">${esc(vLabel(r.verdict))}</span>${r.cost_usd ? `<span class="small muted">about ${money(r.cost_usd)}</span>` : ""}</div>
           ${r.notes?.length ? `<ul class="plain">${r.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
           <p class="small" style="margin:0">${esc(r.advice)}</p>${r.alteration ? `<p class="small" style="margin:0"><b>Ask for:</b> ${esc(r.alteration)}</p>` : ""}
-          <div class="chips"><button class="btn primary sm" type="button" id="fc-agree">Agree</button><button class="btn sm ghost" type="button" id="fc-keep">Keep it as ${esc(cur.verdict)}</button></div>`;
+          <div class="chips"><button class="btn primary sm" type="button" id="fc-agree">Agree</button><button class="btn sm ghost" type="button" id="fc-keep">Keep it as ${esc(vLabel(cur.verdict))}</button></div>`;
         const check = { date: today(), weight: measures().find((m) => m.weight)?.weight ?? null, verdict: r.verdict, advice: r.advice, via: "photo" };
         box.querySelector("#fc-agree").onclick = () => {
           savePiece({ ...read(), verdict: r.verdict, fitCheck: check });
@@ -1560,7 +1591,7 @@ function renderFitAdvice() {
     <h2>Alfred's fitting</h2>${fit.summary ? `<p class="small">${esc(fit.summary)}</p>` : ""}
     ${open.length ? `<div class="rows">${open.map((x) => { const p = piece(x.id); return `<div class="rowi" style="padding:10px 0;align-items:flex-start">
       <button class="piece" type="button" data-open="${esc(p.id)}" style="width:56px;flex:none">${thumbHtml(p)}</button>
-      <span class="grow"><span class="t">${esc(p.name)} <span class="badge ${x.verdict === "Tailor" ? "brass" : x.verdict === "Fits" ? "" : "danger"}">${esc(x.verdict)}</span></span>
+      <span class="grow"><span class="t">${esc(p.name)} <span class="badge ${x.verdict === "Tailor" ? "brass" : x.verdict === "Fits" ? "" : "danger"}">${esc(vLabel(x.verdict))}</span></span>
       <span class="s">${esc(x.advice)}</span>${x.alteration ? `<span class="s"><b>Ask for:</b> ${esc(x.alteration)}${x.cost_usd ? ` (about ${money(x.cost_usd)})` : ""}</span>` : ""}
       <span class="chips" style="margin-top:6px"><button class="btn primary sm" type="button" data-apply="${esc(x.id)}">Agree</button><button class="btn sm ghost" type="button" data-skip="${esc(x.id)}">Not this one</button></span></span></div>`; }).join("")}</div>`
       : `<span class="small muted">All advice dealt with.</span>`}</div>` : "");
@@ -1576,7 +1607,7 @@ function renderFitAdvice() {
   box.querySelectorAll("[data-skip]").forEach((b) => (b.onclick = () => mark(b.dataset.skip)));
   hydratePhotos(box);
 }
-const TSTATUS = ["To drop off", "At the tailor", "Ready", "Collected"];
+const TSTATUS = ["To drop off", "At the tailor", "Ready", "Waiting", "Collected"];
 function renderTailoring() {
   const all = tailoring().filter((x) => x.status !== "Collected").sort((a, b) => TSTATUS.indexOf(a.status) - TSTATUS.indexOf(b.status));
   const total = all.reduce((s, x) => s + (Number(x.cost) || 0), 0);
@@ -1584,14 +1615,65 @@ function renderTailoring() {
     ${all.length ? `<div class="card rows">${all.map((x) => { const p = piece(x.pieceId); const late = x.status === "At the tailor" && x.ready && x.ready <= today();
       return `<button class="rowi" type="button" data-tl="${esc(x.id)}" style="width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left">
       <span class="grow"><span class="t">${esc(p?.name || "A piece")}</span><span class="s">${esc(x.alteration || "Alteration not noted yet")}${x.ready ? ` · ready ${esc(fmtDate(x.ready))}` : ""}</span></span>
-      <span class="badge ${late || x.status === "Ready" ? "" : "brass"}">${esc(late ? "Collect" : x.status)}</span></button>`; }).join("")}</div>
-      <span class="small muted">About ${money(total)} all told. Tailors often want one to two weeks.</span>`
+      <span class="badge ${late || x.status === "Ready" ? "" : x.status === "Waiting" ? "muted-badge" : "brass"}">${esc(late ? "Collect" : x.status)}</span></button>`; }).join("")}</div>
+      <span class="small muted">${total ? `About ${money(total)} all told. ` : ""}Tailors often want one to two weeks.${errandNote()}</span>`
       : `<div class="card empty">Nothing waiting on the tailor.</div>`}`;
   $("tailoring").querySelectorAll("[data-tl]").forEach((b) => (b.onclick = () => tailorSheet(b.dataset.tl)));
   $("t-copy")?.addEventListener("click", async () => {
     const txt = all.filter((x) => x.status === "To drop off" || x.status === "At the tailor").map((x) => `• ${piece(x.pieceId)?.name || "Piece"}: ${x.alteration || "(to discuss)"}`).join("\n");
     try { await navigator.clipboard.writeText(txt); toast("Copied. Paste it into a note for the tailor."); } catch { toast("Couldn't copy on this device."); }
   });
+}
+const markAltered = (p) => savePiece({ ...p, verdict: "Fits", size: p.size && !/\(altered\)$/.test(p.size) ? `${p.size} (altered)` : p.size });
+
+// ---------- the tailor errands (Errand Book) ----------
+// One "take clothes to the tailor" errand while anything is waiting to go in, and one "collect" errand once
+// something is ready. The Wardrobe keeps their notes current and ticks them off when nothing is left;
+// ticking one off in the Errand Book moves the clothes along here too.
+const todo = openStore("todo");
+const ERRANDS = {
+  drop: { title: "Take clothes to the tailor", size: 30, pick: (x) => x.status === "To drop off" },
+  collect: { title: "Collect clothes from the tailor", size: 20, pick: (x) => x.status === "Ready" || (x.status === "At the tailor" && x.ready && x.ready <= today()) },
+};
+const synced = (st) => st.status === "saved" || st.status === "pending";
+function syncErrands() {
+  // Only once both rooms have caught up with the server, so a stale device never undoes the other's work.
+  if (!synced(store) || !synced(todo)) return;
+  const list = tailoring(), ids = { ...(store.get("errands") || {}) };
+  let changed = false, touched = false;
+  for (const [k, e] of Object.entries(ERRANDS)) {
+    const items = list.filter(e.pick);
+    const id = ids[k], t = id ? todo.get("tasks/" + id) : null;
+    if (t?.status === "done") {
+      // Ticked off in the Errand Book: the clothes went in, or came home.
+      for (const x of items) {
+        store.set("tailoring/" + x.id, { ...strip(x), status: k === "drop" ? "At the tailor" : "Collected" });
+        const p = k === "collect" && piece(x.pieceId); if (p) markAltered(p);
+      }
+      delete ids[k]; changed = true; continue;
+    }
+    if (id && !t) { if (!items.length) { delete ids[k]; changed = true; } continue; } // deleted there: leave it be until this batch is done
+    if (!items.length) {
+      if (t) { todo.set("tasks/" + id, { ...t, status: "done", doneAt: new Date().toISOString() }); touched = true; delete ids[k]; changed = true; }
+      continue;
+    }
+    const notes = items.map((x) => `• ${piece(x.pieceId)?.name || "A piece"}: ${x.alteration || "to discuss"}`).join("\n") + "\n\nKept up to date by the Wardrobe.";
+    if (!t) {
+      // Named after the batch, so two devices doing this at once land on the same errand.
+      const nid = `wardrobe-${k}-${Math.min(...items.map((x) => x.created || 0)).toString(36)}`;
+      if (!todo.get("tasks/" + nid)) todo.set("tasks/" + nid, { title: e.title, area: "Errands", priority: "Normal", status: "todo", size: e.size, notes, wantsSlot: true, created: new Date().toISOString() });
+      ids[k] = nid; changed = touched = true;
+    } else if (t.notes !== notes) { todo.set("tasks/" + id, { ...t, notes }); touched = true; }
+  }
+  if (changed) store.set("errands", ids);
+  if (touched) mirrorSoon("todo");
+}
+let errandTimer = null;
+const syncErrandsSoon = () => { clearTimeout(errandTimer); errandTimer = setTimeout(syncErrands, 1500); };
+function errandNote() {
+  const ids = store.get("errands") || {};
+  const on = Object.keys(ERRANDS).filter((k) => ids[k] && todo.get("tasks/" + ids[k]) && todo.get("tasks/" + ids[k]).status !== "done");
+  return on.length ? ` The trip is in your Errand Book${on.length > 1 ? " (dropping off and collecting)" : ""}.` : "";
 }
 function tailorSheet(id) {
   const x = { id, ...store.get("tailoring/" + id) }; const p = piece(x.pieceId);
@@ -1607,7 +1689,7 @@ function tailorSheet(id) {
     panel.querySelector("#tl-save").onclick = () => {
       const ready = panel.querySelector("#tl-ready").value;
       store.set("tailoring/" + id, { ...strip(x), alteration: panel.querySelector("#tl-alt").value.trim(), cost: parseFloat(panel.querySelector("#tl-cost").value) || 0, ready, status: st });
-      if (st === "Collected" && p) savePiece({ ...p, verdict: "Fits", size: p.size && !/\(altered\)$/.test(p.size) ? `${p.size} (altered)` : p.size });
+      if (st === "Collected" && p) markAltered(p);
       closeSheet();
     };
   });
@@ -1857,8 +1939,11 @@ if (/access_token=|error_description=/.test(location.hash) || new URLSearchParam
   try { await supabase.auth.getSession(); } catch {}
   if (/access_token=|error_description=/.test(location.hash)) history.replaceState(null, "", location.pathname + "#today");
 }
-store.subscribe(() => { if (!sheetOpen) render(); });
+store.subscribe(() => { if (!sheetOpen) render(); syncErrandsSoon(); });
+todo.subscribe(syncErrandsSoon);
+todo.onStatus(syncErrandsSoon);
 store.onStatus(async (st) => {
+  syncErrandsSoon();
   if (st === "signed-out") { myId = null; return; }
   if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); runTagging({ onlyHere: true }); } }
 });
