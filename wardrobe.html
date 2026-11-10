@@ -154,7 +154,30 @@ nav.tabs svg{width:22px;height:22px}
 .al-pill{bottom:calc(var(--tabs) + 10px + env(safe-area-inset-bottom)) !important}
 .sheet{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
 .sheet .panel{width:min(600px,100%);background:var(--paper);border-radius:16px 16px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
-.sheet .hero{width:100%;max-height:320px;object-fit:contain;border-radius:12px;background:var(--rule)}
+.sheet .panel > *{flex-shrink:0}
+.hero{position:relative;width:100%;height:clamp(240px, 52vh, 560px);flex:none;border:0;padding:0;border-radius:12px;background:var(--rule);overflow:hidden;display:grid;place-items:center;cursor:zoom-in}
+.hero img{width:100%;height:100%;object-fit:contain;display:block}
+.hero .init{font-family:var(--display);font-size:40px;color:var(--muted)}
+.hero .expand{position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center}
+.hero .expand svg{width:18px;height:18px}
+/* the full-screen viewer */
+.lb{position:fixed;inset:0;z-index:10001;background:#000;color:#fff;overscroll-behavior:contain;user-select:none;-webkit-user-select:none}
+.lb-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+.lb-stage img{display:block;max-width:none;transform-origin:center center;will-change:transform;-webkit-user-drag:none;pointer-events:none}
+.lb-stage.anim img{transition:transform .2s ease, opacity .2s ease}
+.lb button{border:0;color:#fff;background:rgba(40,40,40,.6);display:grid;place-items:center;border-radius:50%}
+.lb button svg{width:22px;height:22px}
+.lb-x{position:absolute;top:calc(12px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));width:44px;height:44px}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px}
+.lb-nav.prev{left:calc(12px + env(safe-area-inset-left))}
+.lb-nav.next{right:calc(12px + env(safe-area-inset-right))}
+.lb-nav[disabled]{opacity:.25;cursor:default}
+@media (hover:none) and (max-width:700px){.lb-nav{display:none !important}}
+.lb-cap{position:absolute;left:0;right:0;bottom:0;padding:28px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background:linear-gradient(transparent, rgba(0,0,0,.7));display:flex;flex-direction:column;gap:2px;pointer-events:none;transition:opacity .2s}
+.lb-cap b{font-family:var(--display);font-weight:400;font-size:19px}
+.lb-cap span{font-size:13px;opacity:.8}
+.lb.zoomed .lb-cap,.lb.zoomed .lb-nav{opacity:0;pointer-events:none}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabs) + 56px + env(safe-area-inset-bottom));z-index:70;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 18px rgba(0,0,0,.2)}
 .toast button{border:0;background:none;color:var(--brass);font-weight:700;padding:4px 0}
 .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;vertical-align:-2px}
@@ -327,6 +350,13 @@ nav.tabs svg{width:22px;height:22px}
 </nav>
 
 <div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="sheet-panel"></div></div>
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Photo" hidden>
+  <div class="lb-stage" id="lb-stage"><img id="lb-img" alt=""></div>
+  <button type="button" class="lb-nav prev" id="lb-prev" aria-label="Previous piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+  <button type="button" class="lb-nav next" id="lb-next" aria-label="Next piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+  <div class="lb-cap"><b id="lb-name"></b><span id="lb-meta"></span><span id="lb-soft" hidden>Older, smaller photo. Replace it for a sharper view.</span></div>
+  <button type="button" class="lb-x" id="lb-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+</div>
 <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
 
 <script type="module">
@@ -512,6 +542,23 @@ async function photoUrl(p) {
   loading.set(k, job);
   try { return await job; } finally { loading.delete(k); }
 }
+/** The sharpest photo we can get for a piece: its sharp copy, else the pre-tagging copy still on this device, else null. */
+const bigUrls = new Map();
+async function largeUrl(p) {
+  if (!p?.photo) return null;
+  const k = p.photoL === p.photo ? largeKey(p) : fullKey(p.id);
+  if (bigUrls.has(k)) return bigUrls.get(k);
+  let blob = null;
+  try { const hit = await (await caches.open(PHOTO_CACHE)).match(k); if (hit) blob = await hit.blob(); } catch {}
+  if (!blob && p.photoL === p.photo && navigator.onLine && myId) {
+    const { data } = await supabase.storage.from("wardrobe").download(`${myId}/${p.id}-l.jpg`).catch(() => ({ data: null }));
+    if (data) { blob = data; try { await (await caches.open(PHOTO_CACHE)).put(k, new Response(data, { headers: { "Content-Type": "image/jpeg" } })); } catch {} }
+  }
+  if (!blob) return null;
+  // Sharp photos are big, so only the last few stay decoded in memory.
+  if (bigUrls.size >= 8) { const [old, u] = bigUrls.entries().next().value; URL.revokeObjectURL(u); bigUrls.delete(old); }
+  const u = URL.createObjectURL(blob); bigUrls.set(k, u); return u;
+}
 function thumbHtml(p) {
   const init = esc((p.name || p.category || "?").trim()[0] || "?");
   return p.photo ? `<span class="thumb" data-photo="${esc(p.id)}">${init}</span>` : `<span class="thumb">${init}</span>`;
@@ -535,11 +582,28 @@ async function shrink(file, max, quality = 0.82) {
   const b64 = c.toDataURL("image/jpeg", quality).split(",")[1];
   return { blob, b64 };
 }
-/** Keep a piece's thumbnail on the device now, and upload it when we can. */
-async function storePhoto(p, blob) {
+// Each photo also has a sharp copy (wardrobe/<user id>/<piece id>-l.jpg) for the full-screen viewer.
+// `photoL` matches `photo` when the sharp copy belongs to the current photo; older pieces only have the thumbnail.
+const largeKey = (p) => `./__wardrobe-large/${p.id}?v=${p.photoL}`;
+const LARGE_MAX = 900 * 1024; // the bucket takes up to 1 MB a file
+/** A sharp copy for the viewer: 1600px on the long side, squeezed until it fits the bucket. */
+async function shrinkLarge(file) {
+  for (const [max, q] of [[1600, 0.82], [1600, 0.7], [1280, 0.7], [1024, 0.7]]) {
+    const r = await shrink(file, max, q);
+    if (r.blob.size <= LARGE_MAX) return r.blob;
+  }
+  return null;
+}
+/** Keep a piece's thumbnail (and sharp copy, if there is one) on the device now, and upload them when we can. */
+async function storePhoto(p, blob, large = null) {
   const v = Date.now();
   p.photo = v; p.photoPending = true;
-  try { await (await caches.open(PHOTO_CACHE)).put(photoKey(p), new Response(blob, { headers: { "Content-Type": "image/jpeg" } })); } catch {}
+  if (large) p.photoL = v; else delete p.photoL;
+  try {
+    const c = await caches.open(PHOTO_CACHE);
+    await c.put(photoKey(p), new Response(blob, { headers: { "Content-Type": "image/jpeg" } }));
+    if (large) await c.put(largeKey(p), new Response(large, { headers: { "Content-Type": "image/jpeg" } }));
+  } catch {}
   savePiece(p);
   uploadPending();
 }
@@ -554,13 +618,21 @@ async function uploadPending() {
       if (!hit) { savePiece({ ...p, photoPending: false }); continue; }
       const { error } = await supabase.storage.from("wardrobe").upload(`${myId}/${p.id}.jpg`, await hit.blob(), { upsert: true, contentType: "image/jpeg" });
       if (error) { console.warn("[wardrobe] photo upload", error); break; }
+      if (p.photoL && p.photoL === p.photo) {
+        let big = null;
+        try { big = await (await caches.open(PHOTO_CACHE)).match(largeKey(p)); } catch {}
+        if (big) {
+          const { error: e2 } = await supabase.storage.from("wardrobe").upload(`${myId}/${p.id}-l.jpg`, await big.blob(), { upsert: true, contentType: "image/jpeg" });
+          if (e2) { console.warn("[wardrobe] sharp photo upload", e2); break; }
+        }
+      }
       const now = piece(p.id); if (now) savePiece({ ...now, photoPending: false });
     }
   } finally { uploading = false; }
 }
 async function removePhoto(p) {
   if (!p.photo || !myId) return;
-  supabase.storage.from("wardrobe").remove([`${myId}/${p.id}.jpg`]).catch(() => {});
+  supabase.storage.from("wardrobe").remove([`${myId}/${p.id}.jpg`, `${myId}/${p.id}-l.jpg`]).catch(() => {});
 }
 window.addEventListener("online", uploadPending);
 
@@ -834,6 +906,13 @@ const FILTERS = {
   "Doesn't fit": (p) => p.verdict === "Too big" || p.verdict === "Too small", "On the way out": (p) => p.verdict === "Retire" || p.verdict === "Donate",
   Unworn: unwornLong, Formal: (p) => p.formality === "Formal", Untagged: untagged,
 };
+/** The pieces the rail is showing right now, in rail order (filters, kind and search applied). */
+function railShown(all = pieces()) {
+  const q = railQ.toLowerCase();
+  return all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
+    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || ""));
+}
 function renderRail() {
   renderTagBar();
   const all = pieces();
@@ -844,10 +923,7 @@ function renderRail() {
   }).join("");
   const cats = CATEGORIES.filter((c) => all.some((p) => p.category === c));
   $("rail-cats").innerHTML = cats.length > 1 ? ["All", ...cats].map((c) => `<button class="chip" type="button" data-c="${esc(c)}" aria-pressed="${c === railCat}">${esc(c === "All" ? "Every kind" : c)}</button>`).join("") : "";
-  const q = railQ.toLowerCase();
-  const shown = all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
-    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes].join(" ").toLowerCase().includes(q))
-    .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || ""));
+  const shown = railShown(all);
   $("rail-body").innerHTML = shown.length ? `<div class="grid">${shown.map(tile).join("")}</div>`
     : `<div class="card empty">${all.length ? "Nothing matches." : "The rail is bare. Add a photo of each piece and Alfred will do the cataloguing."}</div>`;
 }
@@ -885,10 +961,10 @@ $("add-photos").addEventListener("change", async (e) => {
   $("tag-progress").innerHTML = `<div class="card empty"><span class="busy" aria-hidden="true"></span> Taking in ${plural(files.length, "photo", "photos")}…</div>`;
   for (const f of files) {
     try {
-      const [thumb, big] = [await shrink(f, 480, 0.8), await shrink(f, 1024, 0.82)];
+      const [thumb, big, large] = [await shrink(f, 480, 0.8), await shrink(f, 1024, 0.82), await shrinkLarge(f)];
       const p = { id: uid(), name: "New piece", category: "Other", formality: "Casual", verdict: "Fits", wears: [], created: Date.now(), created_day: today(), tagging: true };
       await keepFull(p.id, big.blob);
-      await storePhoto(p, thumb.blob);
+      await storePhoto(p, thumb.blob, large);
     } catch (err) { toast(err.message); }
   }
   if (view !== "rail") go("rail"); else render();
@@ -966,7 +1042,8 @@ function pieceSheet(id) {
   const opt = (list, cur) => list.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`).join("");
   const worn = (p.wears || []).length;
   const tl = tailoring().find((x) => x.pieceId === p.id && x.status !== "Collected");
-  openSheet(`${p.photo ? `<span class="thumb" data-photo="${esc(p.id)}" style="aspect-ratio:auto;height:260px;border-radius:12px">…</span>` : ""}
+  openSheet(`${p.photo ? `<button type="button" class="hero" id="ps-hero" aria-label="See ${esc(p.name || "this piece")} full screen"><span class="init">${esc((p.name || "?").trim()[0] || "?")}</span>
+      <span class="expand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button>` : ""}
     <h2>${isNew ? "A new piece" : esc(p.name)}</h2>
     ${isNew ? "" : `<div class="chips"><span class="badge">${worn ? `Worn ${plural(worn, "time", "times")}, last ${esc(fmtDate(lastWorn(p)))}` : "Not worn yet"}</span>${tl ? `<span class="badge brass">At the tailor's list</span>` : ""}</div>`}
     ${!isNew && lastWorn(p) !== today() ? `<button class="btn primary" type="button" id="ps-wear">Wore it today</button>` : ""}
@@ -999,20 +1076,31 @@ function pieceSheet(id) {
       </div>`}
     <div class="two">${isNew ? `<button class="btn" type="button" id="ps-cancel">Cancel</button>` : `<button class="btn" type="button" id="ps-del">Remove</button>`}
       <button class="btn primary" type="button" id="ps-save">Save</button></div>`, (panel) => {
-    let newPhoto = null;
+    let newPhoto = null, newLarge = null;
     const read = () => ({ ...p, name: panel.querySelector("#ps-name").value.trim() || "Untitled", category: panel.querySelector("#ps-cat").value,
       formality: panel.querySelector("#ps-form").value, size: panel.querySelector("#ps-size").value.trim(), verdict: panel.querySelector("#ps-verdict").value,
       colour: panel.querySelector("#ps-colour").value.trim(), fabric: panel.querySelector("#ps-fabric").value.trim(), care: panel.querySelector("#ps-care").value,
       notes: panel.querySelector("#ps-notes").value.trim() });
     panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
+    const hero = panel.querySelector("#ps-hero");
+    if (hero) {
+      const show = (u) => { if (!u || !hero.isConnected) return; const img = hero.querySelector("img") || document.createElement("img"); img.alt = ""; img.src = u; hero.querySelector(".init")?.remove(); hero.prepend(img); };
+      photoUrl(p).then((u) => { if (!hero.querySelector("img")) show(u); });
+      largeUrl(p).then(show);
+      hero.onclick = () => openViewer(p.id);
+    }
     panel.querySelector("#ps-photo").addEventListener("change", async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      try { newPhoto = (await shrink(f, 480, 0.8)).blob; const l = panel.querySelector("#ps-photo-label"); if (l) l.textContent = "Photo added"; else { await dropFull(p.id); await storePhoto(read(), newPhoto); closeSheet(); toast("Photo replaced."); } }
+      try {
+        newPhoto = (await shrink(f, 480, 0.8)).blob; newLarge = await shrinkLarge(f);
+        const l = panel.querySelector("#ps-photo-label");
+        if (l) l.textContent = "Photo added"; else { await dropFull(p.id); await storePhoto(read(), newPhoto, newLarge); closeSheet(); toast("Photo replaced."); }
+      }
       catch (err) { toast(err.message); }
     });
     panel.querySelector("#ps-save").onclick = async () => {
       const np = read();
-      if (newPhoto) await storePhoto(np, newPhoto); else savePiece(np);
+      if (newPhoto) await storePhoto(np, newPhoto, newLarge); else savePiece(np);
       if (np.verdict === "Tailor" && !tailoring().some((x) => x.pieceId === np.id && x.status !== "Collected") && (p.verdict !== "Tailor")) {
         store.set("tailoring/" + uid(), { pieceId: np.id, alteration: "", cost: 0, status: "To drop off", created: Date.now() });
         toast("Saved, and added to the tailoring list.");
@@ -1057,6 +1145,152 @@ function pieceSheet(id) {
     });
   });
 }
+
+// ===================== THE VIEWER =====================
+// Full screen, pinch or double-tap to zoom, swipe sideways through the rail, swipe down to close.
+const lb = { ids: [], i: 0, from: null, s: 1, x: 0, y: 0, nw: 1, nh: 1, ptrs: new Map(), g: null, lastTap: 0, token: 0 };
+const lbImg = $("lb-img"), lbStage = $("lb-stage");
+function viewerList(id) {
+  const withPhoto = (list) => list.filter((x) => x.photo).map((x) => x.id);
+  // From the rail: what the rail is showing. From elsewhere (a look, an occasion): the whole rail, in rail order.
+  const ctx = withPhoto(view === "rail" ? railShown() : pieces().sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || "")));
+  return ctx.includes(id) ? ctx : [id];
+}
+function openViewer(id) {
+  lb.ids = viewerList(id); lb.i = lb.ids.indexOf(id); lb.from = id;
+  $("lb").hidden = false;
+  document.documentElement.style.overflow = "hidden";
+  showViewer();
+  $("lb-close").focus();
+}
+function closeViewer() {
+  $("lb").hidden = true; document.documentElement.style.overflow = "";
+  lbImg.removeAttribute("src");
+  const now = lb.ids[lb.i];
+  // Swiped to another piece? The sheet underneath follows, so Close lands on what you were looking at.
+  if (now && now !== lb.from && piece(now)) pieceSheet(now);
+  else $("ps-hero")?.focus();
+}
+function fitImg() {
+  const W = lbStage.clientWidth, H = lbStage.clientHeight, k = Math.min(W / lb.nw, H / lb.nh);
+  lbImg.style.width = Math.round(lb.nw * k) + "px"; lbImg.style.height = Math.round(lb.nh * k) + "px";
+}
+function setView(s, x, y, anim = false) {
+  const W = lbStage.clientWidth, H = lbStage.clientHeight, w = lbImg.offsetWidth * s, h = lbImg.offsetHeight * s;
+  lb.s = s;
+  lb.x = s <= 1 ? 0 : Math.max(-Math.max(0, (w - W) / 2), Math.min(Math.max(0, (w - W) / 2), x));
+  lb.y = s <= 1 ? 0 : Math.max(-Math.max(0, (h - H) / 2), Math.min(Math.max(0, (h - H) / 2), y));
+  lbStage.classList.toggle("anim", anim);
+  lbImg.style.transform = `translate(${lb.x}px, ${lb.y}px) scale(${s})`;
+  $("lb").classList.toggle("zoomed", s > 1.01);
+}
+/** Zoom to `s`, keeping the point (px, py) — relative to the stage centre — where it is. */
+function zoomAt(s, px, py, anim = false) {
+  s = Math.max(1, Math.min(5, s));
+  setView(s, px - (px - lb.x) * (s / lb.s), py - (py - lb.y) * (s / lb.s), anim);
+}
+async function showViewer(dir = 0) {
+  const p = piece(lb.ids[lb.i]); if (!p) return closeViewer();
+  const token = ++lb.token;
+  $("lb-name").textContent = p.name || "Untitled";
+  $("lb-meta").textContent = [p.size, p.colour, p.fabric, lb.ids.length > 1 ? `${lb.i + 1} of ${lb.ids.length}` : ""].filter(Boolean).join(" · ");
+  $("lb-prev").disabled = lb.i === 0; $("lb-next").disabled = lb.i === lb.ids.length - 1;
+  $("lb-prev").hidden = $("lb-next").hidden = lb.ids.length < 2;
+  const load = (u) => new Promise((ok) => { if (!u) return ok(false); const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(false); im.src = u; });
+  const put = (im) => {
+    if (token !== lb.token || !im) return;
+    lb.nw = im.naturalWidth; lb.nh = im.naturalHeight; lbImg.src = im.src; fitImg();
+  };
+  // The thumbnail shows at once; the sharp copy swaps in when it arrives, at the same zoom.
+  const thumb = await load(await photoUrl(p));
+  if (token !== lb.token) return;
+  if (thumb) {
+    put(thumb);
+    if (dir) { setView(1, dir * 60, 0); lbImg.style.opacity = "0"; requestAnimationFrame(() => { lbImg.style.opacity = "1"; setView(1, 0, 0, true); }); }
+    else setView(1, 0, 0);
+  } else setView(1, 0, 0);
+  const sharp = await load(await largeUrl(p));
+  if (token !== lb.token) return;
+  if (sharp) { const { s, x, y } = lb; put(sharp); setView(s, x, y); }
+  $("lb-soft").hidden = !!sharp || !thumb;
+  // Warm up the neighbours, so a swipe is instant.
+  [lb.ids[lb.i - 1], lb.ids[lb.i + 1]].map(piece).filter(Boolean).forEach((n) => { photoUrl(n); largeUrl(n); });
+}
+function step(d) {
+  const j = lb.i + d;
+  if (j < 0 || j >= lb.ids.length) return setView(1, 0, 0, true);
+  lb.i = j; showViewer(d);
+}
+const stagePt = (e) => { const r = lbStage.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+lbStage.addEventListener("pointerdown", (e) => {
+  try { lbStage.setPointerCapture(e.pointerId); } catch {}
+  lb.ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  const pts = [...lb.ptrs.values()];
+  if (pts.length === 2) {
+    const [[ax, ay], [bx, by]] = pts, r = lbStage.getBoundingClientRect();
+    lb.g = { kind: "pinch", d: Math.hypot(ax - bx, ay - by) || 1, s: lb.s, x: lb.x, y: lb.y, cx: (ax + bx) / 2 - r.left - r.width / 2, cy: (ay + by) / 2 - r.top - r.height / 2 };
+  } else if (pts.length === 1) {
+    lb.g = { kind: null, sx: e.clientX, sy: e.clientY, x: lb.x, y: lb.y, t: Date.now(), moved: false };
+  }
+});
+lbStage.addEventListener("pointermove", (e) => {
+  if (!lb.ptrs.has(e.pointerId) || !lb.g) return;
+  lb.ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  const g = lb.g;
+  if (g.kind === "pinch") {
+    const [[ax, ay], [bx, by]] = [...lb.ptrs.values()];
+    const s = Math.max(1, Math.min(5, g.s * Math.hypot(ax - bx, ay - by) / g.d));
+    setView(s, g.cx - (g.cx - g.x) * (s / g.s), g.cy - (g.cy - g.y) * (s / g.s));
+    return;
+  }
+  const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+  if (!g.moved && Math.hypot(dx, dy) > 8) {
+    g.moved = true;
+    g.kind = lb.s > 1.01 ? "pan" : Math.abs(dx) > Math.abs(dy) ? "swipe" : dy > 0 ? "dismiss" : "none";
+  }
+  if (g.kind === "pan") setView(lb.s, g.x + dx, g.y + dy);
+  else if (g.kind === "swipe") { lbStage.classList.remove("anim"); lbImg.style.transform = `translateX(${dx}px)`; }
+  else if (g.kind === "dismiss") { lbStage.classList.remove("anim"); lbImg.style.transform = `translateY(${dy}px) scale(${1 - Math.min(dy, 400) / 1600})`; $("lb").style.background = `rgba(0,0,0,${1 - Math.min(dy, 300) / 400})`; }
+});
+function endPointer(e) {
+  if (!lb.ptrs.has(e.pointerId)) return;
+  lb.ptrs.delete(e.pointerId);
+  const g = lb.g; if (!g) return;
+  if (g.kind === "pinch") {
+    // One finger left after a pinch: carry on as a pan from here.
+    const rest = [...lb.ptrs.values()][0];
+    lb.g = rest ? { kind: lb.s > 1.01 ? "pan" : "none", sx: rest[0], sy: rest[1], x: lb.x, y: lb.y, t: Date.now(), moved: true } : null;
+    if (!rest && lb.s < 1.05) setView(1, 0, 0, true);
+    return;
+  }
+  lb.g = null;
+  const dx = e.clientX - g.sx, dy = e.clientY - g.sy, fast = Date.now() - g.t < 300;
+  if (g.kind === "swipe") { if (Math.abs(dx) > 70 || (fast && Math.abs(dx) > 30)) step(dx < 0 ? 1 : -1); else setView(1, 0, 0, true); return; }
+  if (g.kind === "dismiss") {
+    $("lb").style.background = "";
+    if (dy > 110 || (fast && dy > 50)) return closeViewer();
+    return setView(1, 0, 0, true);
+  }
+  if (!g.moved && e.type === "pointerup") {
+    // Double tap: zoom in to that spot, or back out.
+    const now = Date.now();
+    if (now - lb.lastTap < 300) { lb.lastTap = 0; const [px, py] = stagePt(e); lb.s > 1.01 ? setView(1, 0, 0, true) : zoomAt(2.5, px, py, true); }
+    else lb.lastTap = now;
+  }
+}
+lbStage.addEventListener("pointerup", endPointer);
+lbStage.addEventListener("pointercancel", endPointer);
+lbStage.addEventListener("wheel", (e) => { e.preventDefault(); const [px, py] = stagePt(e); zoomAt(lb.s * Math.exp(-e.deltaY / 300), px, py); }, { passive: false });
+$("lb-close").onclick = closeViewer;
+$("lb-prev").onclick = () => step(-1);
+$("lb-next").onclick = () => step(1);
+window.addEventListener("keydown", (e) => {
+  if ($("lb").hidden) return;
+  if (e.key === "Escape") { e.stopImmediatePropagation(); closeViewer(); }
+  else if (e.key === "ArrowLeft") step(-1);
+  else if (e.key === "ArrowRight") step(1);
+}, true);
+window.addEventListener("resize", () => { if (!$("lb").hidden) { fitImg(); setView(1, 0, 0); } });
 
 // ===================== LOOKS =====================
 const SLOTS = [
