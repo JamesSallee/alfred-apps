@@ -21,6 +21,12 @@ h1,h2{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 a:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
 
 header{display:flex;flex-direction:column;gap:4px}
+/* The sky beside the greeting follows the real clock (js/fx-sky.js). */
+.hero{display:grid;gap:14px}
+.sky{height:96px;border-radius:14px;border:1px solid var(--line)}
+/* On a phone the sky closes the page instead, below the rooms and the footer. */
+@media (max-width:639px){.hero{display:contents}.sky{order:99;height:120px}}
+@media (min-width:640px){.hero{grid-template-columns:auto minmax(0,1fr);align-items:stretch}.sky{height:auto;min-height:96px}}
 .eyebrow{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .greet{color:var(--muted);font-size:15px}
 
@@ -69,11 +75,14 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
 </style>
 
 <div class="wrap">
-  <header>
-    <span class="eyebrow" id="date">Monday 2 November</span>
-    <h1>Alfred's Study</h1>
-    <span class="greet" id="greet"></span>
-  </header>
+  <div class="hero">
+    <header>
+      <span class="eyebrow" id="date">Monday 2 November</span>
+      <h1>Alfred's Study</h1>
+      <span class="greet" id="greet"></span>
+    </header>
+    <div class="sky" id="sky"></div>
+  </div>
 
   <section class="note" aria-labelledby="noteh">
     <h2 id="noteh">Today's note</h2>
@@ -107,12 +116,15 @@ import { doorFigures } from "./js/rooms.js";
 import { greeting, todaysNote } from "./js/study.js";
 import { ROOMS } from "./js/registry.js";
 import { iconSvg } from "./js/icons.js";
+import { mountSky } from "./js/fx-sky.js";
+import { countTo } from "./js/fx-motion.js";
+mountSky(document.getElementById("sky"));
 mountShell(null);
 
 // ---------- The doors, one per room (js/registry.js) ----------
 document.getElementById("rooms").innerHTML = ROOMS.map((r) => `
       <a class="room" id="r-${r.id}" href="${r.href}">
-        <span class="mark" aria-hidden="true">${iconSvg(r.id)}</span>
+        <span class="mark" aria-hidden="true" style="view-transition-name:mark-${r.store}">${iconSvg(r.id)}</span>
         <span class="txt"><span class="name">${r.name}</span><span class="desc">${r.desc}</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>`).join("");
@@ -130,7 +142,11 @@ document.getElementById("rooms").innerHTML = ROOMS.map((r) => `
       const f = F[n];
       go.classList.toggle("fig", !!f);
       go.setAttribute("aria-hidden", f ? "false" : "true");
-      go.innerHTML = f ? `<span class="fv">${esc(f.v)}</span><span class="fc">${esc(f.c)}</span>` : "→";
+      // Count the figure up from what it showed before, rather than swapping it.
+      const fv = go.querySelector(".fv");
+      if (f && fv) { countTo(fv, String(f.v)); go.querySelector(".fc").textContent = f.c; }
+      else go.innerHTML = f ? `<span class="fv">${esc(f.v)}</span><span class="fc">${esc(f.c)}</span>` : "→";
+      if (f && !fv) go.querySelector(".fv").dataset.count = String(f.v);
     });
   };
   const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };

@@ -67,3 +67,28 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 @media (pointer: coarse){
   :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"])){min-height:var(--tap)}
 }
+
+/* ---------- Motion ----------
+   Moving between rooms cross-fades, and the room's icon travels from its door in the Study to the
+   room's header (each icon carries a view-transition-name: mark-<room>). Browsers without view
+   transitions simply change page. */
+@view-transition{navigation:auto}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.22s}
+::view-transition-group(*){animation-duration:.32s;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+
+/* The tick: the box gives a small, weighted pop and a soft ring spreads from it. Add .fx-pop to the
+   element that should pop, only on the habit just ticked. */
+.fx-pop{animation:fx-pop .42s cubic-bezier(.3,1.6,.5,1) both;position:relative}
+.fx-pop::after{content:"";position:absolute;inset:-2px;border-radius:inherit;box-shadow:0 0 0 0 var(--green);animation:fx-ripple .6s ease-out both;pointer-events:none}
+@keyframes fx-pop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes fx-ripple{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 45%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+
+/* The Training Room's rings fill from empty when they first appear (js/fx-motion.js). */
+.fx-ring .arc{animation:fx-ring-fill .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fx-ring-fill{from{stroke-dashoffset:var(--c)}}
+.fx-still .fx-ring .arc{animation:none}
+
+@media (prefers-reduced-motion: reduce){
+  @view-transition{navigation:none}
+  .fx-pop,.fx-pop::after,.fx-ring .arc{animation:none}
+}

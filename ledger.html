@@ -161,6 +161,10 @@ import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
 import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor } from "./js/money.js";
 import { pad, ymd, parse, addDays, today } from "./js/dates.js";
+import { mountPlum } from "./js/fx-plum.js";
+import { countTo } from "./js/fx-motion.js";
+// The plum branch lives outside the re-rendered HTML so its blossoms keep their state between renders.
+const plum = mountPlum();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
 const worth = (pts, cfg, light) => { const v = pts * rateFor(cfg, light); return v < 1 ? Math.round(v*100)+"¢" : "$"+v.toFixed(2); };
 mountShell('ledger');
@@ -250,7 +254,7 @@ function workoutMix(weekStart){
 // Rendering
 function render(){
   const R = compute();
-  $("#balance").textContent = fmtUsd(R.wallet.available);
+  countTo($("#balance"), fmtUsd(R.wallet.available));
   freezeWeeks(R);
   const h = new Date().getHours();
   $("#greet").textContent = (h<12?"Good morning":h<18?"Good afternoon":"Good evening")+". Kept by Alfred.";
@@ -295,7 +299,7 @@ function renderToday(R){
     if (hb.variants && typeof v==="string"){ const vv = hb.variants.find(x=>x.key===v); if (vv) info = vv.label+" · "+info; }
     if (hb.minutes && typeof v==="number") info = v+" min · "+info;
     let out = `<button class="habit${on?" on":""}" data-habit="${esc(hb.id)}" aria-pressed="${on}">
-      <span class="tick">${on?"✓":""}</span>
+      <span class="tick${on && S.justTicked===hb.id ? " fx-pop" : ""}">${on?"✓":""}</span>
       <span class="meta"><span class="name">${esc(hb.name)}</span><span class="info">${info}</span></span>
       <span class="right">${hb.kind!=="weekly" && st>1 ? `<span class="sk num" aria-label="${st}-day streak">${st}<small>day${st===1?"":"s"}</small></span>` : ""}<span class="pv num">+${Number(hb.points)||0}</span>${Number(hb.points)?`<span class="small" style="color:inherit;opacity:.75">about ${worth(Number(hb.points),R.cfg,!!wkMeta.light)}</span>`:""}</span></button>`;
     if (hb.variants && hb.variants.length && S.choosing===hb.id){
@@ -343,7 +347,11 @@ function renderToday(R){
       <div class="small">For the record only: streaks don't pay, so a missed day costs nothing. One grace day a week; rest days pause the count.</div></div>`;
   }
   html += `</div>`;
-  $("#v-today").innerHTML = html; bindToday();
+  $("#v-today").innerHTML = html;
+  // One blossom per daily habit ticked on the day shown (weekly habits aren't counted).
+  const side = $("#v-today .tside");
+  if (side && S.habits.length){ side.prepend(plum.el); plum.set(daily.filter(hb => rec.done && rec.done[hb.id]).length, daily.length); }
+  bindToday();
 }
 
 function bindToday(){
@@ -379,6 +387,7 @@ function tapHabit(id){
     if (cur){ S.choosing=null; return setDone(id, null); }
     S.choosing = S.choosing===id ? null : id; return render();
   }
+  if (!cur) { S.justTicked = id; setTimeout(() => { if (S.justTicked === id) S.justTicked = null; }, 500); }   // pops once, even if the store re-renders
   setDone(id, cur ? null : true);
 }
 function setDone(id, val){

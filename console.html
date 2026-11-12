@@ -29,6 +29,7 @@
   --brass-ink:#7a5814;
   color-scheme:light;
 }
+
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
@@ -51,6 +52,7 @@ a{color:inherit}
 .note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;overflow:auto}
 .note li::marker{color:var(--brass-ink)}
 .note a{font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
+.sky{flex:1 1 0;min-height:0;border-radius:16px;border:1px solid var(--line);background:var(--paper)}
 .plan{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 .plan .rows{display:flex;flex-direction:column;gap:8px}
 .plan .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:18px}
@@ -163,6 +165,7 @@ a{color:inherit}
   .focus{grid-area:focus}
   .cols>.col:last-of-type{grid-area:right}
   .cols>.col:last-of-type .week{display:none}
+  .sky{display:none}
   .rooms{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 </style>
@@ -179,6 +182,7 @@ a{color:inherit}
         <h2 id="noteh">Today's note</h2>
         <ul id="notes"></ul>
       </div>
+      <div class="sky" id="sky"></div>
       <div class="card plan" aria-labelledby="planh">
         <span class="eyebrow" id="planh">Next on the plan</span>
         <div class="rows" id="plan"></div>
@@ -225,6 +229,8 @@ import { ymd, mondayOf, activeHabits, openTasks, todoBucket, workoutsOf, KIND, o
 import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
+import { mountSky } from "./js/fx-sky.js";
+import { mountPlum } from "./js/fx-plum.js";
 mountShell(null);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -237,6 +243,7 @@ const QS = new URLSearchParams(location.search);
 const OFFSET = QS.get("at") ? new Date(QS.get("at")).getTime() - Date.now() : 0;
 const now = () => new Date(Date.now() + (OFFSET || 0));
 const nowMs = () => Date.now() + (OFFSET || 0);
+mountSky($("#sky"), { now });
 const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + pad(s % 60); };
 const fmtM = (m) => { m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} m` : `${h} h`; };
@@ -501,17 +508,21 @@ $("#focus").addEventListener("click", (e) => {
 // ---------- right: the Ledger, errands, the week ----------
 const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "weekly");
 const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
-let choosing = null;
+let choosing = null, justTicked = null;
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const plum = mountPlum({ mini: true });
 function renderLedger() {
   const hs = dailyHabits(), done = todayDone();
+  // A small plum branch under the habits: one blossom per habit ticked, as in the Ledger.
+  if (hs.length) { if (!plum.el.isConnected) $("#ledger").append(plum.el); plum.set(hs.filter((h) => done[h.id]).length, hs.length); }
+  else plum.el.remove();
   $("#ledgerN").textContent = hs.length ? `${hs.filter((h) => done[h.id]).length} of ${hs.length} today` : "";
   $("#habits").innerHTML = hs.length ? hs.map((h) => {
     const v = done[h.id], on = !!v;
     let hint = "";
     if (h.variants && typeof v === "string") hint = (h.variants.find((x) => x.key === v) || {}).label || "";
     if (h.minutes && typeof v === "number") hint = v + " min";
-    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
+    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box${on && justTicked === h.id ? " fx-pop" : ""}">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
     if (choosing === h.id) {
       const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
       row += `<div class="variants">${opts.map(([val, lab]) => `<button class="chip" data-for="${esc(h.id)}" data-val='${esc(JSON.stringify(val))}'>${esc(lab)}</button>`).join("")}</div>`;
@@ -520,6 +531,8 @@ function renderLedger() {
   }).join("") : `<p style="color:var(--muted);margin:4px 0">${st.ledger.status === "signed-out" ? "Sign in to see today's habits." : "No habits yet. Add them in the Ledger."}</p>`;
 }
 function setDone(id, val) {
+  // The tick pops on whichever renders follow in the next half second (the store echoes the change), then rests.
+  if (val != null) { justTicked = id; setTimeout(() => { if (justTicked === id) justTicked = null; }, 500); }
   const d = ymd(now()), r = st.ledger.get(`days/${d}`) || {};
   const done = { ...(r.done || {}) };
   if (val == null) delete done[id]; else done[id] = val;

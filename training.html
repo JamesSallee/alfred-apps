@@ -51,6 +51,8 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .goal{display:flex;flex-direction:column;gap:6px}
 .goal .n{font-family:var(--display);font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
 .goal .n small{font-family:var(--body);font-size:13px;color:var(--muted)}
+.ringrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.ringrow .fx-ring{flex:none}
 .pips{display:flex;gap:4px}
 .pip{width:14px;height:14px;border-radius:4px;border:1px solid var(--line);background:transparent}
 .pip.on{background:var(--green);border-color:var(--green)}
@@ -190,6 +192,7 @@ import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { KIND, isSpin, linkWorkoutsToLedger } from "./js/rooms.js";
+import { ring } from "./js/fx-motion.js";
 
 const store = openStore("training");
 mountShell("training");
@@ -261,6 +264,7 @@ function suggest(hist, move, tier) {
 }
 
 // ---------- week ----------
+let lastWeekSig = null;
 function renderWeek() {
   const now = new Date();
   const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
@@ -270,10 +274,12 @@ function renderWeek() {
   const count = { strength: 0, cardio: 0, yoga: 0 };
   thisWeek.forEach((w) => { const k = KIND(w.discipline); if (k in count) count[k] += 1; });
   $("weekRange").textContent = `${shortDate(days[0])} – ${shortDate(days[6])}`;
+  // The rings fill from empty on first paint and when a count changes, not on every re-render.
+  const sig = JSON.stringify(count);
+  $("goals").classList.toggle("fx-still", sig === lastWeekSig); lastWeekSig = sig;
   $("goals").innerHTML = Object.entries(TARGET).map(([k, t]) => `
     <div class="goal"><span class="label">${{ strength: "Strength", cardio: "Cardio", yoga: "Yoga or stretch" }[k]}</span>
-      <span class="n">${count[k]}<small> of ${t}</small></span>
-      <span class="pips" aria-hidden="true">${[...Array(t)].map((_, i) => `<span class="pip${i < count[k] ? " on" : ""}"></span>`).join("")}</span></div>`).join("");
+      <span class="ringrow">${ring(count[k], t)}<span class="n">${count[k]}<small> of ${t}</small></span></span></div>`).join("");
   const today = dayKey(now);
   $("days").innerHTML = days.map((d, i) => {
     const ws = thisWeek.filter((w) => dayKey(new Date(w.start)) === keys[i]);

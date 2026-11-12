@@ -229,7 +229,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 
   <!-- BREATHE -->
   <section id="v-breathe" class="stack" hidden>
-    <div class="panel stack">
+    <div class="panel stack" id="medPanel">
       <div class="orbwrap" id="medOrb"><div class="orb"></div><div class="orbtext"><span class="cue">Sit comfortably</span><span class="cnt num">5:00</span></div></div>
       <p class="alfred" id="medLine">A few minutes of slow breathing. Follow the circle; if your mind wanders, simply come back.</p>
       <div class="controls"><button class="btn primary" id="medBtn">Begin</button></div>
@@ -237,6 +237,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
     <div class="panel stack">
       <div class="field"><span class="lbl">Pattern</span><div class="chips" id="patterns"></div><span class="small" id="patternNote"></span></div>
       <div class="field"><span class="lbl">Length</span><div class="chips" id="medLens"></div></div>
+      <div class="field"><span class="lbl">Backdrop</span><div class="chips" id="backdrops"></div><span class="small" id="backdropNote"></span></div>
       <label class="check"><input type="checkbox" id="cues"> Soft tones at each breath</label>
     </div>
   </section>
@@ -262,6 +263,8 @@ import { openStore } from "./js/sync.js";
 import { openIlkwim, nextPost, linkWritingToLedger, radioScripts } from "./js/rooms.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
+import { mountAutomaton } from "./js/fx-automaton.js";
+import { countTo } from "./js/fx-motion.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -277,7 +280,7 @@ function say(t){const el=$("#toast");el.firstElementChild.innerHTML='<span class
 /* ---------- settings ---------- */
 const DEF_LABELS=["Writing","Bootcamp","Reading","Planning","Admin"];
 const S=Object.assign({vol:.7,duck:true,settle:false,plan:{focus:50,brk:10,rounds:1},label:"Writing",labels:DEF_LABELS.slice(),levels:{},
-  pattern:"calm",medMins:5,cues:true,alertFocus:"bell",alertBreak:"marimba",alertVol:.75,alertFade:true,alertRepeat:false},store.get("settings",{}));
+  pattern:"calm",medMins:5,cues:true,backdrop:"none",alertFocus:"bell",alertBreak:"marimba",alertVol:.75,alertFade:true,alertRepeat:false},store.get("settings",{}));
 function save(){store.set("settings",S);}
 let LOG=readLog();
 focusStore.subscribe(()=>{ const next=readLog(); if(next.length!==LOG.length||next.some((x,i)=>x.t!==LOG[i].t)){ LOG=next; renderTally(); if(!$("#v-log").hidden) renderLog(); } const remote=focusStore.get("settings"); if(remote) Object.assign(S,remote); });
@@ -502,16 +505,29 @@ function makeBreather(wrap,patKey,mins,onEnd){
   return b;
 }
 const med={running:false,b:null,update(){ this.b&&this.b.update(); }};
+const BACKDROPS={none:{name:"Plain"},automaton:{name:"Slow pattern",note:"A pattern grows a line at a time, and a new rule takes over every screenful. Watch it or don't."}};
+if(!BACKDROPS[S.backdrop]) S.backdrop="none";
 function renderMed(){
   $("#patterns").innerHTML=Object.entries(PATTERNS).map(([k,p])=>`<button class="chip" data-pat="${k}" aria-pressed="${S.pattern===k}" ${med.running?"disabled":""}>${esc(p.name)}</button>`).join("");
   $("#patternNote").textContent=PATTERNS[S.pattern].note;
   $("#medLens").innerHTML=[3,5,10,15].map(m=>`<button class="chip num" data-ml="${m}" aria-pressed="${S.medMins===m}" ${med.running?"disabled":""}>${m} min</button>`).join("");
   $("#cues").checked=S.cues;
+  $("#backdrops").innerHTML=Object.entries(BACKDROPS).map(([k,b])=>`<button class="chip" data-bd="${k}" aria-pressed="${S.backdrop===k}">${esc(b.name)}</button>`).join("");
+  $("#backdropNote").textContent=BACKDROPS[S.backdrop]?.note||"";
   if(!med.running){ $("#medOrb .cnt").textContent=mmss(S.medMins*60); }
 }
 $("#patterns").addEventListener("click",e=>{const b=e.target.closest("[data-pat]"); if(!b) return; S.pattern=b.dataset.pat; save(); renderMed();});
 $("#medLens").addEventListener("click",e=>{const b=e.target.closest("[data-ml]"); if(!b) return; S.medMins=+b.dataset.ml; save(); renderMed();});
 $("#cues").onchange=e=>{S.cues=e.target.checked; save();};
+/* Backdrops behind the breathing circle. Only drawn while the Breathe tab is open. */
+let backdrop=null;
+function syncBackdrop(){
+  const want=S.backdrop==="automaton", visible=!$("#v-breathe").hidden;
+  if(want && !backdrop) backdrop=mountAutomaton($("#medPanel"));
+  if(!want && backdrop){ backdrop.remove(); backdrop=null; }
+  if(backdrop) visible?backdrop.start():backdrop.stop();
+}
+$("#backdrops").addEventListener("click",e=>{const b=e.target.closest("[data-bd]"); if(!b) return; S.backdrop=b.dataset.bd; save(); renderMed(); syncBackdrop();});
 $("#medBtn").onclick=()=>{
   if(med.running){ med.b.stop(false); return; }
   med.b=makeBreather($("#medOrb"),S.pattern,S.medMins,(full)=>{ med.running=false; $("#medBtn").textContent="Begin"; $("#medLine").textContent=full?"That's the lot. Notice how you feel before you get up.":"Stopped early. A short sit still counts."; renderMed(); });
@@ -552,7 +568,7 @@ $("#alRepeat").onchange=e=>{ S.alertRepeat=e.target.checked; save(); rescheduleC
 $("#ackBtn").onclick=ack;
 
 /* ---------- log ---------- */
-function renderTally(){ const k=dayKey(Date.now()); $("#todayAmt").textContent=fmtM(LOG.filter(x=>x.k==="focus"&&dayKey(x.t)===k).reduce((a,x)=>a+x.m,0)); }
+function renderTally(){ const k=dayKey(Date.now()); countTo($("#todayAmt"),fmtM(LOG.filter(x=>x.k==="focus"&&dayKey(x.t)===k).reduce((a,x)=>a+x.m,0))); }
 let confirmClear=false;
 function renderLog(){
   const ws=weekStart(), wsT=ws.getTime(), todayK=dayKey(Date.now()), week=LOG.filter(x=>x.t>=wsT);
@@ -588,6 +604,7 @@ function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   $("#v-focus").hidden=t!=="focus"; $("#v-breathe").hidden=t!=="breathe"; $("#v-log").hidden=t!=="log"; $("#v-sounds").hidden=t==="log";
   if(t==="log"){ confirmClear=false; renderLog(); }
+  syncBackdrop();
   try{ sessionStorage.setItem("focusroom.tab",t); }catch(e){}
 }
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(b) showTab(b.dataset.tab);});

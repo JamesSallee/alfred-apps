@@ -159,7 +159,7 @@ textarea{resize:vertical;min-height:64px}
   .orb,.orb.out{transition:none}
   .ring .prog,.cue,#toast{transition:none}
 }
-@media (max-width:420px){ ol.steps .nm{font-size:9px} .opts{grid-template-columns:1fr} }
+@media (max-width:420px){ ol.steps .nm{font-size:12px} .opts{grid-template-columns:1fr} }
 </style>
 
 <div class="wrap">
@@ -172,6 +172,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="clock"><div class="t num" id="clock">10 min</div><div class="lbl">left, roughly</div></div>
   </header>
 
+  <div id="lanterns"></div>
   <ol class="steps" id="steps" aria-label="Steps"></ol>
 
   <main id="stage"></main>
@@ -191,6 +192,7 @@ import { openDb } from "./js/compat-db.js";
 import { openStore } from "./js/sync.js";
 import { weekTally, liftsUp, mondayOf, addDays, fmtMins, tasksDone } from "./js/rooms.js";
 import { pad, ymd, parse } from "./js/dates.js";
+import { mountLanterns } from "./js/fx-lanterns.js";
 mountShell('shutdown');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -288,7 +290,9 @@ function figuresText(F){
 }
 
 // ---------- Rendering ----------
+const lanterns = mountLanterns($("#lanterns"), STEPS.length);
 function renderSteps(){
+  lanterns.set(D.saved ? STEPS.length : D.step);
   $("#steps").innerHTML = STEPS.map((s,i) => `<li class="${i<D.step?'done':''} ${i===D.step?'on':''}"><span class="bar"></span><span class="nm">${esc(s.short||s.n)}</span></li>`).join("");
   const left = STEPS.slice(Math.max(D.step,0)).reduce((a,s)=>a+(s.k==="sit"?D.sit.len:s.min),0);
   $("#clock").textContent = Math.max(left,0)+" min";
