@@ -161,6 +161,9 @@ import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
 import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor } from "./js/money.js";
 import { pad, ymd, parse, addDays, today } from "./js/dates.js";
+import { mountPlum } from "./js/fx-plum.js";
+// The plum branch lives outside the re-rendered HTML so its blossoms keep their state between renders.
+const plum = mountPlum();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
 const worth = (pts, cfg, light) => { const v = pts * rateFor(cfg, light); return v < 1 ? Math.round(v*100)+"¢" : "$"+v.toFixed(2); };
 mountShell('ledger');
@@ -343,7 +346,11 @@ function renderToday(R){
       <div class="small">For the record only: streaks don't pay, so a missed day costs nothing. One grace day a week; rest days pause the count.</div></div>`;
   }
   html += `</div>`;
-  $("#v-today").innerHTML = html; bindToday();
+  $("#v-today").innerHTML = html;
+  // One blossom per daily habit ticked on the day shown (weekly habits aren't counted).
+  const side = $("#v-today .tside");
+  if (side && S.habits.length){ side.prepend(plum.el); plum.set(daily.filter(hb => rec.done && rec.done[hb.id]).length, daily.length); }
+  bindToday();
 }
 
 function bindToday(){

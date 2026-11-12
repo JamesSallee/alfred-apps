@@ -29,6 +29,21 @@
   --brass-ink:#7a5814;
   color-scheme:light;
 }
+/* The sky's colours (js/fx-sky.js). Dark is the default; by day the sky is paler and leans to the house paper and brass. */
+:root{
+  --sky-dawn-top:#2a3f63; --sky-dawn-bot:#d98a5a; --sky-dawn-sun:#f2c27a;
+  --sky-day-top:#3f6f9f;  --sky-day-bot:#cfe6ee;  --sky-day-sun:#fdf6e3;
+  --sky-dusk-top:#3a3360; --sky-dusk-bot:#c4663f; --sky-dusk-sun:#e8934a;
+  --sky-night-top:#101a2e; --sky-night-bot:#22324b; --sky-night-sun:#e8edf2;
+  --sky-hill:#10261c; --sky-star:rgba(242,240,232,.9); --sky-ink:#e6ece7;
+}
+:root[data-theme="light"]{
+  --sky-dawn-top:#b9c4e0; --sky-dawn-bot:#f3e7c8; --sky-dawn-sun:#c9852f;
+  --sky-day-top:#a9c6dc;  --sky-day-bot:#f4f1e6;  --sky-day-sun:#e0a948;
+  --sky-dusk-top:#c7bcd6; --sky-dusk-bot:#f0c8ab; --sky-dusk-sun:#b8612f;
+  --sky-night-top:#7d8fae; --sky-night-bot:#d6dde6; --sky-night-sun:#f4f1e6;
+  --sky-hill:#1f4d3a; --sky-star:rgba(70,92,132,.55); --sky-ink:#1d2b24;
+}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
@@ -51,6 +66,7 @@ a{color:inherit}
 .note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;overflow:auto}
 .note li::marker{color:var(--brass-ink)}
 .note a{font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
+.sky{flex:1 1 0;min-height:0;border-radius:16px;border:1px solid var(--line);background:var(--paper)}
 .plan{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 .plan .rows{display:flex;flex-direction:column;gap:8px}
 .plan .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:18px}
@@ -163,6 +179,7 @@ a{color:inherit}
   .focus{grid-area:focus}
   .cols>.col:last-of-type{grid-area:right}
   .cols>.col:last-of-type .week{display:none}
+  .sky{display:none}
   .rooms{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 </style>
@@ -179,6 +196,7 @@ a{color:inherit}
         <h2 id="noteh">Today's note</h2>
         <ul id="notes"></ul>
       </div>
+      <div class="sky" id="sky"></div>
       <div class="card plan" aria-labelledby="planh">
         <span class="eyebrow" id="planh">Next on the plan</span>
         <div class="rows" id="plan"></div>
@@ -225,6 +243,7 @@ import { ymd, mondayOf, activeHabits, openTasks, todoBucket, workoutsOf, KIND, o
 import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
+import { mountSky } from "./js/fx-sky.js";
 mountShell(null);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -237,6 +256,7 @@ const QS = new URLSearchParams(location.search);
 const OFFSET = QS.get("at") ? new Date(QS.get("at")).getTime() - Date.now() : 0;
 const now = () => new Date(Date.now() + (OFFSET || 0));
 const nowMs = () => Date.now() + (OFFSET || 0);
+mountSky($("#sky"), { now });
 const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + pad(s % 60); };
 const fmtM = (m) => { m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} m` : `${h} h`; };
