@@ -753,7 +753,8 @@ $("cb-form").addEventListener("submit", async (e) => {
 });
 async function importUrl(url) {
   const already = recipes().find((r) => r.url === url);
-  if (already) return go("recipe", already.id);
+  const shelved = () => { if (fromExtension) { fromExtension = false; document.title = "Shelved ✓ · The Larder"; } };
+  if (already) { shelved(); return go("recipe", already.id); }
   $("cb-status").innerHTML = `<div class="card empty"><span class="busy"></span> Fetching the recipe, and skipping the life story…</div>`;
   try {
     const res = await ai("import_url", { url });
@@ -761,6 +762,7 @@ async function importUrl(url) {
     $("cb-status").innerHTML = "";
     go("recipe", id);
     toast(res.cost ? `Saved. Claude had to read that page (${cents(res.cost)}).` : "Saved to the cookbook.");
+    shelved();
   } catch (err) { $("cb-status").innerHTML = `<div class="card empty err">${esc(err.message)}</div>`; }
 }
 function saveRecipe(r, extra = {}) {
@@ -1031,8 +1033,10 @@ async function refreshSpend() {
 }
 
 // ---------- arrivals from the Share menu (?url= / ?text=) ----------
+let fromExtension = false; // Send to Alfred's popup closes itself once the title says "Shelved"
 function sharedLink() {
   const p = new URLSearchParams(location.search);
+  fromExtension = p.get("src") === "extension";
   const raw = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
   const m = raw.match(/https?:\/\/[^\s]+/);
   if (p.toString()) history.replaceState(null, "", location.pathname + "#cookbook");

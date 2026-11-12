@@ -82,3 +82,25 @@ export function fmtTotal(m) {
   const h = Math.floor(m / 60), r = m % 60;
   return h ? `${h} hr${r ? ` ${r} min` : ""}` : `${r} min`;
 }
+
+// ---------- Which room a shared link belongs in ----------
+// Recipe sites James is likely to share from, for when a site turns the link-reader away.
+const RECIPE_SITES = /(^|\.)(cooking\.nytimes\.com|seriouseats\.com|bonappetit\.com|epicurious\.com|allrecipes\.com|smittenkitchen\.com|bbcgoodfood\.com|food52\.com|budgetbytes\.com|thekitchn\.com|foodnetwork\.com|delish\.com|halfbakedharvest\.com|minimalistbaker\.com|recipetineats\.com|kingarthurbaking\.com|ottolenghi\.co\.uk|nigella\.com|jamieoliver\.com|bbc\.co\.uk\/food)$/i;
+
+/** A recipe by its address alone: a known recipe site, or "/recipe(s)/" in the path. */
+export function looksLikeRecipeUrl(url) {
+  try {
+    const u = new URL(url), host = u.hostname.replace(/^www\./, "");
+    return RECIPE_SITES.test(host) || (host === "bbc.co.uk" && u.pathname.startsWith("/food/")) || /\/recipes?\//i.test(u.pathname);
+  } catch { return false; }
+}
+
+/**
+ * Where a shared link goes: "larder" (a recipe, to the cookbook), "shelf" (something to read) or "ask".
+ * `look` is what the link-reader said ({ recipe, article, minutes }), or null if it couldn't look.
+ */
+export function routeFor(url, look) {
+  if (look?.recipe || looksLikeRecipeUrl(url)) return "larder";
+  if (look?.article || look?.minutes) return "shelf";
+  return "ask";
+}
