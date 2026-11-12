@@ -20,11 +20,8 @@ export const MONEY_DEFAULTS = {
   phone: { start: 6, step: 0.5, floor: 4, every: 2, hit: 20, beat: 35 },
 };
 
-const pad = n => String(n).padStart(2, "0");
-const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
-export const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
-export const mondayOf = s => { const d = parse(s); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); };
+import { ymd, parse, addDays, mondayOf } from "./dates.js";
+export { addDays, mondayOf }; // the Ledger imports these from here
 export const round2 = n => Math.round(n * 100) / 100;
 export const fmtUsd = n => (n < 0 ? "−" : "") + "$" + Math.abs(n).toFixed(Math.abs(n) % 1 ? 2 : 0);
 

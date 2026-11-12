@@ -10,39 +10,20 @@
 <title>The Writing Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
 <style>
 /* Layout: each piece lives in one place. Dated posts sit in "Coming up" (top left, the next one opened out),
    undated pieces on the idea shelf (right), and "Everything" (collapsed, full width) lists the lot.
    One column on the phone: Coming up, then the capture pad. Same family as the Study. */
-:root{
-  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
-  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
-  --rust:#a4472f; --rust-soft:#f6e1d9; --on-green:#f4f7f2;
-  --display:"Young Serif", Georgia, "Times New Roman", serif;
-  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark}
-html,body{background:var(--bg)}
+
 [hidden]{display:none!important}
 body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
-h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
-p{margin:0}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer}
 :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
-.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 header .t{display:flex;flex-direction:column;gap:4px}
-h1{font-size:30px;line-height:1.1}
 .back{color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
 .greet{color:var(--muted)}
 
@@ -60,12 +41,8 @@ h1{font-size:30px;line-height:1.1}
 .head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .btn{border:1px solid var(--green);background:transparent;color:var(--green);border-radius:10px;padding:7px 12px;font-weight:600;font-size:13.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-.btn.solid{background:var(--green);color:var(--on-green)}
 .btn.brass{border-color:var(--brass);color:var(--brass)}
 .btn.quiet{border-color:var(--line);color:var(--muted)}
-.btn.danger{border-color:var(--rust);color:var(--rust)}
-.btn:disabled{opacity:.5;cursor:default}
-.link{background:none;border:0;padding:0;color:var(--green);font-weight:600;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
 .muted{color:var(--muted);font-size:13px}
 
 /* Coming up: the next post, opened out */
@@ -158,17 +135,13 @@ details.all[open] summary{margin-bottom:10px}
 .gathers .g button{border:1px solid var(--line);background:var(--paper);color:var(--muted);border-radius:8px;width:32px;height:32px;flex:none}
 .rhythm{margin:0;font-size:12.5px;color:var(--muted)}
 dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% - 24px));width:100%;color:var(--ink)}
-dialog::backdrop{background:rgba(0,0,0,.35)}
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:10px;max-height:85vh;overflow:auto}
 .sheet h2{font-size:20px}
 .f{display:flex;flex-direction:column;gap:4px}
 .f input,.f select,.f textarea{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:14px;min-width:0}
 .f textarea{min-height:64px;resize:vertical}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:420px){.grid2{grid-template-columns:1fr}}
 .tick{display:flex;gap:8px;align-items:center;font-size:14px}
-.sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px}
-@media (prefers-reduced-motion: reduce){*{transition:none!important}}
 .desktime{margin:0;font-size:14px}
 </style>
 
@@ -269,9 +242,11 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 </dialog>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { writingTime, fmtMins, mirrorSoon, onAir } from "./js/rooms.js";
+import { ymd } from "./js/dates.js";
 mountShell("desk");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -306,9 +281,6 @@ const DEFAULTS = {
   tips: [],
 };
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const parse = (s) => new Date(s + "T00:00");
 const daysTo = (s) => Math.round((parse(s) - today0()) / 864e5);

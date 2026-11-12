@@ -10,46 +10,29 @@
 <title>The Training Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
 <style>
 /* The Training Room: Peloton classes come in on their own; you only confirm the weights.
    The week at the top, then three tabs: Log (classes waiting for weights), Lifts (a line per move), Rides. */
 :root{
-  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
-  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
-  --rust:#a4472f; --rust-soft:#f6e1d9; --on-green:#f4f7f2;
-  /* Tiers are ordered, so one hue from pale to deep: light, medium, heavy. */
-  --t-light:#6aa386; --t-medium:#2f7356; --t-heavy:#143a2a;
-  /* Power zones 1-7, one hue (brass) from pale to deep. */
-  --z1:#efe2bf; --z2:#e3cb8a; --z3:#d4b05c; --z4:#bf9232; --z5:#a0761c; --z6:#7c5911; --z7:#583e09;
-  --display:"Young Serif", Georgia, "Times New Roman", serif;
-  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --t-light:#6aa386; --t-medium:#2f7356; --t-heavy:#143a2a; --z1:#efe2bf; --z2:#e3cb8a; --z3:#d4b05c;
+  --z4:#bf9232; --z5:#a0761c; --z6:#7c5911; --z7:#583e09;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark;
-  --t-light:#4f8a70; --t-medium:#7fbf9d; --t-heavy:#c4ead6;
-  --z1:#4a3d1e; --z2:#6b5626; --z3:#8f722d; --z4:#b38f38; --z5:#d4ad4f; --z6:#e8c879; --z7:#f6e3b0}}
+  --t-light:#4f8a70; --t-medium:#7fbf9d; --t-heavy:#c4ead6; --z1:#4a3d1e; --z2:#6b5626; --z3:#8f722d;
+  --z4:#b38f38; --z5:#d4ad4f; --z6:#e8c879; --z7:#f6e3b0;}}
 :root[data-theme="dark"]{
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --rust:#e58f75; --rust-soft:#3d2620; --on-green:#10201a; color-scheme:dark;
-  --t-light:#4f8a70; --t-medium:#7fbf9d; --t-heavy:#c4ead6;
-  --z1:#4a3d1e; --z2:#6b5626; --z3:#8f722d; --z4:#b38f38; --z5:#d4ad4f; --z6:#e8c879; --z7:#f6e3b0}
+  --t-light:#4f8a70; --t-medium:#7fbf9d; --t-heavy:#c4ead6; --z1:#4a3d1e; --z2:#6b5626; --z3:#8f722d;
+  --z4:#b38f38; --z5:#d4ad4f; --z6:#e8c879; --z7:#f6e3b0;}
 [hidden]{display:none!important}
-html,body{background:var(--bg)}
 body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
-h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
-p{margin:0}
 button,input,select{font:inherit;color:inherit}
-button{cursor:pointer}
 :is(button,a,input,select):focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 header .t{display:flex;flex-direction:column;gap:4px}
-h1{font-size:30px;line-height:1.1}
 .back{color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
 .muted{color:var(--muted);font-size:13px}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -57,9 +40,7 @@ h1{font-size:30px;line-height:1.1}
 .head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .btn{border:1px solid var(--green);background:transparent;color:var(--green);border-radius:10px;padding:7px 12px;font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
-.btn.solid{background:var(--green);color:var(--on-green)}
 .btn.quiet{border-color:var(--line);color:var(--muted)}
-.btn:disabled{opacity:.5;cursor:default}
 .empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
 .note{background:var(--brass-soft);border:1px solid var(--brass);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .note .who{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass)}
@@ -203,6 +184,7 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
 <div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="panel"></div></div>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { KIND, isSpin, linkWorkoutsToLedger } from "./js/rooms.js";
@@ -211,8 +193,6 @@ const store = openStore("training");
 mountShell("training");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const TIERS = ["heavy", "medium", "light"];
 const TIER_VAR = { light: "var(--t-light)", medium: "var(--t-medium)", heavy: "var(--t-heavy)" };
 const DEFAULT_KIT = { fixed: [5, 8, 15, 20], adjMin: 25, adjMax: 55, adjStep: 2.5 };

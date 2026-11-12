@@ -12,42 +12,25 @@
 <title>The Wardrobe</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
 <style>
 /* The Wardrobe: clothes while a size changes. Today (what to wear), the Rail (everything he owns),
    Fit (measurements, sizes, tailoring), Plan (style brief, buying list, before-you-buy) and Occasions
    (formal kit, events, packing). Same paper, green and brass as the Study. Private to its owner. */
 :root{
-  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4; --rule:#e3e9e4;
-  --green:#1f4d3a; --green-ink:#f4f7f2; --green-soft:#dce8e0; --brass:#a87a1f; --brass-ink:#7a5810; --brass-soft:#f3e7c8;
-  --danger:#9b3b2e; --danger-soft:#f4dfdb;
-  --display:"Young Serif", Georgia, "Times New Roman", serif;
-  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --tabs:72px;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33; --rule:#22302a;
-  --green:#7fbf9d; --green-ink:#10201a; --green-soft:#21352c; --brass:#d9ad55; --brass-ink:#e6c27a; --brass-soft:#3a3020;
-  --danger:#e08a7b; --danger-soft:#3a2420; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33; --rule:#22302a;
-  --green:#7fbf9d; --green-ink:#10201a; --green-soft:#21352c; --brass:#d9ad55; --brass-ink:#e6c27a; --brass-soft:#3a3020;
-  --danger:#e08a7b; --danger-soft:#3a2420; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{background:var(--bg);margin:0}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent;
   padding:0 max(16px, env(safe-area-inset-left, 0px)) calc(var(--tabs) + 72px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right, 0px))}
 .wrap{max-width:600px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-top:20px}
 section[data-view]{display:flex;flex-direction:column;gap:14px}
-h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
-h1{font-size:30px;line-height:1.1}
 h2{font-size:19px}
 h3{font-size:16px}
-p{margin:0}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .muted{color:var(--muted)}
 .small{font-size:13px}
 [hidden]{display:none !important}
@@ -125,7 +108,6 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .stat{padding:10px 12px;display:flex;flex-direction:column}
 .stat b{font-family:var(--display);font-weight:400;font-size:22px;color:var(--green)}
-.stat span{font-size:12px;color:var(--muted)}
 .spark{width:100%;height:64px;display:block}
 .mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 table.hist{width:100%;border-collapse:collapse;font-size:13px}
@@ -364,9 +346,11 @@ nav.tabs svg{width:22px;height:22px}
 <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase, currentUser } from "./js/sync.js";
 import { mirrorSoon } from "./js/rooms.js";
+import { ymd, today, addDays, daysBetween } from "./js/dates.js";
 
 // Private to its owner: "wardrobe" is not one of sync.js's shared apps.
 const store = openStore("wardrobe");
@@ -374,13 +358,7 @@ mountShell("wardrobe");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
 // ---------- small helpers ----------
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 10);
-const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const today = () => ymd(new Date());
-const addDays = (s, n) => { const d = new Date(s + "T12:00"); d.setDate(d.getDate() + n); return ymd(d); };
-const daysBetween = (a, b) => Math.round((new Date(b + "T12:00") - new Date(a + "T12:00")) / 864e5);
 const daysUntil = (s) => daysBetween(today(), s);
 const fmtDate = (s) => new Date(s + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const cents = (usd) => usd < 0.995 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)}¢` : `$${usd.toFixed(2)}`;
