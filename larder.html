@@ -76,7 +76,7 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 .item .txt{flex:1;min-width:0;display:flex;flex-direction:column;border:0;background:none;text-align:left;padding:4px 0}
 .item .name{font-weight:500;overflow-wrap:anywhere}
 .item .for{font-size:12px;color:var(--brass-ink)}
-.item .by{font-size:11px;font-weight:700;color:var(--muted);min-width:14px;text-align:center}
+.item .by{font-size:12px;font-weight:700;color:var(--muted);min-width:14px;text-align:center}
 .item .handle{flex:none;width:32px;height:40px;border:0;background:none;color:var(--muted);touch-action:none;cursor:grab;display:grid;place-items:center}
 .item.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.18);position:relative;z-index:2}
 .item.isdone .name{text-decoration:line-through;color:var(--muted)}
@@ -138,6 +138,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--pape
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
 /* On wide screens the bar stays edge to edge but its tabs line up with the column above. */
 nav.tabs{padding-inline:max(0px, calc((100% - 560px) / 2))}
+@media (min-width:900px){.wrap{max-width:var(--w-read)}nav.tabs{padding-inline:max(0px, calc((100% - var(--w-read)) / 2))}}
 nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
 nav.tabs button[aria-current="page"]{color:var(--green)}
 nav.tabs svg{width:22px;height:22px}
@@ -147,7 +148,7 @@ nav.tabs svg{width:22px;height:22px}
 .sheet input[type=text],.sheet input[type=date],.sheet select{height:44px;border:1px solid var(--line);border-radius:10px;background:transparent;padding:0 12px;width:100%}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabs) + 56px + env(safe-area-inset-bottom));z-index:70;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 18px rgba(0,0,0,.2)}
-.toast button{border:0;background:none;color:var(--brass);font-weight:700;padding:4px 0}
+.toast button{border:0;background:none;color:var(--brass-ink);font-weight:700;padding:4px 0}
 .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{padding:18px 14px;text-align:center;color:var(--muted);font-size:14px}
@@ -815,7 +816,7 @@ function renderRecipe() {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <a class="btn sq" href="#cookbook" aria-label="Back to the cookbook"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
       <div style="display:flex;gap:8px">
-        <button class="btn sq" type="button" id="r-fav" aria-pressed="${!!r.fav}" aria-label="${r.fav ? "Remove from favourites" : "Add to favourites"}" style="font-size:18px;color:var(--brass)">${r.fav ? "★" : "☆"}</button>
+        <button class="btn sq" type="button" id="r-fav" aria-pressed="${!!r.fav}" aria-label="${r.fav ? "Remove from favourites" : "Add to favourites"}" style="font-size:18px;color:var(--brass-ink)">${r.fav ? "★" : "☆"}</button>
         <button class="btn sq" type="button" id="r-more" aria-label="More" style="font-size:18px">⋯</button>
       </div>
     </div>

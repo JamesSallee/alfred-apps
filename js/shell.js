@@ -11,6 +11,11 @@ const CSS = `
   font:500 12px/1 system-ui,-apple-system,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid var(--al-line);
   background:var(--al-bg);color:var(--al-ink);font-family:var(--body,system-ui);box-shadow:0 2px 10px rgba(0,0,0,.12);cursor:pointer}
 .al-dot{width:8px;height:8px;border-radius:50%;background:var(--al-dot)}
+/* All well: shrink to a quiet dot that still opens the account sheet. Anything wrong: the full pill. */
+.al-pill.quiet{padding:0;width:28px;height:28px;justify-content:center;opacity:.7;box-shadow:none}
+.al-pill.quiet .al-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.al-pill.quiet:hover,.al-pill.quiet:focus-visible{opacity:1}
+.eyebrow[data-today]{display:block}
 .al-sheet{position:fixed;inset:0;z-index:10000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.35)}
 .al-sheet[hidden]{display:none}
 .al-card{width:min(420px,100%);margin:0 0 env(safe-area-inset-bottom);background:var(--al-bg);color:var(--al-ink);
@@ -46,6 +51,10 @@ export function mountShell(app) {
     h1.prepend(mark);
   }
 
+  // Any element marked data-today shows the long date, the same way in every room.
+  const longDate = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  for (const el of document.querySelectorAll("[data-today]")) if (!el.textContent) el.textContent = longDate;
+
   const spacer = document.createElement("div"); // keeps the pill clear of the page's last line
   spacer.style.height = "56px";
   document.body.appendChild(spacer);
@@ -66,6 +75,8 @@ export function mountShell(app) {
 
   const show = (status) => {
     pill.querySelector(".al-txt").textContent = STATUS_TEXT[status] || status;
+    pill.classList.toggle("quiet", status === "saved");
+    pill.title = STATUS_TEXT[status] || status;
     pill.style.setProperty("--al-dot", DOT[status] || "#9a9385");
   };
   openStore(app || "study").onStatus(show);

@@ -22,7 +22,7 @@
   --worry:#b9a8e0; --worry-soft:#2c2740;}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:14px 80px}
-.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.wrap{max-width:var(--w-read);margin:0 auto;display:flex;flex-direction:column;gap:18px}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .muted{color:var(--muted)}
 .small{font-size:13px}
@@ -30,22 +30,22 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
-.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back{display:inline-block;font-size:14px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
 .clock{text-align:right}
-.clock .t{font-family:var(--display);font-size:28px;line-height:1;color:var(--brass)}
-.clock .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.clock .t{font-family:var(--display);font-size:28px;line-height:1;color:var(--brass-ink)}
+.clock .lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
 ol.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 ol.steps li{display:flex;flex-direction:column;gap:5px;min-width:0}
 ol.steps .bar{height:4px;border-radius:2px;background:var(--line)}
-ol.steps .nm{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ol.steps .nm{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 ol.steps li.done .bar{background:var(--green)}
 ol.steps li.on .bar{background:var(--brass)}
 ol.steps li.on .nm{color:var(--ink);font-weight:600}
 
 .sheet{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 18px;display:flex;flex-direction:column;gap:16px}
 .sheet h2{font-size:22px}
-.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass);font-weight:600}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass-ink);font-weight:600}
 .lede{color:var(--muted)}
 .alfred{border-left:2px solid var(--brass);padding-left:12px;font-style:italic;color:var(--muted)}
 
@@ -64,7 +64,7 @@ textarea{resize:vertical;min-height:64px}
 /* Intro */
 .plan{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .plan li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}
-.plan .n{font-family:var(--display);color:var(--brass)}
+.plan .n{font-family:var(--display);color:var(--brass-ink)}
 .plan .m{color:var(--muted);font-size:13px}
 .notice{background:var(--worry-soft);border-radius:10px;padding:10px 12px;font-size:14px}
 
@@ -87,10 +87,10 @@ textarea{resize:vertical;min-height:64px}
 .tag{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--muted)}
 .tag[aria-pressed="true"][data-t="todo"]{background:var(--green-soft);border-color:var(--green);color:var(--green)}
 .tag[aria-pressed="true"][data-t="worry"]{background:var(--worry-soft);border-color:var(--worry);color:var(--worry)}
-.tag[aria-pressed="true"][data-t="letgo"]{background:var(--brass-soft);border-color:var(--brass);color:var(--brass)}
+.tag[aria-pressed="true"][data-t="letgo"]{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
 .item.letgo .txt{text-decoration:line-through;text-decoration-color:var(--brass);color:var(--muted)}
 .del{border:0;background:transparent;color:var(--muted);font-size:12px;padding:3px 4px}
-.since{font-size:11px;color:var(--worry);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.since{font-size:12px;color:var(--worry);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .empty{color:var(--muted);font-size:14px;text-align:center;padding:14px;border:1px dashed var(--line);border-radius:10px}
 .tally{font-size:13px;color:var(--muted)}
 
@@ -99,7 +99,7 @@ textarea{resize:vertical;min-height:64px}
 .seg button{flex:1;border:0;background:transparent;padding:8px 6px;border-radius:9px;font-weight:600;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--green-soft);color:var(--green)}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.opts .lb{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.opts .lb{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
 .timer{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0}
 .ring{width:190px;height:190px;max-width:100%;position:relative}
 .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
@@ -121,7 +121,7 @@ textarea{resize:vertical;min-height:64px}
 .figs li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .figs li.mx{padding-left:14px;font-size:13px}
 .figs li.up span:last-child{color:var(--green);font-weight:600}
-.figs .lb{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.figs .lb{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sum{display:flex;flex-direction:column;gap:12px}
 .sum h3{font-size:16px}
 .copybox{display:flex;flex-direction:column;gap:8px}
@@ -145,7 +145,7 @@ textarea{resize:vertical;min-height:64px}
 .hlist summary{display:grid;grid-template-columns:auto 1fr auto;gap:10px;padding:10px 0;cursor:pointer;align-items:baseline;list-style:none}
 .hlist summary::-webkit-details-marker{display:none}
 .hlist .d{font-weight:600}
-.hlist .w{font-family:var(--display);color:var(--brass);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hlist .w{font-family:var(--display);color:var(--brass-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .hlist .s{font-size:12px;color:var(--muted)}
 .hlist .body{padding:0 0 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .hlist .body b{font-weight:600}
@@ -153,7 +153,7 @@ textarea{resize:vertical;min-height:64px}
 #toast{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom, 0px));display:flex;justify-content:center;pointer-events:none;opacity:0;transform:translateY(8px);transition:.25s;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
 #toast.show{opacity:1;transform:none}
 #toast div{background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;font-size:14px;max-width:480px}
-#toast .who{font-family:var(--display);color:var(--brass);margin-right:8px}
+#toast .who{font-family:var(--display);color:var(--brass-ink);margin-right:8px}
 
 @media (prefers-reduced-motion: reduce){
   .orb,.orb.out{transition:none}
@@ -169,7 +169,7 @@ textarea{resize:vertical;min-height:64px}
       <h1>Sunday Shutdown</h1>
       <div class="sub" id="dateline">Ten minutes to close the weekend properly.</div>
     </div>
-    <div class="clock"><div class="t num" id="clock">10:00</div><div class="lbl">minutes, roughly</div></div>
+    <div class="clock"><div class="t num" id="clock">10 min</div><div class="lbl">left, roughly</div></div>
   </header>
 
   <ol class="steps" id="steps" aria-label="Steps"></ol>
@@ -291,7 +291,7 @@ function figuresText(F){
 function renderSteps(){
   $("#steps").innerHTML = STEPS.map((s,i) => `<li class="${i<D.step?'done':''} ${i===D.step?'on':''}"><span class="bar"></span><span class="nm">${esc(s.short||s.n)}</span></li>`).join("");
   const left = STEPS.slice(Math.max(D.step,0)).reduce((a,s)=>a+(s.k==="sit"?D.sit.len:s.min),0);
-  $("#clock").textContent = Math.max(left,0)+":00";
+  $("#clock").textContent = Math.max(left,0)+" min";
   $("#dateline").textContent = fmtLong(D.date) + (D.step<0 ? ". Ten minutes to close the weekend properly." : "");
 }
 function nav(back, next, nextLabel="Next"){

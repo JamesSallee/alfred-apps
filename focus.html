@@ -29,14 +29,14 @@ h2{font-size:19px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 button[disabled]{opacity:.45;cursor:default}
 .small{font-size:13px;color:var(--muted)}
-.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
-.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back{display:inline-block;font-size:14px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
 .today-tally{text-align:right}
-.today-tally .amt{font-family:var(--display);font-size:30px;line-height:1;color:var(--brass)}
+.today-tally .amt{font-family:var(--display);font-size:30px;line-height:1;color:var(--brass-ink)}
 
 nav.tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px}
 nav.tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-weight:600;color:var(--muted)}
@@ -54,7 +54,7 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .dial .face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:0 30px}
 .dial .phase{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .dial[data-k="focus"] .phase{color:var(--green)}
-.dial[data-k="break"] .phase{color:var(--brass)}
+.dial[data-k="break"] .phase{color:var(--brass-ink)}
 .dial .time{font-family:var(--display);font-size:56px;line-height:1}
 .dial .round{font-size:13px;color:var(--muted)}
 .alfred{text-align:center;color:var(--muted);font-size:14px;min-height:1.45em;max-width:40ch;margin:0 auto}
@@ -122,11 +122,11 @@ input[type=range]{width:auto;accent-color:var(--green)}
 .stat b{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1}
 .weekchart{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:150px}
 .wcol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0}
-.wcol .v{font-size:11px;color:var(--muted)}
+.wcol .v{font-size:12px;color:var(--muted)}
 .wcol .b{width:100%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--green);min-height:2px}
 .wcol .b.zero{background:var(--line)}
-.wcol .d{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.wcol.today .d{color:var(--brass);font-weight:700}
+.wcol .d{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.wcol.today .d{color:var(--brass-ink);font-weight:700}
 .lrow{display:grid;grid-template-columns:minmax(70px,auto) 1fr auto;gap:10px;align-items:center;font-size:14px}
 .lrow .bar{height:8px;background:var(--track);border-radius:4px;overflow:hidden}
 .lrow .bar i{display:block;height:100%;background:var(--green);border-radius:4px}
@@ -142,7 +142,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
 .toast .who{font-weight:700;margin-right:6px;color:var(--brass-soft)}
 /* Tablets in landscape and desktops: the dial stays put on the left, its settings beside it. */
 @media (min-width:1000px){
-  .wrap{max-width:1040px}
+  .wrap{max-width:var(--w-work)}
   #v-focus:not([hidden]),#v-breathe:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
   #v-focus>.panel:first-child{grid-row:1 / span 3;position:sticky;top:16px}
   #breakSlot:empty{display:none}
@@ -154,6 +154,7 @@ input[type=range]{width:auto;accent-color:var(--green)}
   <header class="top">
     <div>
       <a class="back" href="./">← Alfred's Study</a>
+      <span class="eyebrow" data-today></span>
       <h1>Focus Room</h1>
       <div class="sub">Kept by Alfred</div>
     </div>
@@ -460,7 +461,7 @@ function showBreak(ph){
 function drawBreak(ph){
   const i=IDEAS[ideaIdx], bmin=Math.min(2,Math.floor(ph.s/60))||1;
   $("#breakSlot").innerHTML=`<div class="breakcard">
-    <span class="lbl" style="color:var(--brass)">Break · ${Math.round(ph.s/60)} min</span>
+    <span class="lbl" style="color:var(--brass-ink)">Break · ${Math.round(ph.s/60)} min</span>
     <h3>${esc(i.h)}</h3><p>${esc(i.p)}</p>
     <div id="inlineBreath" hidden><div class="orbwrap sm" id="inOrb"><div class="orb"></div><div class="orbtext"><span class="cue">Breathe in</span><span class="cnt num"></span></div></div></div>
     <div class="row"><button class="chip" id="ideaBtn">Another idea</button><button class="chip" id="breathBtn">Breathe for ${bmin} min instead</button></div></div>`;

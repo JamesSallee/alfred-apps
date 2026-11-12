@@ -81,8 +81,8 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .piece .cap{padding:6px 8px 8px;display:flex;flex-direction:column;gap:1px}
 .piece .nm{font-size:12.5px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.piece .sz{font-size:11.5px;color:var(--muted)}
-.flag{position:absolute;top:6px;left:6px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--paper);border:1px solid var(--line)}
+.piece .sz{font-size:12px;color:var(--muted)}
+.flag{position:absolute;top:6px;left:6px;font-size:12px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--paper);border:1px solid var(--line)}
 .flag.tailor{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
 .flag.big,.flag.small{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
 .flag.go{background:var(--rule);color:var(--muted)}
@@ -131,7 +131,8 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--pape
   display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
 /* On wide screens the bar stays edge to edge but its tabs line up with the column above. */
 nav.tabs{padding-inline:max(0px, calc((100% - 600px) / 2))}
-nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--muted)}
+@media (min-width:900px){.wrap{max-width:var(--w-read)}nav.tabs{padding-inline:max(0px, calc((100% - var(--w-read)) / 2))}}
+nav.tabs button{height:var(--tabs);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
 nav.tabs button[aria-current="page"]{color:var(--green)}
 nav.tabs svg{width:22px;height:22px}
 .al-pill{bottom:calc(var(--tabs) + 10px + env(safe-area-inset-bottom)) !important}
@@ -165,7 +166,7 @@ nav.tabs svg{width:22px;height:22px}
 .lb-cap span{font-size:13px;opacity:.8}
 .lb.zoomed .lb-cap,.lb.zoomed .lb-nav{opacity:0;pointer-events:none}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabs) + 56px + env(safe-area-inset-bottom));z-index:70;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 18px rgba(0,0,0,.2)}
-.toast button{border:0;background:none;color:var(--brass);font-weight:700;padding:4px 0}
+.toast button{border:0;background:none;color:var(--brass-ink);font-weight:700;padding:4px 0}
 .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.busy{animation:none}}
@@ -188,7 +189,7 @@ nav.tabs svg{width:22px;height:22px}
 .slot.filled{border-style:solid;border-color:var(--green);background:var(--paper)}
 .slot.ghost{opacity:.55}
 .slot .thumb{aspect-ratio:auto;width:100%;height:100%;font-size:20px}
-.slot .lbl{position:absolute;left:0;right:0;bottom:0;padding:3px 4px;font-size:10.5px;font-weight:600;line-height:1.2;background:color-mix(in srgb, var(--paper) 88%, transparent);color:var(--ink);
+.slot .lbl{position:absolute;left:0;right:0;bottom:0;padding:3px 4px;font-size:12px;font-weight:600;line-height:1.2;background:color-mix(in srgb, var(--paper) 88%, transparent);color:var(--ink);
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .slot[data-k="top"],.slot[data-k="bottom"]{aspect-ratio:4/5}
 .slot[data-k="shoes"]{aspect-ratio:3/2}
