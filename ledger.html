@@ -23,10 +23,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
-.back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
+.back{display:inline-block;font-size:14px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
 .purse{text-align:right}
-.purse .amt{font-family:var(--display);font-size:34px;line-height:1;color:var(--brass)}
-.purse .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.purse .amt{font-family:var(--display);font-size:34px;line-height:1;color:var(--brass-ink)}
+.purse .lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
 nav.tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px}
 nav.tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-weight:600;color:var(--muted)}
@@ -36,11 +36,11 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .week .arrow{border:1px solid var(--line);background:var(--paper);border-radius:8px;width:32px;height:44px;flex:none}
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;flex:1;min-width:0}
 .day{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:5px 0;display:flex;flex-direction:column;align-items:center;gap:1px}
-.day .dn{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.day .dn{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .day .dd{font-weight:600}
 .day .dot{width:18px;height:3px;border-radius:2px;background:var(--line)}
 .day.sel{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
-.day.today .dd{color:var(--brass)}
+.day.today .dd{color:var(--brass-ink)}
 .day[disabled]{opacity:.4;cursor:default}
 .day.rest .dot{background:var(--muted)}
 
@@ -50,8 +50,8 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .restbtn{border:1px dashed var(--line);background:transparent;border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
 .restbtn[aria-pressed="true"]{border-style:solid;border-color:var(--muted);color:var(--ink);background:var(--paper)}
 .sunday{display:flex;flex-direction:column;gap:6px;background:var(--brass-soft);border:1px solid var(--brass);border-radius:14px;padding:12px 14px;color:var(--ink);text-decoration:none;font-size:14px}
-.sunday b{font-family:var(--display);font-weight:400;font-size:16px;color:var(--brass)}
-.sunday .go{font-weight:700;color:var(--brass)}
+.sunday b{font-family:var(--display);font-weight:400;font-size:16px;color:var(--brass-ink)}
+.sunday .go{font-weight:700;color:var(--brass-ink)}
 .sunday:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .restnote{font-size:13px;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
 
@@ -61,17 +61,17 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .habit .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .habit .name{font-weight:600}
 .habit .info{font-size:12.5px;color:var(--muted)}
-.habit .pv{font-weight:700;color:var(--brass);font-size:14px}
+.habit .pv{font-weight:700;color:var(--brass-ink);font-size:14px}
 .habit.on{background:var(--done);border-color:var(--done);color:var(--done-ink)}
 .habit.on .tick{border-color:var(--done-ink);background:var(--done-ink);color:var(--done)}
 .habit.on .info{color:var(--done-ink);opacity:.8}
 .habit.on .pv{color:var(--done-ink)}
 .habit .right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
 .habit .sk{font-family:var(--display);font-size:20px;line-height:1;color:var(--green)}
-.habit .sk small{font-family:var(--body);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-left:3px}
+.habit .sk small{font-family:var(--body);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-left:3px}
 .habit.on .sk,.habit.on .sk small{color:var(--done-ink)}
 .streaks{display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;font-size:14px;align-items:baseline}
-.streaks .h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.streaks .h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .streaks .c{font-family:var(--display);font-size:17px;color:var(--green);text-align:right}
 .streaks .b{color:var(--muted);text-align:right}
 .variants{display:flex;gap:6px;flex-wrap:wrap;padding:2px 0 4px 54px}
@@ -94,7 +94,7 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .item .name{font-weight:600}
 .item a.name{color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 .item a.name:hover{text-decoration-color:currentColor}
-.item .cost{font-family:var(--display);color:var(--brass);font-size:18px;white-space:nowrap}
+.item .cost{font-family:var(--display);color:var(--brass-ink);font-size:18px;white-space:nowrap}
 .btn{border:1px solid var(--green);background:var(--green);color:var(--paper);border-radius:10px;padding:8px 14px;font-weight:600;font-size:14px}
 .btn.ghost{background:transparent;color:var(--green)}
 .btn.warn{border-color:var(--danger);background:transparent;color:var(--danger)}
@@ -116,12 +116,12 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 .toast div{max-width:520px;background:var(--ink);color:var(--bg);border-radius:12px;padding:11px 16px;font-size:14px;box-shadow:0 6px 24px rgb(0 0 0 / .18);
   opacity:0;transform:translateY(8px);transition:opacity .25s, transform .25s}
 .toast.show div{opacity:1;transform:none}
-.toast .who{font-family:var(--display);color:var(--brass);margin-right:6px}
+.toast .who{font-family:var(--display);color:var(--brass-ink);margin-right:6px}
 .status{font-size:13px;color:var(--muted);text-align:center}
 .tmain,.tside{display:flex;flex-direction:column;gap:14px;min-width:0}
 /* Tablets in landscape and desktops: today's habits on the left, the week and streaks beside them. */
 @media (min-width:1000px){
-  body>.wrap{max-width:1040px}
+  body>.wrap{max-width:var(--w-work)}
   #v-today{max-width:none;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
   #v-store,#v-habits{width:100%;max-width:680px}
 }
@@ -133,6 +133,7 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
   <header class="top">
     <div>
       <a class="back" href="./">← Alfred's Study</a>
+      <span class="eyebrow" data-today></span>
       <h1>The Daily Ledger</h1>
       <div class="sub" id="greet">Kept by Alfred</div>
     </div>
@@ -399,7 +400,7 @@ function toggleRest(){ const body = dayDoc(S.sel); body.rest = !body.rest; saveD
 function renderStore(R){
   const Wl = R.wallet, cfg = R.cfg, t = today(), rec = S.days[t]||{};
   const bank = S.settings.bank, bankAge = bank && bank.at ? Math.floor((Date.now()-Date.parse(bank.at))/864e5) : null;
-  let html = `<div class="panel"><div class="kv"><span>Yours to spend</span><span class="num" style="font-family:var(--display);font-size:22px;color:var(--brass)">${fmtUsd(Wl.available)}</span></div>
+  let html = `<div class="panel"><div class="kv"><span>Yours to spend</span><span class="num" style="font-family:var(--display);font-size:22px;color:var(--brass-ink)">${fmtUsd(Wl.available)}</span></div>
     <div class="kv"><span>Unlocked since ${esc(fmtShort(cfg.start))}</span><span class="num">${fmtUsd(Wl.unlocked)}</span></div>
     <div class="kv"><span>Spent on yourself</span><span class="num">${fmtUsd(Wl.spent)}</span></div>
     ${Wl.thisWeek?`<div class="small">Includes ${fmtUsd(Wl.thisWeek)} unlocked so far this week. A week's sum is settled the Wednesday after.</div>`:""}

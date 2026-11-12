@@ -12,7 +12,15 @@
   --done:#1f4d3a; --done-ink:#f4f7f2;
   --display:"Young Serif", Georgia, "Times New Roman", serif;
   --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type scale: labels never go below --t-xs. */
+  --t-xs:12px; --t-sm:14px; --t-md:16px; --t-lg:19px; --t-xl:26px; --t-2xl:34px;
+  /* Shape and size: two corner radii, two page widths, one tap height. */
+  --r-control:10px; --r-card:14px;
+  --w-read:720px; --w-work:1100px;
+  --tap:32px;
 }
+/* A finger on a tablet in a stand needs a bigger target than a mouse. */
+@media (pointer: coarse){:root{--tap:44px}}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33; --rule:#22302a;
   --green:#7fbf9d; --green-soft:#21352c; --on-green:#10201a; --green-ink:#10201a;
@@ -36,9 +44,10 @@ h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 h1{font-size:30px;line-height:1.1}
 p{margin:0}
 button{font:inherit;color:inherit;cursor:pointer}
-.eyebrow,.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.eyebrow,.label{font-size:var(--t-xs);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 
 /* ---------- Shared pieces ---------- */
+.back{display:inline-block;font-size:var(--t-sm);font-weight:600;color:var(--green);text-decoration:none}
 .back:hover{text-decoration:underline}
 .back:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .btn:disabled{opacity:.5;cursor:default}
@@ -49,3 +58,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:4px}
 dialog::backdrop{background:rgba(0,0,0,.35)}
+
+/* ---------- Touch ----------
+   Every control is at least --tap tall: 32px with a mouse, 44px on a touch screen. :where() keeps this
+   at zero specificity, so a room that sizes a control on purpose still wins. Buttons inside a chip
+   (its little ×) and inline text links are left alone. */
+:where(button, .btn, a.btn, label.btn, label.chip, select, [role="tab"]):not(.link):not(.chip button):not(.x){min-height:var(--tap)}
+@media (pointer: coarse){
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"])){min-height:var(--tap)}
+}

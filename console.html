@@ -49,7 +49,7 @@ a{color:inherit}
 .note{background:var(--brass-soft);border-color:var(--brass);display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
 .note h2{color:var(--brass-ink)}
 .note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;overflow:auto}
-.note li::marker{color:var(--brass)}
+.note li::marker{color:var(--brass-ink)}
 .note a{font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
 .plan{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 .plan .rows{display:flex;flex-direction:column;gap:8px}
@@ -57,7 +57,7 @@ a{color:inherit}
 .plan .row .t{color:var(--muted);font-size:17px}
 .plan .row.now .id{font-weight:700}
 .plan .row.now .t{color:var(--green)}
-.plan .row .ov{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-ink);margin-left:6px;vertical-align:2px}
+.plan .row .ov{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-ink);margin-left:6px;vertical-align:2px}
 .plan .empty{color:var(--muted);font-size:15px}
 
 /* ----- centre: the Focus Room ----- */
@@ -147,9 +147,24 @@ a{color:inherit}
 .night .eyebrow{color:#47514b;font-size:14px}
 
 /* The sync pill sits small in the top margin, and only shows words when something's amiss. */
-.al-pill{top:5px!important;bottom:auto!important;right:32px!important;padding:3px 9px!important;font-size:11px!important;box-shadow:none!important;opacity:.85}
+.al-pill{top:5px!important;bottom:auto!important;right:32px!important;padding:3px 9px!important;font-size:12px!important;box-shadow:none!important;opacity:.85}
 .al-pill.quiet .al-txt{display:none}
 @media (prefers-reduced-motion: reduce){.dial .arc,.dial .orb,.console{transition:none}}
+/* ----- portrait: the tablet turned on its side ----- 
+   Clock and note top left, Ledger and errands top right, the Focus Room full width, then the plan, then the rooms in a 3×3 grid. */
+@media (orientation: portrait){
+  .console{padding:24px;gap:16px}
+  .cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;
+    grid-template-areas:"clock right" "note right" "focus focus" "plan plan";gap:16px}
+  .cols>.col:first-of-type{display:contents}
+  .clockbox{grid-area:clock}
+  .note{grid-area:note;align-self:start}
+  .plan{grid-area:plan;margin-top:0}
+  .focus{grid-area:focus}
+  .cols>.col:last-of-type{grid-area:right}
+  .cols>.col:last-of-type .week{display:none}
+  .rooms{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
 </style>
 
 <div class="console" id="console">
@@ -544,7 +559,7 @@ function renderErrands() {
   const todayW = wk.find((w) => ymd(new Date(w.start)) === t);
   el.innerHTML = `<div class="head"><h2>Training this week</h2></div>
     ${[["strength", "Strength"], ["cardio", "Cardio"], ["yoga", "Yoga or stretch"]].map(([k, l]) => `<div class="erow"><span>${l}</span><span class="num">${n[k]} of ${TARGET[k]}</span></div>`).join("")}
-    <div class="erow"><span style="color:var(--muted)">${todayW ? "Today: " + esc(todayW.title || "a class") : "No errands due today, and no class yet today."}</span><span></span></div>`;
+    <div class="erow"><span style="color:var(--muted)">${todayW ? "Today: " + esc(todayW.title || "a class") : "No errands today, and no class yet."}</span><span></span></div>`;
 }
 
 function renderWeek() {

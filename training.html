@@ -29,8 +29,8 @@ body{margin:0;color:var(--ink);font-family:var(--body);font-size:15px;line-heigh
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 64px}
 button,input,select{font:inherit;color:inherit}
 :is(button,a,input,select):focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
-.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.wrap{max-width:var(--w-work);margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 header .t{display:flex;flex-direction:column;gap:4px}
 .back{color:var(--green);font-weight:600;text-decoration:none;font-size:14px}
@@ -43,7 +43,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .btn.quiet{border-color:var(--line);color:var(--muted)}
 .empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
 .note{background:var(--brass-soft);border:1px solid var(--brass);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:4px}
-.note .who{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass)}
+.note .who{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass-ink)}
 .bad{color:var(--rust)}
 
 /* Week */
@@ -58,7 +58,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .day{border:1px solid var(--line);border-radius:8px;padding:5px 2px;display:flex;flex-direction:column;gap:2px;min-height:44px}
 .day.today{border-color:var(--brass)}
 .day .d{color:var(--muted)}
-.day .k{font-weight:700;color:var(--green);font-size:11px;letter-spacing:.04em}
+.day .k{font-weight:700;color:var(--green);font-size:12px;letter-spacing:.04em}
 
 /* Muscle balance */
 #muscles{display:flex;flex-direction:column;gap:6px}
@@ -73,7 +73,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 /* Tabs */
 .tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px}
 .tabs button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;color:var(--muted)}
-.tabs button[aria-selected="true"]{background:var(--green);color:var(--on-green)}
+.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--green)}
 
 /* Lists */
 .list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
@@ -81,7 +81,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .list li:first-child{border-top:0;padding-top:0}
 .list .txt{display:flex;flex-direction:column;min-width:0}
 .list .ttl{font-weight:600}
-.badge{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:6px;padding:3px 7px;background:var(--brass-soft);color:var(--brass);white-space:nowrap}
+.badge{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:6px;padding:3px 7px;background:var(--brass-soft);color:var(--brass-ink);white-space:nowrap}
 .badge.done{background:var(--green-soft);color:var(--green)}
 
 /* Logger */
@@ -113,7 +113,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .lift.open .lift-row{background:var(--green-soft);border-radius:8px;padding-inline:8px}
 .lift-main{display:flex;flex-direction:column;gap:3px;min-width:0}
 .lift-name{font-weight:600}
-.pin{color:var(--brass)}
+.pin{color:var(--brass-ink)}
 .lift-tiers{display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tchip{display:inline-flex;align-items:center;gap:4px}
 .lift-trend{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
@@ -125,7 +125,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--on-green)}
 .chart{position:relative}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
-.chart .axis{font-size:11px;fill:var(--muted)}
+.chart .axis{font-size:12px;fill:var(--muted)}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -146,20 +146,22 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
 .ridestats b{color:var(--ink);font-variant-numeric:tabular-nums}
 .kit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .kit label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.toolbar{justify-content:flex-end;flex-wrap:wrap}
 </style>
 <div class="wrap">
   <header>
     <div class="t">
       <a class="back" href="./">← Alfred's Study</a>
+      <span class="eyebrow" data-today></span>
       <h1>The Training Room</h1>
       <p class="muted" id="syncline">Your Peloton classes arrive here. You only confirm the weights.</p>
       <p class="muted" id="ledgerline" hidden></p>
     </div>
-    <div class="row">
-      <button class="btn quiet" id="kitBtn" type="button">Dumbbells</button>
-      <button class="btn solid" id="syncBtn" type="button">Fetch from Peloton</button>
-    </div>
   </header>
+  <div class="row toolbar">
+    <button class="btn quiet" id="kitBtn" type="button">Dumbbells</button>
+    <button class="btn solid" id="syncBtn" type="button">Fetch from Peloton</button>
+  </div>
 
   <section class="card" aria-labelledby="weekh">
     <div class="head"><h2 id="weekh">This week</h2><span class="muted" id="weekRange"></span></div>

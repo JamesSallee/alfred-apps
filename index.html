@@ -21,17 +21,17 @@ h1,h2{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 a:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
 
 header{display:flex;flex-direction:column;gap:4px}
-.eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.eyebrow{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .greet{color:var(--muted);font-size:15px}
 
 .note{background:var(--brass-soft);border:1px solid var(--brass);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.note h2{font-size:19px;color:var(--brass)}
+.note h2{font-size:19px;color:var(--brass-ink)}
 .note ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
 .note li{display:flex;gap:10px;align-items:baseline}
 .note li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--brass);transform:translateY(-2px)}
 .note a{color:var(--ink);font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
 
-.label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .rooms{display:flex;flex-direction:column;gap:10px}
 .room{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;color:var(--ink);text-decoration:none;transition:border-color .15s, transform .15s}
 .room:hover{border-color:var(--green);transform:translateY(-1px)}
@@ -40,17 +40,17 @@ header{display:flex;flex-direction:column;gap:4px}
 .room:hover .mark svg,.room:active .mark svg,.room:focus-visible .mark svg{transform:rotate(-8deg) scale(1.06)}
 /* Icons are copies of js/icons.js, kept static so the doors paint at once. */
 .room.today{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(--brass)}
-.room.today .mark{background:var(--brass-soft);color:var(--brass)}
+.room.today .mark{background:var(--brass-soft);color:var(--brass-ink)}
 .room .txt{min-width:0;display:flex;flex-direction:column;gap:2px}
 .room .name{font-family:var(--display);font-size:18px}
 .room .desc{font-size:13px;color:var(--muted)}
 .room .go{color:var(--green);font-weight:700;font-size:18px}
-.room.today .go{color:var(--brass)}
+.room.today .go{color:var(--brass-ink)}
 /* A door's live figure takes the arrow's place. */
 .room .go.fig{display:flex;flex-direction:column;align-items:flex-end;gap:1px;text-align:right;max-width:9.5em}
 .room .go .fv{font-family:var(--display);font-weight:400;font-size:18px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
-.room .go .fc{font-family:var(--body);font-weight:500;font-size:11px;line-height:1.2;color:var(--muted)}
-.room .tag{display:inline-block;margin-left:6px;font-family:var(--body);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass);vertical-align:2px}
+.room .go .fc{font-family:var(--body);font-weight:500;font-size:12px;line-height:1.2;color:var(--muted)}
+.room .tag{display:inline-block;margin-left:6px;font-family:var(--body);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-ink);vertical-align:2px}
 
 .week{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .week h2{font-size:19px}
@@ -64,7 +64,7 @@ header{display:flex;flex-direction:column;gap:4px}
 .week[hidden]{display:none}
 footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:14px}
 /* Tablets in landscape and desktops: two columns of doors so all nine fit on one screen. */
-@media (min-width:900px){.wrap{max-width:1000px}.rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:900px){.wrap{max-width:var(--w-work)}.rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion: reduce){.room,.room .mark svg{transition:none}.room:hover{transform:none}.room:hover .mark svg,.room:active .mark svg,.room:focus-visible .mark svg{transform:none}}
 </style>
 
