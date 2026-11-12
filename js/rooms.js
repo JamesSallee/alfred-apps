@@ -6,6 +6,7 @@
 import { openStore, supabase } from "./sync.js";
 
 import { pad, ymd, parse, addDays, mondayOf, daysBetween } from "./dates.js";
+import { readingFigure } from "./reading.js";
 export { pad, ymd, addDays, mondayOf }; // the rooms import these from here
 
 // ---------- Training ----------
@@ -265,7 +266,7 @@ const shortDate = (s) => parse(s).toLocaleDateString("en-GB", { day: "numeric", 
 export function doorFigures(stores) {
   const t = ymd(new Date());
   const out = {};
-  const { ledger, focus, shutdown, larder, desk, training, wardrobe, todo, podcast } = stores;
+  const { ledger, focus, shutdown, larder, desk, training, wardrobe, todo, podcast, reading } = stores;
   if (ledger) {
     const daily = activeHabits(ledger).filter((h) => h.kind !== "weekly");
     const done = ledger.get(`days/${t}`)?.done || {};
@@ -317,5 +318,6 @@ export function doorFigures(stores) {
     out.podcast = next ? { v: d < 0 ? "Overdue" : d === 0 ? "Today" : d === 1 ? "Tomorrow" : shortDate(next.publish), c: "next episode" }
       : open.length ? { v: String(open.length), c: "in progress" } : null;
   }
+  if (reading) out.reading = readingFigure(reading);
   return out;
 }
