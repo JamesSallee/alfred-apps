@@ -5,12 +5,8 @@
 
 import { openStore, supabase } from "./sync.js";
 
-export const pad = (n) => String(n).padStart(2, "0");
-export const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
-export const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
-export const mondayOf = (s) => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
-const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+import { pad, ymd, parse, addDays, mondayOf, daysBetween } from "./dates.js";
+export { pad, ymd, addDays, mondayOf }; // the rooms import these from here
 
 // ---------- Training ----------
 

@@ -198,9 +198,11 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
 </dialog>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { todoTasks, todoBucket, ymd, addDays, mirrorSoon as nudge } from "./js/rooms.js";
+import { today } from "./js/dates.js";
 mountShell("todo");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -217,9 +219,6 @@ const AREAS = ["Home", "Car", "Errands", "Admin", "Family", "Finances", "Career"
 const PRI = { High: 0, Normal: 1, Low: 2 };
 const GROUPS = [["today", "Today"], ["week", "This week"], ["later", "Later"], ["someday", "Someday"]];
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const today = () => ymd(new Date());
 const parse = (s) => new Date(s + "T12:00");
 const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

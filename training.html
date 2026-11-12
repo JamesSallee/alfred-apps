@@ -184,6 +184,7 @@ details summary{cursor:pointer;color:var(--green);font-weight:600;font-size:13px
 <div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="panel"></div></div>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { KIND, isSpin, linkWorkoutsToLedger } from "./js/rooms.js";
@@ -192,8 +193,6 @@ const store = openStore("training");
 mountShell("training");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const TIERS = ["heavy", "medium", "light"];
 const TIER_VAR = { light: "var(--t-light)", medium: "var(--t-medium)", heavy: "var(--t-heavy)" };
 const DEFAULT_KIT = { fixed: [5, 8, 15, 20], adjMin: 25, adjMax: 55, adjStep: 2.5 };

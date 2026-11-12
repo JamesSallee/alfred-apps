@@ -255,17 +255,17 @@ input[type=range]{width:auto;accent-color:var(--green)}
 <div class="toast" id="toast" aria-live="polite"><div></div></div>
 
 <script type="module">
+import { esc, qs as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { openIlkwim, nextPost, linkWritingToLedger, radioScripts } from "./js/rooms.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
+import { pad } from "./js/dates.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
 (function(){
-const $=s=>document.querySelector(s);
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const R=Math.random;
 const store={get(k,d){const v=focusStore.get(k);return v===undefined?d:v},set(k,v){focusStore.set(k,JSON.parse(JSON.stringify(v)))}};
 // Each session is its own item ("log/<time>"), so two devices never overwrite each other's log.
@@ -311,7 +311,6 @@ async function wake(on){ try{ if(on&&!wl&&navigator.wakeLock){ wl=await navigato
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&(run.running||med.running)) wake(true); });
 
 /* ---------- formatting ---------- */
-const pad=n=>String(n).padStart(2,"0");
 const mmss=s=>{s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+":"+pad(s%60);};
 const fmtM=m=>{m=Math.round(m); if(m<60) return m+" min"; const h=Math.floor(m/60),r=m%60; return r?`${h} h ${r} m`:`${h} h`;};
 const clock=d=>d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});

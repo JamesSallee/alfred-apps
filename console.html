@@ -201,18 +201,18 @@ a{color:inherit}
 <div class="night" id="night" hidden><span class="eyebrow" id="nDate"></span><span class="clock" id="nClock"></span></div>
 
 <script type="module">
+import { esc, qs as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, STATUS_TEXT } from "./js/sync.js";
 import { iconSvg } from "./js/icons.js";
+import { ROOMS, CONSOLE_ORDER } from "./js/registry.js";
 import { ymd, mondayOf, activeHabits, openTasks, todoBucket, workoutsOf, KIND, openIlkwim, nextPost, radioScripts, linkWritingToLedger } from "./js/rooms.js";
 import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
+import { pad } from "./js/dates.js";
 mountShell(null);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
-const $ = (s) => document.querySelector(s);
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const pad = (n) => String(n).padStart(2, "0");
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
@@ -559,11 +559,10 @@ function renderWeek() {
 }
 
 // ---------- the rooms ----------
-const ROOMS = [["ledger", "Ledger", "ledger.html"], ["focus", "Focus", "focus.html"], ["todo", "Errands", "todo.html"], ["desk", "Desk", "desk.html"], ["training", "Training", "training.html"],
-  ["larder", "Larder", "larder.html"], ["podcast", "Booth", "podcast.html"], ["wardrobe", "Wardrobe", "wardrobe.html"], ["shutdown", "Shutdown", "shutdown.html"]];
+const BAR = [...ROOMS].sort((a, b) => ((CONSOLE_ORDER.indexOf(a.id) + 1) || 99) - ((CONSOLE_ORDER.indexOf(b.id) + 1) || 99));
 function renderRooms() {
   const active = run.running ? "focus" : now().getDay() === 0 ? "shutdown" : "ledger";
-  $("#rooms").innerHTML = ROOMS.map(([id, name, href]) => `<a class="room${id === active ? " active" : ""}" href="${href}">${iconSvg(id)}<span>${name}</span></a>`).join("");
+  $("#rooms").innerHTML = BAR.map(({ id, short, href }) => `<a class="room${id === active ? " active" : ""}" href="${href}">${iconSvg(id)}<span>${short}</span></a>`).join("");
 }
 
 // ---------- wiring ----------

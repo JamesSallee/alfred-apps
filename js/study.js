@@ -3,8 +3,7 @@
 // Nothing personal lives here: the note's rules come from the "study" store, the rest from each room's store.
 
 import { ymd, addDays, mondayOf, openTasks } from "./rooms.js";
-
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+import { esc } from "./ui.js";
 
 // ---------- Today's note ----------
 // Rule fields in study/notes:

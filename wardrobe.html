@@ -346,9 +346,11 @@ nav.tabs svg{width:22px;height:22px}
 <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase, currentUser } from "./js/sync.js";
 import { mirrorSoon } from "./js/rooms.js";
+import { ymd, today, addDays, daysBetween } from "./js/dates.js";
 
 // Private to its owner: "wardrobe" is not one of sync.js's shared apps.
 const store = openStore("wardrobe");
@@ -356,13 +358,7 @@ mountShell("wardrobe");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
 // ---------- small helpers ----------
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 10);
-const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const today = () => ymd(new Date());
-const addDays = (s, n) => { const d = new Date(s + "T12:00"); d.setDate(d.getDate() + n); return ymd(d); };
-const daysBetween = (a, b) => Math.round((new Date(b + "T12:00") - new Date(a + "T12:00")) / 864e5);
 const daysUntil = (s) => daysBetween(today(), s);
 const fmtDate = (s) => new Date(s + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const cents = (usd) => usd < 0.995 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)}¢` : `$${usd.toFixed(2)}`;

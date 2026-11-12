@@ -242,9 +242,11 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
 </dialog>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { writingTime, fmtMins, mirrorSoon, onAir } from "./js/rooms.js";
+import { ymd } from "./js/dates.js";
 mountShell("desk");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -279,9 +281,6 @@ const DEFAULTS = {
   tips: [],
 };
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const parse = (s) => new Date(s + "T00:00");
 const daysTo = (s) => Math.round((parse(s) - today0()) / 864e5);

@@ -3,8 +3,8 @@
 
 import { openStore, STATUS_TEXT, currentUser, sendCode, signInWithPassword, setPassword, signOut, onAuthChange, exportBackup, importBackup } from "./sync.js";
 import { iconSvg } from "./icons.js";
+import { DATA_APPS } from "./registry.js";
 
-const ALL_APPS = ["ledger", "focus", "shutdown", "larder", "desk", "wardrobe", "training", "todo", "podcast"];
 
 const CSS = `
 .al-pill{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9999;display:flex;align-items:center;gap:6px;
@@ -121,7 +121,7 @@ export function mountShell(app) {
       if (a === "password") renderSheet("password");
       if (a === "setpw") { await setPassword(card.querySelector('[data-f="newpw"]').value); flash = "Password saved."; await renderSheet(); }
       if (a === "signout") { await signOut(); renderSheet(); }
-      if (a === "export") exportBackup(ALL_APPS);
+      if (a === "export") exportBackup(DATA_APPS);
     } catch (err) {
       renderSheet(a === "setpw" ? "password" : null, err.message || "Something went wrong. Try again.");
     }

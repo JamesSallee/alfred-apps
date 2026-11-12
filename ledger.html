@@ -154,22 +154,18 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 <div class="toast" id="toast" aria-live="polite"><div></div></div>
 
 <script type="module">
+import { esc, qs as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
 import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor } from "./js/money.js";
+import { pad, ymd, parse, addDays, today } from "./js/dates.js";
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
 const worth = (pts, cfg, light) => { const v = pts * rateFor(cfg, light); return v < 1 ? Math.round(v*100)+"¢" : "$"+v.toFixed(2); };
 mountShell('ledger');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
 (() => {
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const pad = n => String(n).padStart(2,"0");
-const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
-const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return ymd(d); };
 const monday = s => { const d = parse(s); const w = (d.getDay()+6)%7; d.setDate(d.getDate()-w); return ymd(d); };
 const DN = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const fmtLong = s => parse(s).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
@@ -197,7 +193,6 @@ function say(text){ const t=$("#toast"); t.firstElementChild.innerHTML='<span cl
 // State
 const S = { habits:[], days:{}, store:[], spends:[], weekDocs:{}, settings:{streakMode:"grace"}, loaded:{}, view:"today", sel:ymd(new Date()), weekStart:monday(ymd(new Date())), editing:null, confirm:null, addingItem:false, addingHabit:false };
 let db = null;
-const today = () => ymd(new Date());
 
 // One write at a time per document
 const queues = {};

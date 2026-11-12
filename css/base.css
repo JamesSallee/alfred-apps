@@ -28,7 +28,6 @@
 
 /* ---------- Basics ---------- */
 html,body{background:var(--bg)}
-button{cursor:pointer}
 .num{font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 

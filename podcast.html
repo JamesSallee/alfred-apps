@@ -302,9 +302,11 @@ dialog{border:0;padding:0;background:transparent;max-width:min(560px,calc(100% -
 </dialog>
 
 <script type="module">
+import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { ymd, writingTime, fmtMins, mirrorSoon } from "./js/rooms.js";
+import { today } from "./js/dates.js";
 mountShell("podcast");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -349,9 +351,6 @@ const LICENCES = {
   "CC0": "CC0 (no rights reserved)", "PD": "Public domain", "Other": "Not Creative Commons",
 };
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const today = () => ymd(new Date());
 const parse = (s) => new Date(s + "T12:00");
 const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const days = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
