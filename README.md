@@ -14,6 +14,7 @@ Personal habit apps, hosted on GitHub Pages with data synced through Supabase.
 | `wardrobe.html` | The Wardrobe: today's outfit, the rail, a dressing board and saved looks, fit and tailoring, the buying plan, occasions and packing | `wardrobe` |
 | `todo.html` | The Errand Book: to-dos by Today / This week / Later / Someday, snooze, waiting on, done shelf, slot requests | `todo` |
 | `podcast.html` | The Recording Booth: podcast episodes from plan to publish, stage checklists, the music licence log and the credits | `podcast` |
+| `reading.html` | The Reading Room: a bookcase of things to read (shelves by length, swiping sideways), a cabinet of curiosities in broad drawers, the attic (untouched for 60 days) and the read pile. Saved from the Chrome extension in `extension/` or Android's Share menu | `reading` |
 | `training.html` | The Training Room: Peloton classes, the weights per move, lift progress, rides and the 4/2/1 week | `training` |
 
 ## How the data works

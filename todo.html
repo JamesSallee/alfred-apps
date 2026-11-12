@@ -205,6 +205,7 @@ import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
 import { todoTasks, todoBucket, ymd, addDays, mirrorSoon as nudge } from "./js/rooms.js";
 import { today } from "./js/dates.js";
+import { findUrl, siteOf, suggestDrawer, DRAWERS } from "./js/reading.js";
 mountShell("todo");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -393,6 +394,24 @@ $("capForm").addEventListener("submit", (e) => {
   $("capSaved").textContent = "On the list. I'll size it and suggest a time when we next speak.";
 });
 
+// ---------- Links and notes belong in the Reading Room ----------
+// A link goes on its shelf; anything else into its cabinet, in the drawer its words suggest (or Loose ends).
+function moveToReading(x) {
+  const reading = openStore("reading");
+  const url = findUrl(x.title, x.notes);
+  const words = (x.title || "").replace(url, "").replace(/^(read|check out|research|look at|go back to( the)?)\s+/i, "").trim();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const drawers = reading.get("settings")?.drawers || DRAWERS;
+  const kind = url && !/^(check out|research|look at)\b/i.test(x.title || "") ? "read" : "curio";
+  const item = { kind, url, site: siteOf(url), title: words || siteOf(url) || x.title, minutes: null, source: "import", tags: [],
+    note: (x.notes || "").replace(url, "").replace(/^\s*[—–-]\s*/, "").trim(), savedAt: new Date().toISOString() };
+  if (kind === "curio") item.drawer = suggestDrawer(`${x.title} ${x.notes || ""}`, drawers);
+  reading.set("items/" + id, item);
+  store.remove("tasks/" + x.id); mirrorSoon();
+  toast(kind === "read" ? "On the Reading Room's shelf." : `In the Reading Room's cabinet${item.drawer ? ", " + item.drawer : ""}.`,
+    () => { reading.remove("items/" + id); save(x); });
+}
+
 // ---------- The ⋯ menu ----------
 let menuEl = null;
 function closeMenu() { menuEl?.remove(); menuEl = null; }
@@ -411,6 +430,8 @@ function openMenu(id, anchor) {
     [x.status === "doing" ? "Not started after all" : "Mark as doing", () => save({ ...x, status: x.status === "doing" ? "todo" : "doing" })],
     ["Waiting on someone…", () => { openEditor(id); $("edStatus").value = "waiting"; syncWaitField(); $("edWait").focus(); }],
     [x.someday ? "Bring it back from Someday" : "Move to Someday", () => save({ ...x, someday: !x.someday })],
+    null,
+    ["Move to the Reading Room", () => moveToReading(x)],
   ];
   items.forEach((it) => {
     if (!it) { menuEl.appendChild(Object.assign(document.createElement("div"), { className: "sep" })); return; }

@@ -11,6 +11,7 @@ export const ICONS = {
   training: '<rect x="5" y="7" width="3" height="10" rx="1"/><rect x="16" y="7" width="3" height="10" rx="1"/><path d="M3 10v4M21 10v4M8 12h8"/>',
   todo:     '<path d="M9 6.5h11M9 12h11M9 17.5h7"/><path d="M3.5 6.5l1.3 1.3L7 5.5"/><path d="M3.5 12l1.3 1.3L7 11"/><circle cx="5" cy="17.5" r="1.2"/>',
   podcast:  '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5v3M9 20.5h6"/>',
+  reading:  '<path d="M12 6.5c-1.8-1.4-4.6-2-8-1.8v13c3.4-.2 6.2.4 8 1.8 1.8-1.4 4.6-2 8-1.8v-13c-3.4-.2-6.2.4-8 1.8z"/><path d="M12 6.5v13"/><path d="M15.5 4.6v5l1.25-1 1.25 1v-5.3"/>',
   wardrobe: '<path d="M12 9.5V8.3c0-.6.4-1 .9-1.3A2 2 0 1 0 10 5.3"/><path d="M12 9.5l-8.4 6.2c-.8.6-.4 1.8.6 1.8h15.6c1 0 1.4-1.2.6-1.8z"/>',
 };
 
