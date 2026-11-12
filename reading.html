@@ -270,7 +270,7 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
   </div>
   <label class="f">Tags (comma between)<input id="itTags" placeholder="MoMA"></label>
   <label class="f">Note<textarea id="itNote"></textarea></label>
-  <div class="foot"><span class="row"><button class="btn quiet" type="button" id="itBin">Bin it</button><button class="btn quiet" type="button" id="itErr">Send to Errand Book</button></span>
+  <div class="foot"><span class="row"><button class="btn quiet" type="button" id="itBin">Bin it</button><button class="btn quiet" type="button" id="itErr">Send to Errand Book</button><button class="btn quiet" type="button" id="itDesk">Send to Writing Desk</button></span>
     <span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Save</button></span></div>
 </form></dialog>
 
@@ -279,6 +279,14 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
   <p class="muted" id="errFrom"></p>
   <label class="f">What needs doing?<input id="errText" required placeholder="Order the part, book the table…"></label>
   <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Add</button></span></div>
+</form></dialog>
+
+<dialog id="deskDlg"><form class="sheet" id="deskForm" method="dialog">
+  <h2>Send to the Writing Desk</h2>
+  <p class="muted" id="deskFrom"></p>
+  <label class="f">The idea<input id="deskText" required placeholder="What would you write about it?"></label>
+  <label class="f">For<select id="deskTrack"><option value="ilkwim">ILKWIM</option><option value="fiction">Fiction</option><option value="comedy">Comedy</option></select></label>
+  <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Put it on the idea shelf</button></span></div>
 </form></dialog>
 
 <dialog id="routeDlg"><div class="sheet">
@@ -299,6 +307,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // ---------- Data (the shapes are in js/reading.js) ----------
 const store = openStore("reading");
 const todo = openStore("todo");
+const desk = openStore("desk"); // the Writing Desk: pieces/<id> { title, track, stage, notes, created }
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const nowIso = () => new Date().toISOString();
 const S = () => store.get("settings") || {};
@@ -461,6 +470,11 @@ function errandsLine(it) {
   return `<p class="errs">${ts.map((t) => t.status === "done" ? `<b>✓</b> ${esc(t.title)}` : `In the Errand Book: ${esc(t.title)}`).join(" · ")}</p>`;
 }
 
+function deskLine(it) {
+  const ps = (it.desk || []).map((id) => ({ id, ...desk.get("pieces/" + id) })).filter((p) => p.title);
+  return ps.length ? `<p class="errs">${ps.map((p) => `On the Writing Desk: ${esc(p.title)} <span class="muted">(${esc(p.stage || "Idea")})</span>`).join(" · ")}</p>` : "";
+}
+
 function openCard(it) {
   const m = it.minutes;
   return `<div class="open">
@@ -475,12 +489,13 @@ function openCard(it) {
         <a class="btn" href="${esc(archiveUrl(it.url, archiveBase()))}" target="_blank" rel="noopener" data-opened="${it.id}">Archived copy</a>` : ""}
         <button class="btn ox" type="button" id="markRead">Mark read</button>
         <button class="btn" type="button" data-err="${it.id}">Send to Errand Book</button>
+        <button class="btn" type="button" data-desk="${it.id}">Send to Writing Desk</button>
         <button class="btn quiet" type="button" data-edit="${it.id}">Edit</button>
         <button class="btn quiet" type="button" data-close-open>Close</button>
       </div>
       <form class="inline" id="readForm" hidden><label for="readNote" hidden>What you took from it</label>
         <input id="readNote" placeholder="One line on what you took from it (optional)"><button class="btn ox" type="submit">Done</button></form>
-      ${errandsLine(it)}
+      ${errandsLine(it)}${deskLine(it)}
     </div></div>`;
 }
 
@@ -495,6 +510,7 @@ document.addEventListener("click", (e) => {
   if (d.mins) { const it = get(openId); if (it) save({ ...it, minutes: Number(d.mins) }); return; }
   if (b.id === "markRead") { $("readForm").hidden = false; $("readNote").focus(); return; }
   if (d.err) { openErrand(d.err); return; }
+  if (d.desk) { openDesk(d.desk); return; }
   if (d.edit) { openItem(d.edit); return; }
   if (d.drawer) { drawerOpen = d.drawer; fillDrawer(); $("drawerDlg").showModal(); return; }
   if (d.revive) { const it = get(d.revive); if (it) { save({ ...it, openedAt: nowIso() }); if (it.kind === "read") openId = it.id; toast("Back from the attic."); } return; }
@@ -569,6 +585,7 @@ $("itemForm").addEventListener("submit", () => {
 });
 $("itBin").onclick = () => { const it = get(editing); if (!it) return; store.remove("items/" + it.id); $("itemDlg").close(); if (openId === it.id) openId = null; toast("Binned.", () => save(it)); };
 $("itErr").onclick = () => { $("itemDlg").close(); openErrand(editing); };
+$("itDesk").onclick = () => { $("itemDlg").close(); openDesk(editing); };
 
 // ---------- Send to the Errand Book ----------
 let errFor = null;
@@ -584,6 +601,28 @@ $("errForm").addEventListener("submit", () => {
   mirrorSoon("todo");
   save({ ...it, errands: [...(it.errands || []), tid] });
   toast("In the Errand Book.");
+});
+
+// ---------- Send to the Writing Desk: an idea on its shelf, with the link in its notes ----------
+const FIRST_STAGE = { ilkwim: "Idea", fiction: "Sketch", comedy: "Sketch" };
+function toDesk(title, url, track = "ilkwim", fromTitle = "") {
+  const pid = newId();
+  desk.set("pieces/" + pid, { title, track, stage: FIRST_STAGE[track] || "Idea", created: nowIso(),
+    notes: `From the Reading Room: ${fromTitle || title}${url ? " " + url : ""}`, from: { app: "reading" } });
+  mirrorSoon("desk");
+  return pid;
+}
+let deskFor = null;
+function openDesk(id) {
+  const it = get(id); if (!it) return;
+  deskFor = id; $("deskFrom").textContent = "From: " + it.title; $("deskText").value = it.title; $("deskDlg").showModal();
+  $("deskText").select();
+}
+$("deskForm").addEventListener("submit", () => {
+  const it = get(deskFor), title = $("deskText").value.trim(); if (!it || !title) return;
+  const pid = toDesk(title, it.url, $("deskTrack").value, it.title);
+  save({ ...it, desk: [...(it.desk || []), pid] });
+  toast("On the Writing Desk's idea shelf.");
 });
 
 // ---------- Toast ----------

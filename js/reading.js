@@ -3,7 +3,7 @@
 // Store "reading":
 //   items/<id>  { kind: "read" | "curio", title, url, site, minutes (null = not measured yet), drawer (curios),
 //                 tags: [..] (e.g. "MoMA", where an imported list came from), note, source: extension|share|paste|import,
-//                 savedAt, openedAt, readAt, errands: [todo task ids] }
+//                 savedAt, openedAt, readAt, errands: [todo task ids], desk: [Writing Desk piece ids] }
 //   settings    { drawers: [..], archive: "https://archive.ph/newest/", atticDays: 60 }
 // Nothing here is a to-do: Alfred reads the room for the Sunday picks and the Study door, and never counts it.
 
