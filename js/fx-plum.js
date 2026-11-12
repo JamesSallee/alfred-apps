@@ -4,7 +4,7 @@
 // sway once the branch is in full flower. Reduced motion: blossoms simply appear.
 //
 //   import { mountPlum } from "./js/fx-plum.js";
-//   const plum = mountPlum();          // returns { el, set }
+//   const plum = mountPlum();          // returns { el, set }; mountPlum({ mini: true }) for a short strip
 //   someContainer.prepend(plum.el);    // the element survives re-renders: move it, don't rebuild it
 //   plum.set(3, 6);                    // 3 of 6 habits ticked
 
@@ -14,6 +14,8 @@ const NS = "http://www.w3.org/2000/svg";
 const CSS = `
 .fx-plum{position:relative;height:150px;border-radius:14px;border:1px solid var(--line);overflow:hidden;
   background:linear-gradient(160deg,var(--plum-sky1),var(--plum-sky2) 45%,var(--plum-sky3))}
+.fx-plum.mini{height:84px;margin-top:4px}
+.fx-plum.mini .cap{display:none}
 .fx-plum svg{position:absolute;inset:0;width:100%;height:100%}
 .fx-plum .cap{position:absolute;left:12px;bottom:10px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
   color:var(--plum-cap);background:var(--plum-capbg);padding:3px 8px;border-radius:999px}
@@ -37,12 +39,12 @@ const CSS = `
 // Eleven blossoms, ordered so the branch fills from the trunk outwards.
 const TIPS = [[185, 185], [150, 170], [205, 205], [130, 150], [100, 160], [155, 148], [165, 120], [120, 128], [90, 128], [70, 120], [40, 165], [60, 140]].slice(0, 11);
 
-export function mountPlum() {
+export function mountPlum({ mini = false } = {}) {
   if (!document.getElementById("fx-plum-css")) {
     const st = document.createElement("style"); st.id = "fx-plum-css"; st.textContent = CSS; document.head.appendChild(st);
   }
   const el = document.createElement("div");
-  el.className = "fx-plum";
+  el.className = "fx-plum" + (mini ? " mini" : "");
   el.setAttribute("role", "img");
   el.innerHTML = `<svg viewBox="0 0 340 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <path d="M0 300 L0 215 Q70 175 130 205 L175 160 L210 200 Q280 180 340 210 L340 300 Z" fill="var(--plum-hill)" opacity=".18"/>

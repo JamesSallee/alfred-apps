@@ -29,21 +29,7 @@
   --brass-ink:#7a5814;
   color-scheme:light;
 }
-/* The sky's colours (js/fx-sky.js). Dark is the default; by day the sky is paler and leans to the house paper and brass. */
-:root{
-  --sky-dawn-top:#2a3f63; --sky-dawn-bot:#d98a5a; --sky-dawn-sun:#f2c27a;
-  --sky-day-top:#3f6f9f;  --sky-day-bot:#cfe6ee;  --sky-day-sun:#fdf6e3;
-  --sky-dusk-top:#3a3360; --sky-dusk-bot:#c4663f; --sky-dusk-sun:#e8934a;
-  --sky-night-top:#101a2e; --sky-night-bot:#22324b; --sky-night-sun:#e8edf2;
-  --sky-hill:#10261c; --sky-star:rgba(242,240,232,.9); --sky-ink:#e6ece7;
-}
-:root[data-theme="light"]{
-  --sky-dawn-top:#b9c4e0; --sky-dawn-bot:#f3e7c8; --sky-dawn-sun:#c9852f;
-  --sky-day-top:#a9c6dc;  --sky-day-bot:#f4f1e6;  --sky-day-sun:#e0a948;
-  --sky-dusk-top:#c7bcd6; --sky-dusk-bot:#f0c8ab; --sky-dusk-sun:#b8612f;
-  --sky-night-top:#7d8fae; --sky-night-bot:#d6dde6; --sky-night-sun:#f4f1e6;
-  --sky-hill:#1f4d3a; --sky-star:rgba(70,92,132,.55); --sky-ink:#1d2b24;
-}
+
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
@@ -244,6 +230,7 @@ import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
 import { mountSky } from "./js/fx-sky.js";
+import { mountPlum } from "./js/fx-plum.js";
 mountShell(null);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -523,8 +510,12 @@ const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "week
 const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
 let choosing = null;
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const plum = mountPlum({ mini: true });
 function renderLedger() {
   const hs = dailyHabits(), done = todayDone();
+  // A small plum branch under the habits: one blossom per habit ticked, as in the Ledger.
+  if (hs.length) { if (!plum.el.isConnected) $("#ledger").append(plum.el); plum.set(hs.filter((h) => done[h.id]).length, hs.length); }
+  else plum.el.remove();
   $("#ledgerN").textContent = hs.length ? `${hs.filter((h) => done[h.id]).length} of ${hs.length} today` : "";
   $("#habits").innerHTML = hs.length ? hs.map((h) => {
     const v = done[h.id], on = !!v;

@@ -11,7 +11,7 @@
 
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// Colours are CSS custom properties (see console.html), read on each repaint so the light and dark
+// Colours are CSS custom properties (set below, light and dark), read on each repaint so the light and dark
 // themes can each have their own sky. Fallbacks are the dark values.
 const FALLBACK = {
   "dawn-top": "#2a3f63", "dawn-bot": "#d98a5a", "dawn-sun": "#f2c27a",
@@ -38,15 +38,31 @@ function phaseAt(h) {
   return [3, 0, 0];
 }
 
+// The night palette, used whenever the page is dark (the console after the hard stop, or a dark device).
+const DARK = `
+  --sky-dawn-top:#2a3f63; --sky-dawn-bot:#d98a5a; --sky-dawn-sun:#f2c27a;
+  --sky-day-top:#3f6f9f;  --sky-day-bot:#cfe6ee;  --sky-day-sun:#fdf6e3;
+  --sky-dusk-top:#3a3360; --sky-dusk-bot:#c4663f; --sky-dusk-sun:#e8934a;
+  --sky-night-top:#101a2e; --sky-night-bot:#22324b; --sky-night-sun:#e8edf2;
+  --sky-hill:#10261c; --sky-star:rgba(242,240,232,.9); --sky-ink:#e6ece7`;
+
 export function mountSky(host, { now = () => new Date() } = {}) {
   if (!host) return null;
   host.setAttribute("role", "img");
   host.innerHTML = `<canvas></canvas>${REDUCED ? "" : '<svg class="fx-bird" viewBox="0 0 16 8" aria-hidden="true"><path d="M1 5 Q8 -1 8 4 Q8 -1 15 5"/></svg>'}`;
   const cv = host.querySelector("canvas");
   const bird = host.querySelector(".fx-bird");
-  const style = document.createElement("style");
+  const style = document.getElementById("fx-sky-css") || document.createElement("style");
+  style.id = "fx-sky-css";
   style.textContent = `
-    .fx-sky{position:relative;overflow:hidden}
+    .fx-sky{position:relative;overflow:hidden;
+      --sky-dawn-top:#b9c4e0; --sky-dawn-bot:#f3e7c8; --sky-dawn-sun:#c9852f;
+      --sky-day-top:#a9c6dc;  --sky-day-bot:#f4f1e6;  --sky-day-sun:#e0a948;
+      --sky-dusk-top:#c7bcd6; --sky-dusk-bot:#f0c8ab; --sky-dusk-sun:#b8612f;
+      --sky-night-top:#7d8fae; --sky-night-bot:#d6dde6; --sky-night-sun:#f4f1e6;
+      --sky-hill:#1f4d3a; --sky-star:rgba(70,92,132,.55); --sky-ink:#1d2b24}
+    @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .fx-sky{${DARK}}}
+    :root[data-theme="dark"] .fx-sky{${DARK}}
     .fx-sky canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     .fx-bird{position:absolute;left:-20px;top:22%;width:16px;height:8px;fill:none;stroke:var(--sky-ink,#16202b);stroke-width:1.6;stroke-linecap:round;opacity:0;
       animation:fx-bird-cross 46s linear infinite}
