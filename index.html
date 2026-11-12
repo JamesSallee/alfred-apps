@@ -117,13 +117,14 @@ import { greeting, todaysNote } from "./js/study.js";
 import { ROOMS } from "./js/registry.js";
 import { iconSvg } from "./js/icons.js";
 import { mountSky } from "./js/fx-sky.js";
+import { countTo } from "./js/fx-motion.js";
 mountSky(document.getElementById("sky"));
 mountShell(null);
 
 // ---------- The doors, one per room (js/registry.js) ----------
 document.getElementById("rooms").innerHTML = ROOMS.map((r) => `
       <a class="room" id="r-${r.id}" href="${r.href}">
-        <span class="mark" aria-hidden="true">${iconSvg(r.id)}</span>
+        <span class="mark" aria-hidden="true" style="view-transition-name:mark-${r.store}">${iconSvg(r.id)}</span>
         <span class="txt"><span class="name">${r.name}</span><span class="desc">${r.desc}</span></span>
         <span class="go" aria-hidden="true">→</span>
       </a>`).join("");
@@ -141,7 +142,11 @@ document.getElementById("rooms").innerHTML = ROOMS.map((r) => `
       const f = F[n];
       go.classList.toggle("fig", !!f);
       go.setAttribute("aria-hidden", f ? "false" : "true");
-      go.innerHTML = f ? `<span class="fv">${esc(f.v)}</span><span class="fc">${esc(f.c)}</span>` : "→";
+      // Count the figure up from what it showed before, rather than swapping it.
+      const fv = go.querySelector(".fv");
+      if (f && fv) { countTo(fv, String(f.v)); go.querySelector(".fc").textContent = f.c; }
+      else go.innerHTML = f ? `<span class="fv">${esc(f.v)}</span><span class="fc">${esc(f.c)}</span>` : "→";
+      if (f && !fv) go.querySelector(".fv").dataset.count = String(f.v);
     });
   };
   const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };

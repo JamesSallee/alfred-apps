@@ -47,6 +47,7 @@ export function mountShell(app) {
     if (h1.querySelector(".al-mark")) continue;
     const mark = document.createElement("span");
     mark.className = "al-mark";
+    mark.style.viewTransitionName = "mark-" + app; // travels from its door in the Study
     mark.innerHTML = icon;
     h1.prepend(mark);
   }

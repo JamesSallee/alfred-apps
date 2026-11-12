@@ -508,7 +508,7 @@ $("#focus").addEventListener("click", (e) => {
 // ---------- right: the Ledger, errands, the week ----------
 const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "weekly");
 const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
-let choosing = null;
+let choosing = null, justTicked = null;
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const plum = mountPlum({ mini: true });
 function renderLedger() {
@@ -522,7 +522,7 @@ function renderLedger() {
     let hint = "";
     if (h.variants && typeof v === "string") hint = (h.variants.find((x) => x.key === v) || {}).label || "";
     if (h.minutes && typeof v === "number") hint = v + " min";
-    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
+    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box${on && justTicked === h.id ? " fx-pop" : ""}">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
     if (choosing === h.id) {
       const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
       row += `<div class="variants">${opts.map(([val, lab]) => `<button class="chip" data-for="${esc(h.id)}" data-val='${esc(JSON.stringify(val))}'>${esc(lab)}</button>`).join("")}</div>`;
@@ -531,6 +531,8 @@ function renderLedger() {
   }).join("") : `<p style="color:var(--muted);margin:4px 0">${st.ledger.status === "signed-out" ? "Sign in to see today's habits." : "No habits yet. Add them in the Ledger."}</p>`;
 }
 function setDone(id, val) {
+  // The tick pops on whichever renders follow in the next half second (the store echoes the change), then rests.
+  if (val != null) { justTicked = id; setTimeout(() => { if (justTicked === id) justTicked = null; }, 500); }
   const d = ymd(now()), r = st.ledger.get(`days/${d}`) || {};
   const done = { ...(r.done || {}) };
   if (val == null) delete done[id]; else done[id] = val;

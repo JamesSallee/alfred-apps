@@ -264,6 +264,7 @@ import { openIlkwim, nextPost, linkWritingToLedger, radioScripts } from "./js/ro
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
 import { mountAutomaton } from "./js/fx-automaton.js";
+import { countTo } from "./js/fx-motion.js";
 const focusStore = openStore("focus");
 mountShell('focus');
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -567,7 +568,7 @@ $("#alRepeat").onchange=e=>{ S.alertRepeat=e.target.checked; save(); rescheduleC
 $("#ackBtn").onclick=ack;
 
 /* ---------- log ---------- */
-function renderTally(){ const k=dayKey(Date.now()); $("#todayAmt").textContent=fmtM(LOG.filter(x=>x.k==="focus"&&dayKey(x.t)===k).reduce((a,x)=>a+x.m,0)); }
+function renderTally(){ const k=dayKey(Date.now()); countTo($("#todayAmt"),fmtM(LOG.filter(x=>x.k==="focus"&&dayKey(x.t)===k).reduce((a,x)=>a+x.m,0))); }
 let confirmClear=false;
 function renderLog(){
   const ws=weekStart(), wsT=ws.getTime(), todayK=dayKey(Date.now()), week=LOG.filter(x=>x.t>=wsT);
