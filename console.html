@@ -10,33 +10,30 @@
 <title>Alfred's Study console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
 <style>
 /* The Study's always-on tablet console: a 10-inch tablet in landscape (1280×800 CSS px).
    Left: the clock, today's note and the next blocks on the Focus Plan. Centre: the Focus Room's timer.
    Right: today's Ledger, errands due today and the week's figures. Bottom: every room, one tap away.
    The theme follows the clock, not the system: light from 7:00 to the day's hard stop, dark after,
    and a dim clock-only night from 22:30 to 6:30. */
-:root{
+/* The console is dark unless the clock sets data-theme="light", so it starts from the dark palette
+   whatever the system says. Shared colours come from css/base.css; these are the console's own. */
+:root:not([data-theme="light"]){
   --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
   --green:#7fbf9d; --green-soft:#21352c; --on-green:#10261c;
   --brass:#d9ad55; --brass-ink:#d9ad55; --brass-soft:#3a3020; --on-brass:#2a2110;
-  --display:"Young Serif", Georgia, "Times New Roman", serif;
-  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme:dark;
 }
 :root[data-theme="light"]{
-  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
-  --green:#1f4d3a; --green-soft:#dce8e0; --on-green:#f4f7f2;
-  --brass:#a87a1f; --brass-ink:#7a5814; --brass-soft:#f3e7c8; --on-brass:#fffaf0;
+  --brass-ink:#7a5814;
   color-scheme:light;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 h2{font-family:var(--display);font-weight:400;margin:0;font-size:20px}
-button{font:inherit;color:inherit;cursor:pointer}
 a{color:inherit}
-.num{font-variant-numeric:tabular-nums}
 .clock,.dial .time,.week .big{font-variant-numeric:lining-nums tabular-nums}
 .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 

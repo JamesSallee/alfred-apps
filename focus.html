@@ -10,35 +10,24 @@
 <title>Alfred's Focus Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
 <style>
 /* Layout: one narrow column, a sibling of the Daily Ledger. The dial up top, the plan and label beneath, the sound mixer below; Breathe and Log behind tabs. */
 :root{
-  --bg:#eef1ec; --paper:#f8faf6; --ink:#1d2b24; --muted:#5d6b63; --line:#d3dbd4;
-  --green:#1f4d3a; --green-soft:#dce8e0; --brass:#a87a1f; --brass-soft:#f3e7c8;
-  --done-ink:#f4f7f2; --danger:#9b3b2e; --track:#e2e8e2;
-  --display:"Young Serif", Georgia, "Times New Roman", serif;
-  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --track:#e2e8e2;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --done-ink:#111a16; --danger:#e08a7b; --track:#22302a; color-scheme:dark}}
+  --done-ink:#111a16; --track:#22302a;}}
 :root[data-theme="dark"]{
-  --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
-  --green:#7fbf9d; --green-soft:#21352c; --brass:#d9ad55; --brass-soft:#3a3020;
-  --done-ink:#111a16; --danger:#e08a7b; --track:#22302a; color-scheme:dark}
+  --done-ink:#111a16; --track:#22302a;}
 [hidden]{display:none!important}
-html,body{background:var(--bg)}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:12px 64px}
 .wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 .stack{display:flex;flex-direction:column;gap:14px}
-h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
 h2{font-size:19px}
-button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 button[disabled]{opacity:.45;cursor:default}
-.num{font-variant-numeric:tabular-nums}
 .small{font-size:13px;color:var(--muted)}
 .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 
@@ -46,8 +35,6 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
 .top h1{font-size:26px;line-height:1.1}
 .top .sub{color:var(--muted);font-size:13px}
 .back{display:inline-block;font-size:13px;font-weight:600;color:var(--green);text-decoration:none;margin-bottom:4px}
-.back:hover{text-decoration:underline}
-.back:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .today-tally{text-align:right}
 .today-tally .amt{font-family:var(--display);font-size:30px;line-height:1;color:var(--brass)}
 
