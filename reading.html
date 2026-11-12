@@ -65,19 +65,51 @@ header .t{display:flex;flex-direction:column;gap:4px}
 /* The bookcase: a row of spines per shelf, swiping sideways */
 .shelfname{font-family:var(--display);font-size:var(--t-md);display:flex;gap:8px;align-items:baseline}
 .shelfname span{font-family:var(--body);font-size:var(--t-xs);color:var(--muted)}
-.shelf{display:flex;align-items:flex-end;gap:4px;height:156px;padding:0 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
-  scrollbar-width:thin;overscroll-behavior-x:contain;border-bottom:12px solid var(--wood);box-shadow:0 8px 0 -3px var(--wood-dk);margin-bottom:14px}
+.shelf{display:flex;align-items:flex-end;gap:3px;height:160px;padding:0 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
+  scrollbar-width:thin;overscroll-behavior-x:contain;margin-bottom:14px;
+  /* the inside of the case: darker towards the back and the top, a soft contact shadow where the books stand */
+  background:linear-gradient(to bottom,rgba(50,32,18,.20),rgba(50,32,18,.06) 60%,rgba(50,32,18,.14));
+  box-shadow:inset 0 -7px 8px -6px rgba(0,0,0,.45);
+  border-bottom:12px solid var(--wood);border-image:linear-gradient(to bottom,#a2723f,#8a5a32 40%,#5e3a1f) 1}
 .shelf.more{-webkit-mask-image:linear-gradient(90deg,#000 86%,transparent);mask-image:linear-gradient(90deg,#000 86%,transparent)}
 .shelf.empty{align-items:center;justify-content:flex-start;color:var(--muted);font-size:var(--t-sm)}
-.spine{position:relative;flex:none;scroll-snap-align:start;height:var(--h);width:var(--w);min-height:0;background:var(--c);border:0;padding:0;
-  border-radius:3px 3px 1px 1px;color:#fbf6ec;display:flex;align-items:center;justify-content:center;cursor:pointer;
-  box-shadow:inset -3px 0 0 rgba(0,0,0,.18),inset 3px 0 0 rgba(255,255,255,.12);transition:transform .18s}
+/* A spine: cloth or leather over a rounded back, so it's shaded like a cylinder, with a fine weave on top. */
+.spine{--shade:linear-gradient(90deg,rgba(0,0,0,.42),rgba(255,255,255,.16) 15%,rgba(255,255,255,.05) 36%,rgba(0,0,0,.05) 70%,rgba(0,0,0,.45));
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --gilt:#e6c97f;
+  position:relative;flex:none;scroll-snap-align:start;height:var(--h);width:var(--w);min-height:0;border:0;padding:0;
+  background-color:var(--c);background-image:var(--shade),var(--grain);
+  border-radius:2px 2px 1px 1px;color:var(--gilt);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:2px 0 3px rgba(0,0,0,.3),-1px 0 0 rgba(0,0,0,.25);transition:transform .18s}
 .spine:hover{transform:translateY(-4px)}
 .spine[aria-current="true"]{transform:translateY(-10px)}
-.spine::before{content:"";position:absolute;top:10px;left:3px;right:3px;height:2px;background:rgba(255,220,150,.55)}
-.spine .st{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--display);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:calc(var(--h) - 44px);margin-bottom:16px}
-.spine .sm{position:absolute;bottom:6px;font:600 11px var(--body);opacity:.9}
+.spine::before,.spine::after{content:"";position:absolute;left:2px;right:2px;height:5px;
+  border-top:1px solid color-mix(in srgb,var(--gilt) 70%,transparent);border-bottom:1px solid color-mix(in srgb,var(--gilt) 70%,transparent)}
+.spine::before{top:6px}
+.spine::after{bottom:21px}
+.spine .st{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--display);font-size:11px;line-height:1.1;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-height:calc(var(--h) - 48px);margin-bottom:20px;text-shadow:0 1px 0 rgba(0,0,0,.55)}
+.spine .sm{position:absolute;bottom:6px;font:600 10.5px var(--body);color:#f6eedd;opacity:.85}
 .spine .rib{position:absolute;bottom:-18px;left:50%;width:7px;height:24px;margin-left:-3.5px;background:var(--brass);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)}
+/* A wide spine (a long read) has room for the title on two lines. */
+.spine.wide .st{white-space:normal;text-overflow:clip;max-width:2.2em;text-align:center;line-height:1.1}
+/* Leather: raised bands across the back, gilt between them. */
+.spine.leather{--shade:linear-gradient(90deg,rgba(0,0,0,.5),rgba(255,255,255,.22) 18%,rgba(255,255,255,.06) 40%,rgba(0,0,0,.08) 68%,rgba(0,0,0,.55))}
+.spine.leather::before,.spine.leather::after{height:6px;border:0;left:0;right:0;
+  background:linear-gradient(rgba(0,0,0,.45),rgba(255,255,255,.28) 45%,rgba(0,0,0,.45)),var(--c);box-shadow:0 1px 1px rgba(0,0,0,.35)}
+.spine.leather::before{top:8px}
+.spine.leather::after{bottom:21px}
+/* A title label: a dark panel with a gilt rule. */
+.spine.plate .st{background:rgba(18,12,8,.62);outline:1px solid color-mix(in srgb,var(--gilt) 80%,transparent);outline-offset:-2px;padding:5px 2px;border-radius:1px}
+/* A paperback: flat card, a coloured band at the head, black type. */
+.spine.paper{--shade:linear-gradient(90deg,rgba(0,0,0,.18),rgba(255,255,255,.25) 25%,rgba(0,0,0,.04) 75%,rgba(0,0,0,.2));
+  background-color:color-mix(in srgb,var(--c) 22%,#efe6d2);color:#2b2218;border-radius:1px}
+.spine.paper::before{top:0;left:0;right:0;height:20px;border:0;background:var(--c)}
+.spine.paper::after{display:none}
+.spine.paper .st{font-family:var(--body);font-weight:700;font-size:10px;letter-spacing:.03em;text-transform:uppercase;text-shadow:none;margin-bottom:0;margin-top:0;max-height:calc(var(--h) - 52px);position:relative;top:-2px}
+.spine.paper .sm{color:#2b2218}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .shelf{background:linear-gradient(to bottom,rgba(0,0,0,.35),rgba(0,0,0,.12) 60%,rgba(0,0,0,.25))}}
+:root[data-theme="dark"] .shelf{background:linear-gradient(to bottom,rgba(0,0,0,.35),rgba(0,0,0,.12) 60%,rgba(0,0,0,.25))}
 
 /* List view */
 .list{margin:0;padding:0;list-style:none}
@@ -276,7 +308,10 @@ $("sort").value = sort;
 const CLOTH = ["#1f4d3a", "#7a2e2e", "#a87a1f", "#2c3e5a", "#5d6b63", "#a4472f", "#3d5a4a", "#4a3b5c", "#6b4a2a"];
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const cloth = (it) => CLOTH[hash(it.id) % CLOTH.length];
-const spineH = (it) => 108 + (hash(it.id + "h") % 36);
+const spineH = (it) => 104 + (hash(it.id + "h") % 44);
+// Bindings: cloth with gilt rules, leather with raised bands, a cloth spine with a title label, or a paperback.
+const BINDINGS = ["cloth", "leather", "plate", "paper", "cloth", "plate"];
+const binding = (it) => BINDINGS[hash(it.id + "b") % BINDINGS.length];
 const spineW = (m) => (m == null ? 22 : Math.max(12, Math.min(48, Math.round(8 + m * 0.9))));
 const minTxt = (m) => (m == null ? "?" : String(m));
 const shortDate = (s) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
@@ -393,9 +428,9 @@ function render() {
 
 function spine(it) {
   const m = it.minutes, w = spineW(m);
-  return `<button class="spine" type="button" data-open="${it.id}" style="--h:${spineH(it)}px;--w:${w}px;--c:${cloth(it)}"
-    aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}" ${it.id === openId ? 'aria-current="true"' : ""}>
-    ${w >= 20 ? `<span class="st">${esc(it.title)}</span>` : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
+  return `<button class="spine ${binding(it)}${w >= 40 ? " wide" : ""}" type="button" data-open="${it.id}" style="--h:${spineH(it)}px;--w:${w}px;--c:${cloth(it)}"
+    title="${esc(it.title)}" aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}" ${it.id === openId ? 'aria-current="true"' : ""}>
+    ${w >= 16 ? `<span class="st">${esc(it.title)}</span>` : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
 }
 
 function fadeIfMore(el) {
@@ -413,7 +448,7 @@ function errandsLine(it) {
 function openCard(it) {
   const m = it.minutes;
   return `<div class="open">
-    <div class="spine" style="--c:${cloth(it)}" id="openSpine"><span class="st">${esc(it.title)}</span><i class="rib" aria-hidden="true"${it.openedAt ? "" : " hidden"}></i></div>
+    <div class="spine ${binding(it)}" style="--c:${cloth(it)}" id="openSpine"><span class="st">${esc(it.title)}</span><i class="rib" aria-hidden="true"${it.openedAt ? "" : " hidden"}></i></div>
     <div>
       <div class="tag">Open · ${m ? m + " min" : "length unknown"}</div>
       <h3>${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener" data-opened="${it.id}">${esc(it.title)}</a>` : esc(it.title)}</h3>
