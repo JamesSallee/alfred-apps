@@ -145,9 +145,34 @@ The one app shared with another person. Everything else stays private to its own
   `console.webmanifest` makes Chrome's "Add to Home screen" open it full screen and landscape, with no address bar.
   To check it in a desktop browser at 1280×800: `console.html?at=2026-11-09T14:32&theme=light` (or `dark`, `night`).
 
+## How the pages are put together
+
+There is no build step: each page is plain HTML with its own `<style>` and `<script type="module">`, served as it is.
+
+- `css/base.css` holds the palette (light and dark), the type and the handful of rules every room shares. Each page links it
+  just before its own `<style>`, which keeps the room's layout and anything it does differently. A page that needs a colour
+  of its own sets it in its own `:root` block.
+- `js/registry.js` is the one list of rooms (name, page, store, the Study's blurb). The Study's doors, the console's room bar
+  and Export backup read it.
+- `js/ui.js` has the small helpers (`esc`, `byId`, `qs`); `js/dates.js` has the `YYYY-MM-DD` date helpers.
+
+### Adding a room
+
+1. Make `<room>.html`, linking `css/base.css` and mounting the shell with `mountShell("<store>")`.
+2. Add it to `ROOMS` in `js/registry.js` (and `CONSOLE_ORDER` if it belongs on the console), and its icon to `js/icons.js`.
+3. Add the page to `SHELL` in `sw.js`, bump `CACHE`, and add a row to the table at the top of this file.
+
+`node --test` fails if step 2 or 3 is forgotten.
+
+## Checks
+
+`node --test` (Node 22, nothing to install) runs `tests/`: the fun-money sums, reading a Focus Plan, the Peloton and
+Writing auto-ticks, the errand buckets, and that the registry, `sw.js` and this README agree. GitHub runs them on every
+pull request, along with `scripts/check-cache-bump.js`, which fails if a cached file changed without a new `CACHE`.
+
 ## Updating
 
-Bump `CACHE` in `sw.js` when changing files so devices pick up the new version on the next open.
+Bump `CACHE` in `sw.js` when changing files so devices pick up the new version on the next open (the pull request check reminds you).
 
 ## The Wardrobe
 

@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Alfred's apps. No build step: the pages are served as they are. This file only runs the checks.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
