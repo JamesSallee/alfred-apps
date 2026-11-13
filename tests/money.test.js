@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MONEY_DEFAULTS, settingsOf, scoreWeek, phoneTargets, wallet, targetFor, fmtUsd } from "../js/money.js";
+import { MONEY_DEFAULTS, settingsOf, scoreWeek, phoneTargets, wallet, targetFor, fmtUsd, phoneTargetAt, phoneVerdict, allWeeks } from "../js/money.js";
 
 const cfg = settingsOf({});
 const wk = "2026-11-09";
@@ -74,4 +74,28 @@ test("dollars are shown plainly", () => {
   assert.equal(fmtUsd(12), "$12");
   assert.equal(fmtUsd(12.5), "$12.50");
   assert.equal(fmtUsd(-3), "−$3");
+});
+
+test("phone: the target for a week follows the figures typed in before it", () => {
+  const c = settingsOf({});
+  assert.equal(phoneTargetAt({}, c, "2026-10-26"), null);
+  assert.equal(phoneTargetAt({}, c, "2026-11-09"), 6);
+  assert.equal(phoneTargetAt({ "2026-11-02": 5.5, "2026-11-09": 6 }, c, "2026-11-16"), 5.5);
+});
+
+test("phone: every figure gets a verdict, including one over target", () => {
+  const c = settingsOf({});
+  assert.equal(phoneVerdict(null, 6, c), null);
+  assert.equal(phoneVerdict(4.5, 6, c).bonus, c.phone.beat);
+  assert.equal(phoneVerdict(6, 6, c).bonus, c.phone.hit);
+  const over = phoneVerdict(9, 6, c);
+  assert.equal(over.bonus, 0);
+  assert.match(over.text, /3 h over 6/);
+});
+
+test("phone: allWeeks carries each week's figure, frozen weeks included", () => {
+  const c = settingsOf({});
+  const { weeks } = allWeeks({ habits: [], days: {}, cfg: c, today: "2026-11-12",
+    weekDocs: { "2026-11-02": { phone: 7, frozen: { points: 0, dollars: 0 } }, "2026-11-09": { phone: 9 } } });
+  assert.deepEqual(weeks.map(w => w.phone), [7, 9]);
 });

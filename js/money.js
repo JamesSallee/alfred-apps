@@ -98,6 +98,22 @@ export function phoneTargets(weeks, cfg) {
   return { byWeek: out, next: target };
 }
 
+/** Target for one week, from the phone figures typed in so far ({ "YYYY-MM-DD": hours }). null before fun money began. */
+export function phoneTargetAt(phoneByWeek, cfg, wk) {
+  if (wk < cfg.start) return null;
+  const metas = []; for (let w = cfg.start; w <= wk; w = addDays(w, 7)) metas.push({ wk: w, phone: phoneByWeek[w] ?? null });
+  return phoneTargets(metas, cfg).byWeek[wk];
+}
+
+/** How a week's phone figure did against its target: { bonus, text }, or null when nothing was typed in. */
+export function phoneVerdict(phone, target, cfg) {
+  if (phone == null || target == null) return null;
+  const p = Number(phone);
+  if (p <= target - 1) return { bonus: cfg.phone.beat, text: `An hour or more under ${target}: +${cfg.phone.beat} points.` };
+  if (p <= target) return { bonus: cfg.phone.hit, text: `Under ${target}: +${cfg.phone.hit} points.` };
+  return { bonus: 0, text: `${round2(p - target)} h over ${target}, so no bonus this week.` };
+}
+
 /**
  * Every paid week from cfg.start to today. Closed weeks use their frozen snapshot, so changing a
  * habit's points later never rewrites dollars already unlocked.
@@ -119,6 +135,7 @@ export function allWeeks({ habits, days, weekDocs, cfg, today }) {
     }
     w.current = wk === thisWk;
     w.phoneTarget = phone.byWeek[wk];
+    w.phone = doc.phone ?? null;
     out.push(w); prev = w.points;
   }
   return { weeks: out, phoneNext: phone.next };

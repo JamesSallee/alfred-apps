@@ -87,6 +87,16 @@ nav.tabs button[aria-selected="true"]{background:var(--green-soft);color:var(--g
 .mix{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .mix div{display:flex;flex-direction:column;gap:4px;font-size:13px}
 .mix b{font-family:var(--display);font-weight:400;font-size:18px}
+/* Phone time, recent weeks: a short column per week, the target as a brass rule across it. */
+.phtrend{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end}
+.phtrend div{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.phtrend .col{position:relative;width:18px;height:44px;border-radius:4px;background:var(--line);overflow:hidden}
+.phtrend .col i{position:absolute;left:0;right:0;bottom:0;background:var(--green)}
+.phtrend .over .col i{background:var(--brass)}
+.phtrend .col s{position:absolute;left:-2px;right:-2px;height:2px;background:var(--brass-ink);text-decoration:none}
+.phtrend b{font-family:var(--display);font-weight:400;font-size:15px}
+.phtrend .none b{color:var(--muted)}
+.phtrend .on .small{color:var(--ink);font-weight:600}
 .small{font-size:12.5px;color:var(--muted)}
 
 .item{display:flex;align-items:center;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
@@ -159,7 +169,7 @@ import { esc, qs as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
-import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor } from "./js/money.js";
+import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor, phoneVerdict } from "./js/money.js";
 import { pad, ymd, parse, addDays, today } from "./js/dates.js";
 import { mountPlum } from "./js/fx-plum.js";
 import { countTo } from "./js/fx-motion.js";
@@ -333,8 +343,9 @@ function renderToday(R){
       ${W.over>0?`<div class="small">${W.over} points over the weekly cap of ${W.capPts}. Splendid, but they don't convert.</div>`:""}
       ${mixHtml}${minutes}
       ${W.bonuses&&W.bonuses.length?`<div class="small">Bonuses: ${W.bonuses.map(b=>`${esc(b.habit)}, ${esc(b.why)} (+${b.amount})`).join("; ")}</div>`:""}
+      ${phoneHtml(R, W, wk)}
       ${W.closed?`<div class="small">Closed and written into the books. Ticks changed now are for the record only.</div>`:`
-      <form class="row" id="phoneForm"><label class="f" style="flex:1">Phone screen time, daily average (target ${W.phoneTarget} h)<input id="phoneIn" type="number" min="0" max="24" step="0.1" inputmode="decimal" value="${meta.phone??""}" placeholder="From Digital Wellbeing"></label><button class="btn ghost" type="submit" style="align-self:flex-end">Save</button></form>
+      <form class="row" id="phoneForm"><label class="f" style="flex:1">Phone screen time, daily average (target ${W.phoneTarget} h)<input id="phoneIn" type="number" min="0" max="24" step="0.1" inputmode="decimal" value="${meta.phone??""}" placeholder="From Digital Wellbeing, or at the Sunday Shutdown"></label><button class="btn ghost" type="submit" style="align-self:flex-end">Save</button></form>
       <div class="row"><button class="restbtn" id="lightBtn" aria-pressed="${!!meta.light}">${meta.light?"Light week ✓":"Mark as a light week"}</button><span class="small">For trips, illness and busy weeks: targets shrink, the money doesn't.</span></div>`}
     </div>`;
   } else {
@@ -400,6 +411,18 @@ function setDone(id, val){
   if (b1.length > b0) { const nb = b1[b1.length-1]; say(`${nb.habit==="Good week"?"A good week":"Target met"}: +${nb.amount} points. The purse is heavier.`); }
   else say(pick([...(LINES[id]||LINES[id.split("-")[0]]||[]), ...LINES.done]));
 }
+// Phone time: always on show, so a figure over target still says where it landed, with the last few weeks beside it.
+function phoneHtml(R, W, wk){
+  const v = phoneVerdict(W.phone, W.phoneTarget, R.cfg);
+  const recent = R.weeks.filter(w=>w.wk<=wk).slice(-6);
+  const trend = recent.some(w=>w.phone!=null) ? `<div class="phtrend" aria-label="Phone time, recent weeks">${recent.map(w=>{
+    const cls = w.phone==null ? "none" : Number(w.phone)<=w.phoneTarget ? "hit" : "over";
+    const h = w.phone==null ? 0 : Math.min(100, Number(w.phone)/12*100);
+    return `<div class="${cls}${w.wk===wk?" on":""}" title="Week of ${esc(fmtShort(w.wk))}: ${w.phone==null?"not entered":w.phone+" h a day"}, target ${w.phoneTarget}"><span class="col"><i style="height:${h}%"></i><s style="bottom:${Math.min(100,w.phoneTarget/12*100)}%"></s></span><b class="num">${w.phone==null?"–":w.phone}</b><span class="small">${esc(fmtShort(w.wk))}</span></div>`; }).join("")}</div>` : "";
+  return `<div class="kv"><span>Phone screen time</span><span class="num">${W.phone==null?"not entered":`${W.phone} h a day`} · target ${W.phoneTarget} h</span></div>
+    ${v?`<div class="small">${esc(v.text)}</div>`:""}${trend}`;
+}
+
 function saveWeek(wk, patch, msg){
   const body = { ...(S.weekDocs[wk]||{}), ...patch }; S.weekDocs[wk] = body; render(); say(typeof msg==="function"?msg(body):msg);
   if (db) write("weeks/"+wk, ()=>db.doc("weeks/"+wk).set(patch, { merge:true }));
