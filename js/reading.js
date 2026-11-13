@@ -3,12 +3,17 @@
 // Store "reading":
 //   items/<id>  { kind: "read" | "curio", title, url, site, minutes (null = not measured yet), drawer (curios),
 //                 tags: [..] (e.g. "MoMA", where an imported list came from), note, source: extension|share|paste|import,
-//                 savedAt, openedAt, readAt, errands: [todo task ids], desk: [Writing Desk piece ids] }
-//   settings    { drawers: [..], archive: "https://archive.ph/newest/", atticDays: 60 }
+//                 savedAt, openedAt, readAt, filedAt (read and kept: never cleared), unfiledAt (taken back out of
+//                 Filed away: its 14 days start again from here), errands: [todo task ids],
+//                 desk: [Writing Desk piece ids] }
+//   settings    { drawers: [..], archive: "https://archive.ph/newest/", atticDays: 60, clearDays: 14 }
+// Read pieces from the shelf are cleared CLEAR_DAYS after they were read, unless filed away.
+// Curiosities never clear themselves: they leave only when binned.
 // Nothing here is a to-do: Alfred reads the room for the Sunday picks and the Study door, and never counts it.
 
 export const WPM = 230;
 export const ATTIC_DAYS = 60;
+export const CLEAR_DAYS = 14;
 export const ARCHIVE = "https://archive.ph/newest/";
 export const DRAWERS = ["Art & design", "Music & sound", "Words & ideas", "Tools & code", "Places & outings", "House & making"];
 
@@ -41,11 +46,30 @@ export const archiveUrl = (url, base = ARCHIVE) => base + url;
 const DAY = 864e5;
 const last = (it) => Math.max(Date.parse(it.savedAt || 0) || 0, Date.parse(it.openedAt || 0) || 0);
 
-/** Where an item lives now: "shelf" (to read), "cabinet" (curiosities), "attic" or "read". */
+/** Where an item lives now: "shelf" (to read), "cabinet" (curiosities), "attic", "read" or "filed" (read and kept). */
 export function placeOf(it, now = Date.now(), atticDays = ATTIC_DAYS) {
-  if (it.readAt) return "read";
+  if (it.readAt) return it.filedAt ? "filed" : "read";
   if (now - last(it) > atticDays * DAY) return "attic";
   return it.kind === "curio" ? "cabinet" : "shelf";
+}
+
+/** Whole days left before a read piece is cleared (0 = due now), or null if it never will be. */
+export function clearsIn(it, now = Date.now(), clearDays = CLEAR_DAYS) {
+  if (!it.readAt || it.filedAt || it.kind === "curio") return null;
+  const from = Math.max(Date.parse(it.readAt) || 0, Date.parse(it.unfiledAt || 0) || 0);
+  if (!from) return null;
+  return Math.max(0, Math.ceil((from + clearDays * DAY - now) / DAY));
+}
+
+/**
+ * The read pieces due to be cleared, as { id, ...value }. Only shelf pieces that were read more than
+ * clearDays ago and weren't filed away; never curiosities, never anything unread.
+ * The page only clears once the store has just synced ("saved"): a device working from an old copy
+ * mustn't bin a piece that was filed away or put back on another one.
+ */
+export function dueForClearing(store, now = Date.now(), clearDays = CLEAR_DAYS) {
+  if (store.status !== "saved") return [];
+  return itemsOf(store).filter((it) => clearsIn(it, now, clearDays) === 0);
 }
 
 /** Every item as { id, ...value }, newest first. */

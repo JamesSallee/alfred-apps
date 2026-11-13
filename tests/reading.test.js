@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeStore } from "./setup.js";
 
-const { shelfOf, findUrl, siteOf, placeOf, suggestDrawer, readingFigure, archiveUrl, fmtTotal } = await import("../js/reading.js");
+const { shelfOf, findUrl, siteOf, placeOf, suggestDrawer, readingFigure, archiveUrl, fmtTotal, clearsIn, dueForClearing } = await import("../js/reading.js");
 const { doorFigures } = await import("../js/rooms.js");
 
 const NOW = Date.parse("2026-11-12T15:00:00Z");
@@ -67,4 +67,33 @@ test("shared links find their room", async () => {
   assert.equal(routeFor("https://example.com/essay", { minutes: 14 }), "shelf");
   assert.equal(routeFor("https://www.leatherman.com/products/surge", { minutes: null }), "ask");
   assert.equal(routeFor("https://example.com/", null), "ask");
+});
+
+test("read pieces clear 14 days after reading; filed-away pieces and curiosities never do", () => {
+  assert.equal(placeOf({ kind: "read", savedAt: ago(30), readAt: ago(3), filedAt: ago(1) }, NOW), "filed");
+  assert.equal(clearsIn({ kind: "read", readAt: ago(3) }, NOW), 11);
+  assert.equal(clearsIn({ kind: "read", readAt: ago(13.5) }, NOW), 1);
+  assert.equal(clearsIn({ kind: "read", readAt: ago(15) }, NOW), 0);
+  assert.equal(clearsIn({ kind: "read", readAt: ago(15), filedAt: ago(1) }, NOW), null);
+  assert.equal(clearsIn({ kind: "curio", readAt: ago(90) }, NOW), null, "a curiosity is only ever binned by hand");
+  assert.equal(clearsIn({ kind: "read", savedAt: ago(200) }, NOW), null, "unread pieces go to the attic, not the bin");
+  assert.equal(clearsIn({ kind: "read", readAt: ago(5) }, NOW, 3), 0, "settings.clearDays changes the hold");
+  assert.equal(clearsIn({ kind: "read", readAt: ago(60), unfiledAt: ago(1) }, NOW), 13, "unfiling starts a fresh 14 days");
+  assert.equal(placeOf({ kind: "read", readAt: ago(60), unfiledAt: ago(1) }, NOW), "read");
+
+  const rows = {
+    "items/old": { kind: "read", savedAt: ago(40), readAt: ago(20) },
+    "items/recent": { kind: "read", savedAt: ago(40), readAt: ago(10) },
+    "items/kept": { kind: "read", savedAt: ago(40), readAt: ago(20), filedAt: ago(19) },
+    "items/curio": { kind: "curio", savedAt: ago(200), readAt: ago(100) },
+    "items/attic": { kind: "read", savedAt: ago(200) },
+  };
+  assert.deepEqual(dueForClearing(fakeStore(rows), NOW).map((it) => it.id), ["old"]);
+});
+
+test("nothing is cleared from a copy that hasn't just synced", () => {
+  const rows = { "items/old": { kind: "read", savedAt: ago(40), readAt: ago(20) } };
+  for (const status of ["starting", "syncing", "pending", "offline", "signed-out", "error"]) {
+    assert.deepEqual(dueForClearing(fakeStore(rows, status), NOW), [], status);
+  }
 });
