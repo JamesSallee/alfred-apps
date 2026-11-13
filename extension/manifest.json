@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Send to Alfred",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Puts the page you're on (or a link) on the Reading Room's shelf, or in its cabinet of curiosities.",
   "permissions": ["activeTab", "scripting", "contextMenus"],
   "background": { "service_worker": "background.js" },

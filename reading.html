@@ -191,6 +191,9 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
 .dl a{color:var(--green);font-weight:600}
 .hint{background:var(--brass-soft);color:var(--brass-ink);border-radius:var(--r-control);padding:6px 10px;font-size:var(--t-sm)}
 
+.routes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.routes .btn{justify-content:center;min-height:var(--tap)}
+.routes .wide{grid-column:1/-1}
 .toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);border-radius:10px;padding:9px 14px;font-size:14px;display:flex;gap:12px;align-items:center;z-index:60;box-shadow:0 4px 16px rgba(0,0,0,.2)}
 .toast button{background:none;border:0;color:var(--brass-soft);font-weight:700;text-decoration:underline}
 </style>
@@ -267,7 +270,7 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
   </div>
   <label class="f">Tags (comma between)<input id="itTags" placeholder="MoMA"></label>
   <label class="f">Note<textarea id="itNote"></textarea></label>
-  <div class="foot"><span class="row"><button class="btn quiet" type="button" id="itBin">Bin it</button><button class="btn quiet" type="button" id="itErr">Send to Errand Book</button></span>
+  <div class="foot"><span class="row"><button class="btn quiet" type="button" id="itBin">Bin it</button><button class="btn quiet" type="button" id="itErr">Send to Errand Book</button><button class="btn quiet" type="button" id="itDesk">Send to Writing Desk</button></span>
     <span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Save</button></span></div>
 </form></dialog>
 
@@ -278,18 +281,33 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
   <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Add</button></span></div>
 </form></dialog>
 
+<dialog id="deskDlg"><form class="sheet" id="deskForm" method="dialog">
+  <h2>Send to the Writing Desk</h2>
+  <p class="muted" id="deskFrom"></p>
+  <label class="f">The idea<input id="deskText" required placeholder="What would you write about it?"></label>
+  <label class="f">For<select id="deskTrack"><option value="ilkwim">ILKWIM</option><option value="fiction">Fiction</option><option value="comedy">Comedy</option></select></label>
+  <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Put it on the idea shelf</button></span></div>
+</form></dialog>
+
+<dialog id="routeDlg"><div class="sheet">
+  <h2 id="routeH">Where should this go?</h2>
+  <p class="muted" id="routeFrom"></p>
+  <div class="routes" id="routeBtns"></div>
+</div></dialog>
+
 <script type="module">
 import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { todoTasks, mirrorSoon } from "./js/rooms.js";
-import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal } from "./js/reading.js";
+import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor } from "./js/reading.js";
 mountShell("reading");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
 // ---------- Data (the shapes are in js/reading.js) ----------
 const store = openStore("reading");
 const todo = openStore("todo");
+const desk = openStore("desk"); // the Writing Desk: pieces/<id> { title, track, stage, notes, created }
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const nowIso = () => new Date().toISOString();
 const S = () => store.get("settings") || {};
@@ -336,10 +354,17 @@ function add({ kind, url = "", title = "", minutes = null, source = "paste", dra
 }
 
 // The server reads the page for its title and length (supabase/functions/reading-peek); the page can't, across sites.
+async function lookAt(url, ms = 7000) {
+  if (!url || !navigator.onLine) return null;
+  try {
+    const call = supabase.functions.invoke("reading-peek", { body: { url } }).then((r) => r.data || null);
+    return await Promise.race([call, new Promise((ok) => setTimeout(() => ok(null), ms))]);
+  } catch { return null; }
+}
 async function peek(id, wantTitle) {
   const it = get(id); if (!it?.url || !navigator.onLine) return;
   try {
-    const { data } = await supabase.functions.invoke("reading-peek", { body: { url: it.url } });
+    const data = await lookAt(it.url, 15000);
     const now = get(id); if (!now || !data) return;
     const next = { ...now };
     if (now.minutes == null && data.minutes) next.minutes = data.minutes;
@@ -445,6 +470,11 @@ function errandsLine(it) {
   return `<p class="errs">${ts.map((t) => t.status === "done" ? `<b>✓</b> ${esc(t.title)}` : `In the Errand Book: ${esc(t.title)}`).join(" · ")}</p>`;
 }
 
+function deskLine(it) {
+  const ps = (it.desk || []).map((id) => ({ id, ...desk.get("pieces/" + id) })).filter((p) => p.title);
+  return ps.length ? `<p class="errs">${ps.map((p) => `On the Writing Desk: ${esc(p.title)} <span class="muted">(${esc(p.stage || "Idea")})</span>`).join(" · ")}</p>` : "";
+}
+
 function openCard(it) {
   const m = it.minutes;
   return `<div class="open">
@@ -459,12 +489,13 @@ function openCard(it) {
         <a class="btn" href="${esc(archiveUrl(it.url, archiveBase()))}" target="_blank" rel="noopener" data-opened="${it.id}">Archived copy</a>` : ""}
         <button class="btn ox" type="button" id="markRead">Mark read</button>
         <button class="btn" type="button" data-err="${it.id}">Send to Errand Book</button>
+        <button class="btn" type="button" data-desk="${it.id}">Send to Writing Desk</button>
         <button class="btn quiet" type="button" data-edit="${it.id}">Edit</button>
         <button class="btn quiet" type="button" data-close-open>Close</button>
       </div>
       <form class="inline" id="readForm" hidden><label for="readNote" hidden>What you took from it</label>
         <input id="readNote" placeholder="One line on what you took from it (optional)"><button class="btn ox" type="submit">Done</button></form>
-      ${errandsLine(it)}
+      ${errandsLine(it)}${deskLine(it)}
     </div></div>`;
 }
 
@@ -479,6 +510,7 @@ document.addEventListener("click", (e) => {
   if (d.mins) { const it = get(openId); if (it) save({ ...it, minutes: Number(d.mins) }); return; }
   if (b.id === "markRead") { $("readForm").hidden = false; $("readNote").focus(); return; }
   if (d.err) { openErrand(d.err); return; }
+  if (d.desk) { openDesk(d.desk); return; }
   if (d.edit) { openItem(d.edit); return; }
   if (d.drawer) { drawerOpen = d.drawer; fillDrawer(); $("drawerDlg").showModal(); return; }
   if (d.revive) { const it = get(d.revive); if (it) { save({ ...it, openedAt: nowIso() }); if (it.kind === "read") openId = it.id; toast("Back from the attic."); } return; }
@@ -553,6 +585,7 @@ $("itemForm").addEventListener("submit", () => {
 });
 $("itBin").onclick = () => { const it = get(editing); if (!it) return; store.remove("items/" + it.id); $("itemDlg").close(); if (openId === it.id) openId = null; toast("Binned.", () => save(it)); };
 $("itErr").onclick = () => { $("itemDlg").close(); openErrand(editing); };
+$("itDesk").onclick = () => { $("itemDlg").close(); openDesk(editing); };
 
 // ---------- Send to the Errand Book ----------
 let errFor = null;
@@ -568,6 +601,28 @@ $("errForm").addEventListener("submit", () => {
   mirrorSoon("todo");
   save({ ...it, errands: [...(it.errands || []), tid] });
   toast("In the Errand Book.");
+});
+
+// ---------- Send to the Writing Desk: an idea on its shelf, with the link in its notes ----------
+const FIRST_STAGE = { ilkwim: "Idea", fiction: "Sketch", comedy: "Sketch" };
+function toDesk(title, url, track = "ilkwim", fromTitle = "") {
+  const pid = newId();
+  desk.set("pieces/" + pid, { title, track, stage: FIRST_STAGE[track] || "Idea", created: nowIso(),
+    notes: `From the Reading Room: ${fromTitle || title}${url ? " " + url : ""}`, from: { app: "reading" } });
+  mirrorSoon("desk");
+  return pid;
+}
+let deskFor = null;
+function openDesk(id) {
+  const it = get(id); if (!it) return;
+  deskFor = id; $("deskFrom").textContent = "From: " + it.title; $("deskText").value = it.title; $("deskDlg").showModal();
+  $("deskText").select();
+}
+$("deskForm").addEventListener("submit", () => {
+  const it = get(deskFor), title = $("deskText").value.trim(); if (!it || !title) return;
+  const pid = toDesk(title, it.url, $("deskTrack").value, it.title);
+  save({ ...it, desk: [...(it.desk || []), pid] });
+  toast("On the Writing Desk's idea shelf.");
 });
 
 // ---------- Toast ----------
@@ -591,20 +646,76 @@ lamp(); setInterval(lamp, 60000);
 
 // Send to Alfred: the Chrome extension and Android's Share menu open this page with the link in the address.
 //   reading.html?url=…&title=…&min=…&to=curio&src=extension   (Android sends ?title=…&text=…&url=…)
-function takeShare() {
-  const p = new URLSearchParams(location.search);
-  const url = findUrl(p.get("url"), p.get("text"));
-  const words = (p.get("text") || "").replace(url, "").trim();
-  if (url || words) {
-    const title = (p.get("title") || "").trim() || (url ? "" : words);
-    const kind = p.get("to") === "curio" || !url ? "curio" : "read";
-    const min = Number(p.get("min")) || null;
-    const { it, dup } = add({ kind, url, title, minutes: min, source: p.get("src") || "share", drawer: kind === "curio" ? suggestDrawer(title + " " + url, drawers()) : null });
-    history.replaceState(null, "", location.pathname);
-    document.title = "Shelved ✓ · The Reading Room"; // the extension closes its window when it sees this
-    toast(dup ? "Already on the shelf. Dusted it off." : kind === "curio" ? "In the cabinet." : `Shelved: ${it.title}`);
-    if (kind === "read") openId = it.id;
+// A shared link is looked at first: a recipe goes to the Larder's cookbook, an article to the shelf, and anything
+// unclear (a shop page, a tool's home page) asks where it belongs. ?to= skips the looking (read | curio | larder).
+const params = new URLSearchParams(location.search);
+const shareSrc = params.get("src") || "share";
+function finished(msg) {
+  document.title = "Shelved ✓ · The Reading Room"; // the extension closes its window when it sees this
+  toast(msg);
+  // Back to whatever you were doing: Android lets a shared-to app close itself only sometimes, so this is a try.
+  if (shareSrc === "share") setTimeout(() => { try { window.close(); } catch { /* stays open; no harm */ } }, 1400);
+}
+function shelve({ kind, url, title, minutes }) {
+  const { it, dup } = add({ kind, url, title, minutes, source: shareSrc, drawer: kind === "curio" ? suggestDrawer(title + " " + url, drawers()) : null });
+  finished(dup ? "Already in the room. Dusted it off." : kind === "curio" ? "In the cabinet." : `Shelved: ${it.title}`);
+  if (kind === "read" && shareSrc !== "share") { openId = it.id; render(); }
+}
+const toLarder = (url) => location.replace("larder.html?" + new URLSearchParams({ url, src: shareSrc }));
+function toErrands(url, title) {
+  todo.set("tasks/" + newId(), { title: title || siteOf(url) || "Look at this link", area: "", priority: "Normal", status: "todo", triage: true,
+    created: nowIso(), notes: `Shared to Alfred: ${url}`, from: { app: "reading" } });
+  mirrorSoon("todo");
+  finished("In the Errand Book.");
+}
+function route(h, from, btns, auto, onCancel) {
+  $("routeH").textContent = h; $("routeFrom").textContent = from;
+  const box = $("routeBtns"); box.innerHTML = "";
+  let timer = 0;
+  btns.forEach(([label, cls, fn]) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "btn " + cls, textContent: label });
+    b.onclick = () => { clearInterval(timer); $("routeDlg").close(); fn(); };
+    box.appendChild(b);
+  });
+  if (auto) { // a recipe goes on its own after a few seconds; the first button is the way out
+    let n = auto.secs; const b = box.lastChild, base = b.textContent;
+    const tick = () => { b.textContent = `${base} (${n})`; if (n-- <= 0) { clearInterval(timer); $("routeDlg").close(); auto.go(); } };
+    tick(); timer = setInterval(tick, 1000);
   }
+  // Escape or the back button: nothing is lost; it goes on the shelf, the room's default.
+  $("routeDlg").oncancel = (e) => { if (!onCancel) return e.preventDefault(); clearInterval(timer); onCancel(); };
+  $("routeDlg").showModal();
+}
+async function takeShare() {
+  const url = findUrl(params.get("url"), params.get("text"));
+  const words = (params.get("text") || "").replace(url, "").trim();
+  if (!url && !words) return;
+  history.replaceState(null, "", location.pathname);
+  let title = (params.get("title") || "").trim() || (url ? "" : words);
+  let minutes = Number(params.get("min")) || null;
+  const to = params.get("to");
+  if (!url || to === "curio") return shelve({ kind: "curio", url, title, minutes });
+  if (to === "read") return shelve({ kind: "read", url, title, minutes });
+  if (to === "larder") return toLarder(url);
+  if (itemsOf(store).some((x) => x.url === url && !x.readAt)) return shelve({ kind: "read", url, title, minutes });
+  route("Having a look…", title || siteOf(url), [], null);
+  const look = await lookAt(url);
+  $("routeDlg").close();
+  title = title || look?.title || "";
+  minutes = minutes || look?.minutes || null;
+  const shown = title || siteOf(url);
+  const where = routeFor(url, look);
+  if (where === "shelf") return shelve({ kind: "read", url, title, minutes });
+  if (where === "larder") return route("A recipe. Off to the cookbook.", shown, [
+    ["Put it on the shelf instead", "", () => shelve({ kind: "read", url, title, minutes })],
+    ["Send to the Larder", "ox", () => toLarder(url)],
+  ], { secs: 3, go: () => toLarder(url) }, () => shelve({ kind: "read", url, title, minutes }));
+  route("Where should this go?", shown, [
+    ["On the shelf, to read", "ox wide", () => shelve({ kind: "read", url, title, minutes })],
+    ["In the cabinet", "", () => shelve({ kind: "curio", url, title, minutes })],
+    ["Larder's cookbook", "", () => toLarder(url)],
+    ["Errand Book", "wide quiet", () => toErrands(url, title)],
+  ], null, () => shelve({ kind: "read", url, title, minutes }));
 }
 takeShare();
 

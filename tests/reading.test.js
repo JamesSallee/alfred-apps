@@ -54,3 +54,17 @@ test("the Study door counts what's on the shelf, then the cabinet", () => {
   assert.equal(readingFigure(fakeStore({})), null);
   assert.equal(fmtTotal(110), "1 hr 50 min");
 });
+
+test("shared links find their room", async () => {
+  const { routeFor, looksLikeRecipeUrl } = await import("../js/reading.js");
+  assert.equal(looksLikeRecipeUrl("https://www.seriouseats.com/the-best-chili"), true);
+  assert.equal(looksLikeRecipeUrl("https://cooking.nytimes.com/recipes/1017518-pasta"), true);
+  assert.equal(looksLikeRecipeUrl("https://someblog.net/recipes/braised-leeks"), true);
+  assert.equal(looksLikeRecipeUrl("https://www.newyorker.com/magazine/2026/11/01/a-long-read"), false);
+  assert.equal(routeFor("https://example.com/x", { recipe: true }), "larder");
+  assert.equal(routeFor("https://www.bonappetit.com/story/whatever", null), "larder");
+  assert.equal(routeFor("https://www.nytimes.com/2026/11/01/a.html", { article: true, minutes: null }), "shelf");
+  assert.equal(routeFor("https://example.com/essay", { minutes: 14 }), "shelf");
+  assert.equal(routeFor("https://www.leatherman.com/products/surge", { minutes: null }), "ask");
+  assert.equal(routeFor("https://example.com/", null), "ask");
+});

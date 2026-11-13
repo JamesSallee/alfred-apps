@@ -3,7 +3,9 @@
 // comes here once. Nothing is stored here and nothing is sent anywhere else; the page saves what comes back.
 //
 // POST { url } with the signed-in user's token (supabase.functions.invoke does this).
-//   -> { title, words, minutes }   (minutes is null when the page is behind a paywall or a sign-in)
+//   -> { title, words, minutes, recipe, article }
+//      minutes is null when the page is behind a paywall or a sign-in.
+//      recipe / article: the page says so itself (schema.org markup or og:type), which is how a shared link finds its room.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -48,6 +50,15 @@ function wordsOf(html: string): number {
   return decode(text).split(/\s+/).filter((w) => /[a-z]/i.test(w)).length;
 }
 
+// Pages describe themselves for search engines: JSON-LD ("@type": "Recipe"), microdata, or og:type.
+const ldBlocks = (html: string) => [...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+const ldHas = (html: string, types: string) => ldBlocks(html).some((b) => new RegExp(`"@type"\\s*:\\s*(\\[[^\\]]*)?"(${types})"`).test(b));
+const isRecipe = (html: string) => ldHas(html, "Recipe") || /itemtype=["']https?:\/\/schema\.org\/Recipe["']/i.test(html);
+const isArticle = (html: string) =>
+  ldHas(html, "Article|NewsArticle|BlogPosting|Report|ScholarlyArticle|OpinionNewsArticle") ||
+  /<meta[^>]+property=["']og:type["'][^>]*content=["']article["']/i.test(html) ||
+  /<meta[^>]+content=["']article["'][^>]*property=["']og:type["']/i.test(html);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -70,12 +81,15 @@ Deno.serve(async (req) => {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; ReadingRoom/1.0)", "Accept": "text/html,application/xhtml+xml" },
     });
     if (!publicUrl(res.url)) return json({ error: "Redirected somewhere private." }, 400);
-    if (!/html/i.test(res.headers.get("content-type") || "")) return json({ title: "", words: 0, minutes: null });
+    if (!/html/i.test(res.headers.get("content-type") || "")) return json({ title: "", words: 0, minutes: null, recipe: false, article: false });
     const html = (await res.text()).slice(0, MAX_BYTES);
     const words = wordsOf(html);
     // A paywall or sign-in page has a few hundred words of chrome; don't pretend that's the article.
-    return json({ title: titleOf(html), words, minutes: words > 300 ? Math.max(1, Math.round(words / WPM)) : null });
+    return json({
+      title: titleOf(html), words, minutes: words > 300 ? Math.max(1, Math.round(words / WPM)) : null,
+      recipe: isRecipe(html), article: isArticle(html),
+    });
   } catch {
-    return json({ title: "", words: 0, minutes: null });
+    return json({ title: "", words: 0, minutes: null, recipe: false, article: false });
   }
 });
