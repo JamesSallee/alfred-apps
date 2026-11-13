@@ -78,6 +78,8 @@ test("read pieces clear 14 days after reading; filed-away pieces and curiosities
   assert.equal(clearsIn({ kind: "curio", readAt: ago(90) }, NOW), null, "a curiosity is only ever binned by hand");
   assert.equal(clearsIn({ kind: "read", savedAt: ago(200) }, NOW), null, "unread pieces go to the attic, not the bin");
   assert.equal(clearsIn({ kind: "read", readAt: ago(5) }, NOW, 3), 0, "settings.clearDays changes the hold");
+  assert.equal(clearsIn({ kind: "read", readAt: ago(60), unfiledAt: ago(1) }, NOW), 13, "unfiling starts a fresh 14 days");
+  assert.equal(placeOf({ kind: "read", readAt: ago(60), unfiledAt: ago(1) }, NOW), "read");
 
   const rows = {
     "items/old": { kind: "read", savedAt: ago(40), readAt: ago(20) },

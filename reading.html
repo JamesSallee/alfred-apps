@@ -464,13 +464,13 @@ function render() {
     const when = left == null ? "" : left <= 1 ? ' · <span class="soon">clears tomorrow</span>' : left <= 3 ? ` · <span class="soon">clears in ${left} days</span>` : ` · clears in ${left} days`;
     return `<li><span>${titleLink(it)}
       <span class="s">Read ${shortDate(it.readAt)}${it.site ? " · " + esc(it.site) : ""}${when}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</span>
-      <span class="acts"><button class="btn quiet" type="button" data-file="${it.id}">File away</button><button class="btn quiet" type="button" data-unread="${it.id}">Put back</button></span></li>`;
+      <span class="acts"><button class="btn quiet" type="button" data-file="${it.id}">File away</button><button class="btn quiet" type="button" data-unread="${it.id}">Put back</button><button class="btn quiet" type="button" data-binread="${it.id}">Bin it</button></span></li>`;
   }).join("");
   $("filed").hidden = !filed.length;
   $("filedSub").textContent = `${filed.length} kept · never cleared`;
   $("filedList").innerHTML = filed.filter(matches).map((it) => `<li><span>${titleLink(it)}
       <span class="s">Read ${shortDate(it.readAt)}${it.site ? " · " + esc(it.site) : ""}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</span>
-      <span class="acts"><button class="btn quiet" type="button" data-binfiled="${it.id}">Bin it</button></span></li>`).join("");
+      <span class="acts"><button class="btn quiet" type="button" data-unfile="${it.id}">Unfile</button><button class="btn quiet" type="button" data-binfiled="${it.id}">Bin it</button></span></li>`).join("");
 
   if (drawerOpen && $("drawerDlg").open) fillDrawer();
 }
@@ -542,7 +542,8 @@ document.addEventListener("click", (e) => {
   if (d.revive) { const it = get(d.revive); if (it) { save({ ...it, openedAt: nowIso() }); if (it.kind === "read") openId = it.id; toast("Back from the attic."); } return; }
   if (d.unread) { const it = get(d.unread); if (it) { const { readAt, ...rest } = it; save({ ...rest, openedAt: nowIso() }); toast("Back on the shelf."); } return; }
   if (d.file) { const it = get(d.file); if (it) { save({ ...it, filedAt: nowIso() }); toast("Filed away. It stays until you bin it.", () => save(it)); } return; }
-  if (d.binfiled) { const it = get(d.binfiled); if (it) { store.remove("items/" + it.id); toast("Binned.", () => save(it)); } return; }
+  if (d.binfiled || d.binread) { const it = get(d.binfiled || d.binread); if (it) { store.remove("items/" + it.id); toast("Binned.", () => save(it)); } return; }
+  if (d.unfile) { const it = get(d.unfile); if (it) { const { filedAt, ...rest } = it; save({ ...rest, unfiledAt: nowIso() }); toast(`Back in the read pile. Clears in ${clearDays()} days.`, () => save(it)); } return; }
   if ("close" in d) { b.closest("dialog").close(); return; }
 });
 

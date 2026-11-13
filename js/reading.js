@@ -3,7 +3,8 @@
 // Store "reading":
 //   items/<id>  { kind: "read" | "curio", title, url, site, minutes (null = not measured yet), drawer (curios),
 //                 tags: [..] (e.g. "MoMA", where an imported list came from), note, source: extension|share|paste|import,
-//                 savedAt, openedAt, readAt, filedAt (read and kept: never cleared), errands: [todo task ids],
+//                 savedAt, openedAt, readAt, filedAt (read and kept: never cleared), unfiledAt (taken back out of
+//                 Filed away: its 14 days start again from here), errands: [todo task ids],
 //                 desk: [Writing Desk piece ids] }
 //   settings    { drawers: [..], archive: "https://archive.ph/newest/", atticDays: 60, clearDays: 14 }
 // Read pieces from the shelf are cleared CLEAR_DAYS after they were read, unless filed away.
@@ -55,9 +56,9 @@ export function placeOf(it, now = Date.now(), atticDays = ATTIC_DAYS) {
 /** Whole days left before a read piece is cleared (0 = due now), or null if it never will be. */
 export function clearsIn(it, now = Date.now(), clearDays = CLEAR_DAYS) {
   if (!it.readAt || it.filedAt || it.kind === "curio") return null;
-  const read = Date.parse(it.readAt);
-  if (!read) return null;
-  return Math.max(0, Math.ceil((read + clearDays * DAY - now) / DAY));
+  const from = Math.max(Date.parse(it.readAt) || 0, Date.parse(it.unfiledAt || 0) || 0);
+  if (!from) return null;
+  return Math.max(0, Math.ceil((from + clearDays * DAY - now) / DAY));
 }
 
 /**
