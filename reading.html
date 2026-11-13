@@ -13,7 +13,8 @@
 <link rel="stylesheet" href="css/base.css">
 <style>
 /* A bookcase of things to read (three shelves by length, each swiping sideways), a cabinet of curiosities
-   (broad drawers and a Loose ends tray), the attic for anything untouched for 60 days, and the read pile.
+   (broad drawers and a Loose ends tray), the attic for anything untouched for 60 days, the read pile
+   (cleared 14 days after reading) and the filed-away box for read pieces worth keeping.
    The room's own colour is oxblood, like a leather binding; brass is the hardware. */
 :root{--ox:#7a2e2e;--ox-soft:#f2e2df;--on-ox:#fbf3ef;--wood:#8a5a32;--wood-dk:#6b4224;
   --drawer:#f6efe2;--drawer-ink:#3b2f1f;--drawer-soft:#7a6a52;--drawer-line:#d8c9a8;--label:#fffaf0;--label-line:#b8a27a;
@@ -174,7 +175,14 @@ details.shelfbox summary b{font-family:var(--display);font-weight:400;font-size:
 .attic .list .dot{filter:sepia(.7) saturate(.5);opacity:.7}
 .attic .list .lt{color:var(--attic-ink)}
 .readpile{background:var(--paper);border:1px solid var(--line)}
-.readpile .note{font-size:var(--t-sm);color:var(--muted);font-style:italic}
+.readpile .note,.filed .note{font-size:var(--t-sm);color:var(--muted);font-style:italic}
+.readpile .acts,.filed .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.readpile .s .soon{color:var(--ox);font-weight:600}
+/* Filed away: read and kept, like a folder in a drawer, so it takes the cabinet's paper. */
+.filed{background:var(--drawer);border:1px solid var(--drawer-line);color:var(--drawer-ink)}
+.filed summary b{color:var(--drawer-ink)}
+.filed .s{color:var(--drawer-soft)}
+.filed .dl li{border-top-color:var(--drawer-line)}
 
 /* Sheets */
 dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% - 24px));width:100%;color:var(--ink)}
@@ -250,6 +258,11 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
     <summary><b>Read</b><span class="muted" id="readSub"></span></summary>
     <ul class="dl" id="readList"></ul>
   </details>
+
+  <details class="shelfbox filed" id="filed" hidden>
+    <summary><b>Filed away</b><span id="filedSub"></span></summary>
+    <ul class="dl" id="filedList"></ul>
+  </details>
 </div>
 
 <dialog id="drawerDlg"><div class="sheet">
@@ -300,7 +313,7 @@ import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { todoTasks, mirrorSoon } from "./js/rooms.js";
-import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor } from "./js/reading.js";
+import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, CLEAR_DAYS, clearsIn, dueForClearing, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor } from "./js/reading.js";
 mountShell("reading");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -313,6 +326,7 @@ const nowIso = () => new Date().toISOString();
 const S = () => store.get("settings") || {};
 const drawers = () => (Array.isArray(S().drawers) && S().drawers.length ? S().drawers : DRAWERS);
 const atticDays = () => S().atticDays || ATTIC_DAYS;
+const clearDays = () => S().clearDays || CLEAR_DAYS;
 const archiveBase = () => S().archive || ARCHIVE;
 const get = (id) => { const v = store.get("items/" + id); return v && { id, ...v }; };
 const save = (it) => { const { id, ...v } = it; store.set("items/" + id, v); };
@@ -398,6 +412,7 @@ function render() {
   const cabinet = all.filter((it) => at(it) === "cabinet");
   const attic = all.filter((it) => at(it) === "attic");
   const read = all.filter((it) => at(it) === "read").sort((a, b) => b.readAt.localeCompare(a.readAt));
+  const filed = all.filter((it) => at(it) === "filed").sort((a, b) => (b.filedAt || "").localeCompare(a.filedAt || ""));
 
   const mins = shelf.reduce((a, it) => a + (it.minutes || 0), 0);
   $("shelfSub").textContent = shelf.length
@@ -443,13 +458,24 @@ function render() {
   $("atticList").innerHTML = attic.filter(matches).map((it) => `<li><button type="button" data-revive="${it.id}">
     <i class="dot" style="--c:${cloth(it)}"></i><span class="lt">${esc(it.title)}</span><span class="lm">${it.kind === "curio" ? "curiosity" : (it.minutes ? it.minutes + " min" : "?")} · bring it back</span></button></li>`).join("");
   $("readpile").hidden = !read.length;
-  $("readSub").textContent = `${read.length} finished`;
-  $("readList").innerHTML = read.filter(matches).slice(0, 60).map((it) => `<li><span>${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a>` : esc(it.title)}
-      <span class="s">${shortDate(it.readAt)}${it.site ? " · " + esc(it.site) : ""}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</span>
-      <button class="btn quiet" type="button" data-unread="${it.id}">Put back</button></li>`).join("");
+  $("readSub").textContent = `${read.length} finished · cleared ${clearDays()} days after reading unless filed away`;
+  $("readList").innerHTML = read.filter(matches).map((it) => {
+    const left = clearsIn(it, now, clearDays());
+    const when = left == null ? "" : left <= 1 ? ' · <span class="soon">clears tomorrow</span>' : left <= 3 ? ` · <span class="soon">clears in ${left} days</span>` : ` · clears in ${left} days`;
+    return `<li><span>${titleLink(it)}
+      <span class="s">Read ${shortDate(it.readAt)}${it.site ? " · " + esc(it.site) : ""}${when}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</span>
+      <span class="acts"><button class="btn quiet" type="button" data-file="${it.id}">File away</button><button class="btn quiet" type="button" data-unread="${it.id}">Put back</button></span></li>`;
+  }).join("");
+  $("filed").hidden = !filed.length;
+  $("filedSub").textContent = `${filed.length} kept · never cleared`;
+  $("filedList").innerHTML = filed.filter(matches).map((it) => `<li><span>${titleLink(it)}
+      <span class="s">Read ${shortDate(it.readAt)}${it.site ? " · " + esc(it.site) : ""}</span>${it.note ? `<span class="note">${esc(it.note)}</span>` : ""}</span>
+      <span class="acts"><button class="btn quiet" type="button" data-binfiled="${it.id}">Bin it</button></span></li>`).join("");
 
   if (drawerOpen && $("drawerDlg").open) fillDrawer();
 }
+
+const titleLink = (it) => (it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a>` : esc(it.title));
 
 function spine(it) {
   const m = it.minutes, w = spineW(m);
@@ -515,8 +541,24 @@ document.addEventListener("click", (e) => {
   if (d.drawer) { drawerOpen = d.drawer; fillDrawer(); $("drawerDlg").showModal(); return; }
   if (d.revive) { const it = get(d.revive); if (it) { save({ ...it, openedAt: nowIso() }); if (it.kind === "read") openId = it.id; toast("Back from the attic."); } return; }
   if (d.unread) { const it = get(d.unread); if (it) { const { readAt, ...rest } = it; save({ ...rest, openedAt: nowIso() }); toast("Back on the shelf."); } return; }
+  if (d.file) { const it = get(d.file); if (it) { save({ ...it, filedAt: nowIso() }); toast("Filed away. It stays until you bin it.", () => save(it)); } return; }
+  if (d.binfiled) { const it = get(d.binfiled); if (it) { store.remove("items/" + it.id); toast("Binned.", () => save(it)); } return; }
   if ("close" in d) { b.closest("dialog").close(); return; }
 });
+
+// ---------- Clearing the read pile ----------
+// Read pieces go CLEAR_DAYS after they were read, unless filed away. Only once the room has just synced,
+// so a device with an old copy can't bin a piece that was filed away or put back elsewhere (see dueForClearing).
+// Each one leaves a tombstone, so the other devices drop it too. Undo files them away instead,
+// so they aren't cleared again on the next sync.
+function clearRead() {
+  const due = dueForClearing(store, Date.now(), clearDays());
+  if (!due.length) return;
+  due.forEach((it) => store.remove("items/" + it.id));
+  toast(`Cleared ${due.length} read piece${due.length === 1 ? "" : "s"} from over ${clearDays()} days ago.`,
+    () => { const at = nowIso(); due.forEach((it) => save({ ...it, filedAt: at })); });
+}
+store.onStatus((s) => { if (s === "saved") setTimeout(clearRead, 0); });
 
 document.addEventListener("submit", (e) => {
   if (e.target.id !== "readForm") return;
