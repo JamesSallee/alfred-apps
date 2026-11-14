@@ -240,7 +240,9 @@ nav.tabs svg{width:22px;height:22px}
     <label class="sr" for="rail-search">Search the rail</label>
     <input type="search" id="rail-search" placeholder="Search: navy, linen, wool…">
     <div class="chips scroller" id="rail-filters"></div>
+    <div class="chips scroller" id="rail-styles" aria-label="Styles"></div>
     <div class="chips scroller" id="rail-cats"></div>
+    <div id="style-panel"></div>
     <div id="rail-body"></div>
   </section>
 
@@ -252,6 +254,7 @@ nav.tabs svg{width:22px;height:22px}
       <span class="muted small">Tap a slot to try something on. Only pieces that fit are offered.</span>
     </header>
     <div id="board"></div>
+    <div id="board-style"></div>
     <div class="chips" id="board-levels"></div>
     <div class="two">
       <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 2¢</span></button>
@@ -423,6 +426,116 @@ const KIT = [
   { name: "Dark dress socks", n: 3, basic: true },
   { name: "Pocket square and cufflinks", n: 1, match: (p) => p.category === "Accessory" && p.formality === "Formal", optional: true },
 ];
+// Styles are tags, not buckets: a piece can carry several (p.styles, a list of ids). Formality stays as it was.
+// Each style says what a working capsule needs, so its page can show the gaps. A need counts pieces tagged with
+// the style whose kind is in `cats` (and, where given, whose name matches `kw`).
+const SHOES = /shoe|trainer|runner|boot|sneaker/i;
+const STYLES = [
+  { id: "casual", name: "Casual", blurb: "Weekends, errands, the everyday.", needs: [
+    { name: "Tops", n: 4, cats: ["T-shirt", "Casual shirt", "Polo", "Knitwear"] },
+    { name: "Jeans or chinos", n: 2, cats: ["Jeans", "Chinos", "Trousers", "Shorts"] },
+    { name: "Trainers", n: 1, cats: ["Shoes"] },
+    { name: "A jacket", n: 1, cats: ["Jacket", "Coat"] }] },
+  { id: "smart", name: "Smart casual", blurb: "Date night, dinners out, Writing Club, the nicer weekend.", needs: [
+    { name: "Collared shirts", n: 3, cats: ["Casual shirt", "Dress shirt", "Polo"] },
+    { name: "A smart layer (blazer, chore jacket or fine knit)", n: 2, cats: ["Blazer", "Jacket", "Knitwear"] },
+    { name: "Dark jeans or chinos", n: 2, cats: ["Jeans", "Chinos", "Trousers"] },
+    { name: "Leather shoes or boots", n: 1, cats: ["Shoes"], kw: /leather|nubuck|suede|boot/i },
+    { name: "A plain leather belt", n: 1, cats: ["Belt"], kw: /^(?!.*braid)/i }] },
+  { id: "business", name: "Business casual", blurb: "Collar, no tie; chinos and a layer.", needs: [
+    { name: "Oxford or dress shirts", n: 4, cats: ["Dress shirt", "Casual shirt"] },
+    { name: "Chinos or trousers", n: 2, cats: ["Chinos", "Trousers"] },
+    { name: "A blazer", n: 1, cats: ["Blazer", "Suit"] },
+    { name: "A knit layer", n: 1, cats: ["Knitwear"] },
+    { name: "Leather shoes or boots", n: 1, cats: ["Shoes"] },
+    { name: "A leather belt", n: 1, cats: ["Belt"] },
+    { name: "A tie, just in case", n: 1, cats: ["Tie"], optional: true }] },
+  { id: "formal", name: "Formal", blurb: "Official occasions: suit, tie, polished shoes.", needs: [
+    { name: "Dark suit", n: 1, cats: ["Suit"] },
+    { name: "Dress shirts", n: 3, cats: ["Dress shirt"] },
+    { name: "Ties", n: 2, cats: ["Tie"] },
+    { name: "Dress shoes", n: 1, cats: ["Shoes"] },
+    { name: "Dress belt", n: 1, cats: ["Belt"] },
+    { name: "Overcoat", n: 1, cats: ["Coat"] },
+    { name: "Dark dress socks", n: 3, basic: true },
+    { name: "Pocket square", n: 1, cats: ["Accessory"], optional: true }] },
+  { id: "active", name: "Active & outdoor", blurb: "Mara's walks, the gym, hikes, layering for weather.", needs: [
+    { name: "Running or training shoes", n: 1, cats: ["Shoes", "Activewear"], kw: SHOES },
+    { name: "Training tops", n: 2, cats: ["Activewear", "T-shirt", "Polo"], kw: /^(?!.*(shoe|trainer|runner|boot))/i },
+    { name: "Shorts or training bottoms", n: 1, cats: ["Shorts", "Trousers"] },
+    { name: "A warm or waterproof outer layer", n: 1, cats: ["Coat", "Jacket"] },
+    { name: "A base layer or hoodie", n: 1, cats: ["Activewear", "Knitwear"], kw: /^(?!.*(shoe|trainer|runner|boot))/i },
+    { name: "A cap or hat", n: 1, cats: ["Accessory"] }] },
+  { id: "lounge", name: "Lounge", blurb: "Writing mornings, piano, gaming evenings.", needs: [
+    { name: "Hoodies or sweatshirts", n: 2, cats: ["Knitwear"] },
+    { name: "Soft tees", n: 3, cats: ["T-shirt"] },
+    { name: "Joggers or soft trousers", n: 1, cats: ["Trousers", "Shorts", "Activewear"], kw: /^(?!.*(shoe|trainer|runner|boot))/i },
+    { name: "Slippers or easy shoes", n: 1, cats: ["Shoes"], optional: true }] },
+  { id: "travel", name: "Travel", blurb: "Comfortable, crease-shy, mix and match.", needs: [
+    { name: "Easy shirts or polos", n: 3, cats: ["Casual shirt", "Dress shirt", "Polo"] },
+    { name: "Plain tees", n: 3, cats: ["T-shirt"] },
+    { name: "Trousers that travel well", n: 2, cats: ["Chinos", "Trousers", "Jeans"] },
+    { name: "Packable layers", n: 2, cats: ["Knitwear", "Blazer", "Jacket"] },
+    { name: "Walking shoes", n: 1, cats: ["Shoes", "Activewear"], kw: SHOES }] },
+  { id: "conference", name: "Conference", blurb: "Tech casual: a sharp layer over jeans, comfortable shoes.", needs: [
+    { name: "A sharp layer (blazer or overshirt)", n: 1, cats: ["Blazer", "Jacket"] },
+    { name: "Shirts or polos", n: 3, cats: ["Casual shirt", "Dress shirt", "Polo"] },
+    { name: "Plain tees for under the layer", n: 2, cats: ["T-shirt"] },
+    { name: "A knit layer", n: 1, cats: ["Knitwear"] },
+    { name: "Dark jeans or chinos", n: 2, cats: ["Jeans", "Chinos", "Trousers"] },
+    { name: "Clean trainers or boots", n: 1, cats: ["Shoes"] }] },
+  { id: "gameday", name: "Game day", blurb: "Dolphins kit and cold-stadium layers.", needs: [
+    { name: "Team tops", n: 2, cats: ["T-shirt", "Other", "Activewear", "Polo"], kw: /^(?!.*(shoe|trainer|runner|boot|base layer))/i },
+    { name: "A team hoodie or jacket", n: 1, cats: ["Knitwear", "Jacket"] },
+    { name: "A cold-stadium coat", n: 1, cats: ["Coat"] },
+    { name: "A base layer", n: 1, cats: ["Activewear", "Knitwear"], kw: /base layer|thermal|merino/i },
+    { name: "A team cap", n: 1, cats: ["Accessory"] },
+    { name: "Beanie and gloves", n: 1, basic: true }] },
+  { id: "gig", name: "Gig & record shop", blurb: "Band tees, denim, a jacket with a bit of edge.", needs: [
+    { name: "Band or graphic tees", n: 4, cats: ["T-shirt"] },
+    { name: "Jeans", n: 1, cats: ["Jeans"] },
+    { name: "A jacket with edge", n: 1, cats: ["Jacket"] },
+    { name: "Trainers or boots", n: 1, cats: ["Shoes"] }] },
+  { id: "yard", name: "Yard & DIY", blurb: "House projects and clear-outs: clothes you can ruin.", needs: [
+    { name: "Work boots", n: 1, cats: ["Shoes"], kw: /boot/i },
+    { name: "Tough trousers or old jeans", n: 1, cats: ["Jeans", "Trousers"] },
+    { name: "Tops you can ruin", n: 3, cats: ["T-shirt", "Casual shirt", "Knitwear"] },
+    { name: "A work jacket", n: 1, cats: ["Jacket", "Coat"] },
+    { name: "Work gloves", n: 1, basic: true }] },
+  { id: "occasion", name: "Occasion", blurb: "Weddings, funerals and holidays: the dark suit, done properly.", needs: [
+    { name: "Dark suit (navy or charcoal)", n: 1, cats: ["Suit"] },
+    { name: "White dress shirts", n: 2, cats: ["Dress shirt"], kw: /white/i },
+    { name: "Ties, one of them sombre", n: 2, cats: ["Tie"] },
+    { name: "Black dress shoes", n: 1, cats: ["Shoes"], kw: /black/i },
+    { name: "Black dress belt", n: 1, cats: ["Belt"], kw: /black/i },
+    { name: "Overcoat", n: 1, cats: ["Coat"], kw: /^(?!.*(parka|hood))/i },
+    { name: "Pocket square", n: 1, cats: ["Accessory"], optional: true }] },
+];
+const STYLE_IDS = STYLES.map((s) => s.id);
+const styleOf = (id) => STYLES.find((s) => s.id === id);
+const stylesOf = (p) => (p.styles || []).filter((id) => STYLE_IDS.includes(id));
+const hasStyle = (p, id) => (p.styles || []).includes(id);
+/** One row per need: which tagged pieces meet it, and whether that's enough (ok), only with the tailor (meh), or not (no). */
+function needRows(s, all = pieces()) {
+  return s.needs.map((k) => {
+    if (k.basic) return { k, have: [], fits: [], tailor: [], state: "basic" };
+    const have = all.filter((p) => hasStyle(p, s.id) && k.cats.includes(p.category) && (!k.kw || k.kw.test(p.name || ""))
+      && !["Retire", "Donate"].includes(p.verdict));
+    const fits = have.filter((p) => (p.verdict || "Fits") === "Fits"), tailor = have.filter((p) => p.verdict === "Tailor");
+    const state = fits.length >= k.n ? "ok" : fits.length + tailor.length >= k.n ? "meh" : k.optional && !have.length ? "opt" : "no";
+    return { k, have, fits, tailor, state };
+  });
+}
+/** Saved looks that belong to a style: tagged with it, or (if untagged) every piece carries it. */
+function styleLooks(id) {
+  return looks().filter((l) => l.rating >= 0).filter((l) => {
+    if (l.style) return l.style === id;
+    const ps = lookIds(l).map(piece).filter(Boolean);
+    return ps.length >= 2 && ps.every((p) => hasStyle(p, id));
+  });
+}
+/** The styles every piece in a set shares, for a sensible default when saving a look. */
+const sharedStyles = (ids) => { const ps = ids.map(piece).filter(Boolean); return ps.length ? STYLE_IDS.filter((id) => ps.every((p) => hasStyle(p, id))) : []; };
 
 // ---------- data ----------
 const pieces = () => store.list("pieces/").map(({ key, value }) => ({ id: key.slice(7), ...value }));
@@ -437,9 +550,9 @@ const setSettings = (patch) => store.set("settings", { ...settings(), ...patch }
 const lastWorn = (p) => (p.wears || []).at(-1) || null;
 const wearable = (p) => WEARABLE.has(p.verdict || "Fits");
 
-/** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn. */
+/** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn | styles. */
 const lineOf = (p) => [p.id, p.name, p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
-  (p.wears || []).length, lastWorn(p) || "never"].join(" | ");
+  (p.wears || []).length, lastWorn(p) || "never", stylesOf(p).map((id) => styleOf(id).name).join(", ") || "none"].join(" | ");
 function railLines(filter = () => true) { return pieces().filter(filter).map(lineOf); }
 const looks = () => store.list("looks/").map(({ key, value }) => ({ id: key.slice(6), ...value })).sort((a, b) => (b.created || 0) - (a.created || 0));
 const lookIds = (l) => Object.values(l.slots || {}).filter(Boolean);
@@ -887,7 +1000,7 @@ function renderNotes() {
 }
 
 // ===================== RAIL =====================
-let railFilter = "All", railCat = "All", railQ = "";
+let railFilter = "All", railCat = "All", railQ = "", railStyle = "All";
 const unwornLong = (p) => wearable(p) && daysBetween(lastWorn(p) || p.created_day || today(), today()) >= 90;
 const FILTERS = {
   All: () => true, Fits: (p) => (p.verdict || "Fits") === "Fits", Tailor: (p) => p.verdict === "Tailor",
@@ -898,7 +1011,8 @@ const FILTERS = {
 function railShown(all = pieces()) {
   const q = railQ.toLowerCase();
   return all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
-    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes].join(" ").toLowerCase().includes(q))
+    .filter((p) => railStyle === "All" || (railStyle === "none" ? !stylesOf(p).length : hasStyle(p, railStyle)))
+    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes, ...stylesOf(p).map((id) => styleOf(id).name)].join(" ").toLowerCase().includes(q))
     .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || ""));
 }
 function renderRail() {
@@ -909,6 +1023,11 @@ function renderRail() {
     const n = f === "All" ? all.length : all.filter(FILTERS[f]).length;
     return (n || f === railFilter || f === "All") ? `<button class="chip" type="button" data-f="${esc(f)}" aria-pressed="${f === railFilter}">${esc(vLabel(f))} <span class="muted" style="color:inherit;opacity:.7">${n}</span></button>` : "";
   }).join("");
+  const noStyle = all.filter((p) => !stylesOf(p).length && !untagged(p)).length;
+  $("rail-styles").innerHTML = [["All", "Every style", all.length], ...STYLES.map((s) => [s.id, s.name, all.filter((p) => hasStyle(p, s.id)).length]),
+    ...(noStyle || railStyle === "none" ? [["none", "No style yet", noStyle]] : [])]
+    .map(([id, label, n]) => `<button class="chip" type="button" data-s="${esc(id)}" aria-pressed="${id === railStyle}">${esc(label)}${id === "All" ? "" : ` <span class="muted" style="color:inherit;opacity:.7">${n}</span>`}</button>`).join("");
+  renderStylePanel(all);
   const cats = CATEGORIES.filter((c) => all.some((p) => p.category === c));
   $("rail-cats").innerHTML = cats.length > 1 ? ["All", ...cats].map((c) => `<button class="chip" type="button" data-c="${esc(c)}" aria-pressed="${c === railCat}">${esc(c === "All" ? "Every kind" : c)}</button>`).join("") : "";
   const shown = railShown(all);
@@ -921,10 +1040,42 @@ function tile(p) {
   return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
     <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "waiting to be tagged" : p.needsTag ? "needs tagging" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
 }
+// A style's page, above its pieces on the rail: what it's for, what's missing, and the looks saved for it.
+let styleOpen = true;
+function renderStylePanel(all) {
+  const box = $("style-panel"), s = styleOf(railStyle);
+  if (!s) { box.innerHTML = railStyle === "none" ? `<p class="small muted">Open a piece and pick its styles. A piece can belong to several.</p>` : ""; return; }
+  const tagged = all.filter((p) => hasStyle(p, s.id)), fit = tagged.filter(wearable);
+  const rows = needRows(s, all), gaps = rows.filter((r) => r.state === "no" || r.state === "meh");
+  const ls = styleLooks(s.id);
+  box.innerHTML = `<div class="card pad" style="gap:10px">
+    <div class="row"><div><h2>${esc(s.name)}</h2><span class="small muted">${esc(s.blurb)}</span></div>
+      <span class="badge ${gaps.length ? "brass" : ""}">${gaps.length ? `${gaps.length} to sort` : "Covered"}</span></div>
+    <span class="small">${plural(tagged.length, "piece", "pieces")}${tagged.length !== fit.length ? `, ${fit.length} that fit now` : ""} · ${plural(ls.length, "saved look", "saved looks")}</span>
+    <button class="linkbtn" type="button" id="sp-toggle" aria-expanded="${styleOpen}" style="align-self:flex-start">${styleOpen ? "▾" : "▸"} What it needs</button>
+    ${styleOpen ? `<div class="card">${rows.map((r, i) => `<div class="kit">
+      <span class="ok ${r.state === "ok" ? "" : r.state === "no" ? "no" : "meh"}" aria-hidden="true">${r.state === "ok" ? "✓" : r.state === "no" ? "✕" : "·"}</span>
+      <span class="grow"><span>${esc(r.k.name)}${r.k.n > 1 ? ` × ${r.k.n}` : ""}</span><br><span class="small muted">${
+        r.state === "basic" ? "Not catalogued; just make sure you have them." :
+        r.state === "opt" ? "Optional, but finishes the look." :
+        `${r.fits.length} fit${r.tailor.length ? `, ${r.tailor.length} with the tailor` : ""}${r.have.length - r.fits.length - r.tailor.length > 0 ? `, ${r.have.length - r.fits.length - r.tailor.length} don't fit` : ""}`}</span>
+        ${r.state === "no" ? `<br><button class="linkbtn" type="button" data-sbuy="${i}">+ Buying list</button>` : ""}</span>
+      ${r.have.length ? `<span class="strip" style="max-width:40%">${r.have.slice(0, 3).map((p) => `<button class="piece" type="button" data-open="${esc(p.id)}" style="width:40px">${thumbHtml(p)}</button>`).join("")}</span>` : ""}</div>`).join("")}</div>` : ""}
+    ${ls.length ? `<span class="label">Looks</span><div style="display:flex;flex-direction:column;gap:8px">${ls.map((l) => `<button class="card look" type="button" data-slook="${esc(l.id)}" style="text-align:left">
+        <span class="row"><b>${esc(l.name)}</b><span class="small muted">On the board →</span></span>
+        <span class="mini">${lookIds(l).map(piece).filter(Boolean).map((p) => thumbHtml(p)).join("")}</span></button>`).join("")}</div>` : ""}
+    <button class="btn" type="button" id="sp-board">Put together a ${esc(s.name.toLowerCase())} look</button>
+  </div>`;
+  box.querySelector("#sp-toggle").onclick = () => { styleOpen = !styleOpen; renderStylePanel(pieces()); hydratePhotos(box); };
+  box.querySelectorAll("[data-sbuy]").forEach((b) => (b.onclick = () => buySheet(null, { item: rows[+b.dataset.sbuy].k.name.replace(/\s*\(.*\)$/, ""), why: `For ${s.name.toLowerCase()}` })));
+  box.querySelectorAll("[data-slook]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.slook); board = { slots: { ...l.slots }, level: l.level, style: l.style || s.id, lookId: b.dataset.slook }; saveBoard(); go("looks"); }));
+  box.querySelector("#sp-board").onclick = () => { board = { slots: {}, level: board.level, style: s.id, lookId: null }; saveBoard(); go("looks"); };
+}
 $("rail-filters").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { railFilter = b.dataset.f; render(); } });
 $("rail-cats").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { railCat = b.dataset.c; render(); } });
+$("rail-styles").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) { railStyle = b.dataset.s; render(); } });
 $("rail-search").addEventListener("input", (e) => { railQ = e.target.value; render(); });
-document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open], #fit-trend [data-open], #looks [data-open]"); if (b) pieceSheet(b.dataset.open); });
+document.addEventListener("click", (e) => { const b = e.target.closest("#rail-body [data-open], #style-panel [data-open], #kit [data-open], #occ-body [data-open], #fit-advice [data-open], #fit-trend [data-open], #looks [data-open]"); if (b) pieceSheet(b.dataset.open); });
 
 // Adding by photo: thumbnail now, Claude's tags a moment later, one photo after another.
 // The queue is the pieces themselves (tagging: true), so it survives closing the app. Until a piece is tagged,
@@ -988,7 +1139,9 @@ async function runTagging({ onlyHere = false } = {}) {
         const base = { ...now, tagging: false, needsTag: false };
         savePiece(r.found === false ? { ...base, name: now.name === "New piece" ? "Not sure what this is" : now.name }
           : { ...base, name: r.name, category: r.category, colour: r.colour, pattern: r.pattern, fabric: r.fabric,
-              formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || now.size || "", pairs_with: r.pairs_with });
+              formality: r.formality, seasons: r.seasons, care: r.care, size: r.size_seen || now.size || "", pairs_with: r.pairs_with,
+              // Alfred's guess at its styles; a re-tag keeps any styles already chosen by hand.
+              styles: stylesOf(now).length ? stylesOf(now) : (Array.isArray(r.styles) ? r.styles.filter((id) => STYLE_IDS.includes(id)) : []) });
         dropFull(p.id); tagDone++;
       } else if (/budget|sign in|offline|private/i.test(err?.message || "")) {
         toast(err.message + " The rest will wait; tap Resume cataloguing when you're ready."); break;
@@ -1053,6 +1206,8 @@ function pieceSheet(id) {
       <label class="field">Kind<select id="ps-cat">${opt(CATEGORIES, p.category)}</select></label>
       <label class="field">Formality<select id="ps-form">${opt(FORMALITY, p.formality)}</select></label>
     </div>
+    <div><span class="label">Styles <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· as many as suit it</span></span>
+      <div class="chips" id="ps-styles" style="margin-top:6px">${STYLES.map((s) => `<button class="chip" type="button" data-st="${s.id}" aria-pressed="${hasStyle(p, s.id)}">${esc(s.name)}</button>`).join("")}</div></div>
     <div class="two">
       <label class="field">Labelled size<input type="text" id="ps-size" value="${esc(p.size || "")}" placeholder="e.g. 16/34, 36x32, 42R"></label>
       <label class="field">Fit<select id="ps-verdict">${opt(VERDICTS, p.verdict || "Fits")}</select></label>
@@ -1082,7 +1237,12 @@ function pieceSheet(id) {
     <div class="two">${isNew ? `<button class="btn" type="button" id="ps-cancel">Cancel</button>` : `<button class="btn" type="button" id="ps-del">Remove</button>`}
       <button class="btn primary" type="button" id="ps-save">Save</button></div>`, (panel) => {
     let newPhoto = null, newLarge = null;
-    const read = () => ({ ...p, name: panel.querySelector("#ps-name").value.trim() || "Untitled", category: panel.querySelector("#ps-cat").value,
+    const picked = new Set(stylesOf(p));
+    panel.querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => {
+      const id = b.dataset.st; if (picked.has(id)) picked.delete(id); else picked.add(id);
+      b.setAttribute("aria-pressed", picked.has(id));
+    }));
+    const read = () => ({ ...p, styles: STYLE_IDS.filter((id) => picked.has(id)), name: panel.querySelector("#ps-name").value.trim() || "Untitled", category: panel.querySelector("#ps-cat").value,
       formality: panel.querySelector("#ps-form").value, size: panel.querySelector("#ps-size").value.trim(), verdict: panel.querySelector("#ps-verdict").value,
       colour: panel.querySelector("#ps-colour").value.trim(), fabric: panel.querySelector("#ps-fabric").value.trim(), care: panel.querySelector("#ps-care").value,
       notes: panel.querySelector("#ps-notes").value.trim() });
@@ -1349,6 +1509,9 @@ function renderLooks() {
     return `<button class="slot" type="button" data-slot="${sl.k}" data-k="${sl.k}" style="grid-area:${sl.k}">+ ${esc(sl.label)}</button>`;
   }).join("")}</div></div>`;
   $("board").querySelectorAll("[data-slot]").forEach((b) => (b.onclick = () => slotSheet(b.dataset.slot)));
+  const bs = styleOf(board.style);
+  $("board-style").innerHTML = bs ? `<div class="row"><span class="small">Dressing for <b>${esc(bs.name)}</b>: its pieces come first.</span><button class="linkbtn" type="button" id="bs-clear">Any style</button></div>` : "";
+  $("bs-clear")?.addEventListener("click", () => { board.style = null; saveBoard(); renderLooks(); });
   $("board-levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-blevel="${esc(l)}" aria-pressed="${l === board.level}">${esc(l)}</button>`).join("");
   $("board-levels").querySelectorAll("[data-blevel]").forEach((b) => (b.onclick = () => { board.level = b.dataset.blevel; saveBoard(); renderLooks(); }));
   renderBoardVerdict(); renderSavedLooks(); hydratePhotos($("v-looks"));
@@ -1356,10 +1519,11 @@ function renderLooks() {
 function slotSheet(k) {
   const sl = SLOTS.find((x) => x.k === k);
   const rank = LEVEL_RANK[board.level] ?? 2;
+  const st = board.style;
   const opts = pieces().filter(wearable).filter((p) => sl.cats.includes(p.category))
-    .sort((a, b) => Math.abs((FORM_RANK[a.formality] ?? 1) - rank) - Math.abs((FORM_RANK[b.formality] ?? 1) - rank) || (b.wears || []).length - (a.wears || []).length);
+    .sort((a, b) => (st ? hasStyle(b, st) - hasStyle(a, st) : 0) || Math.abs((FORM_RANK[a.formality] ?? 1) - rank) - Math.abs((FORM_RANK[b.formality] ?? 1) - rank) || (b.wears || []).length - (a.wears || []).length);
   const cur = board.slots?.[k];
-  openSheet(`<h2>${esc(sl.label)}</h2><p class="small muted">${opts.length ? `What fits, closest to ${esc(board.level)} first.` : "Nothing on the rail that fits this slot yet."}</p>
+  openSheet(`<h2>${esc(sl.label)}</h2><p class="small muted">${opts.length ? `What fits, ${st ? `${esc(styleOf(st)?.name || "")} pieces first, then ` : ""}closest to ${esc(board.level)}.` : "Nothing on the rail that fits this slot yet."}</p>
     <div class="grid">${opts.map((p) => `<button class="piece" type="button" data-pick="${esc(p.id)}" style="${p.id === cur ? "border-color:var(--green);border-width:2px" : ""}">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span><span class="sz">${esc(p.formality || "")}</span></span></button>`).join("")}</div>
     <div class="two"><button class="btn" type="button" id="sl-none">${cur ? "Take it off" : "Leave empty"}</button><button class="btn ghost" type="button" id="sl-cancel">Cancel</button></div>`, (panel) => {
     panel.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { board.slots = { ...board.slots, [k]: b.dataset.pick }; saveBoard(); closeSheet(); renderLooks(); }));
@@ -1367,7 +1531,7 @@ function slotSheet(k) {
     panel.querySelector("#sl-cancel").onclick = closeSheet;
   });
 }
-$("board-clear").onclick = () => { board = { slots: {}, level: board.level, lookId: null }; saveBoard(); renderLooks(); };
+$("board-clear").onclick = () => { board = { slots: {}, level: board.level, style: board.style || null, lookId: null }; saveBoard(); renderLooks(); };
 $("board-ask").onclick = async () => {
   const filled = SLOTS.filter((sl) => board.slots?.[sl.k] && piece(board.slots[sl.k]));
   if (filled.length < 2) return toast("Put at least two pieces on the board first.");
@@ -1407,12 +1571,14 @@ function renderBoardVerdict() {
 $("board-save").onclick = () => {
   if (!lookIds(board).length) return toast("Nothing on the board yet.");
   const existing = board.lookId && store.get("looks/" + board.lookId);
+  const lookStyle = board.style || existing?.style || sharedStyles(lookIds(board)).find((id) => id !== "casual") || "";
   openSheet(`<h2>${existing ? "Update this look" : "Save this look"}</h2>
-    <label class="field">Call it<input type="text" id="lk-name" value="${esc(existing?.name || `${board.level} look`)}"></label>
+    <label class="field">Call it<input type="text" id="lk-name" value="${esc(existing?.name || `${styleOf(board.style)?.name || board.level} look`)}"></label>
+    <label class="field">Style<select id="lk-style"><option value="">None in particular</option>${STYLES.map((s) => `<option value="${s.id}"${s.id === lookStyle ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>
     <div class="two">${existing ? `<button class="btn" type="button" id="lk-new">Save as new</button>` : `<button class="btn" type="button" id="lk-cancel">Cancel</button>`}<button class="btn primary" type="button" id="lk-save">Save</button></div>`, (p) => {
     const save = (id) => {
       store.set("looks/" + id, { ...(existing && id === board.lookId ? existing : { rating: 1, created: Date.now(), from: "Board" }),
-        name: p.querySelector("#lk-name").value.trim() || "A look", level: board.level, slots: { ...board.slots }, verdict: boardVerdict?.verdict || existing?.verdict || null });
+        name: p.querySelector("#lk-name").value.trim() || "A look", level: board.level, style: p.querySelector("#lk-style").value || null, slots: { ...board.slots }, verdict: boardVerdict?.verdict || existing?.verdict || null });
       board.lookId = id; try { localStorage.setItem("wardrobe:board", JSON.stringify(board)); } catch {}
       closeSheet(); toast("Saved to your looks.");
     };
@@ -1427,7 +1593,7 @@ function renderSavedLooks() {
     const ps = lookIds(l).map(piece).filter(Boolean);
     const gone = lookIds(l).length - ps.length, unfit = ps.filter((p) => !wearable(p)).length;
     return `<div class="card look">
-      <div class="row"><div><h3>${esc(l.name)}</h3><span class="small muted">${esc(l.level || "")}${l.from === "Alfred" ? " · Alfred's pick" : ""}${l.verdict ? ` · Alfred: ${esc(l.verdict)}` : ""}</span></div>
+      <div class="row"><div><h3>${esc(l.name)}</h3><span class="small muted">${esc([styleOf(l.style)?.name, l.level].filter(Boolean).join(" · "))}${l.from === "Alfred" ? " · Alfred's pick" : ""}${l.verdict ? ` · Alfred: ${esc(l.verdict)}` : ""}</span></div>
         <div class="rate"><button type="button" data-lrate="1" data-l="${esc(l.id)}" aria-pressed="${l.rating > 0}" aria-label="I like this">👍</button><button type="button" data-lrate="-1" data-l="${esc(l.id)}" aria-pressed="${l.rating < 0}" aria-label="Not for me">👎</button></div></div>
       <div class="mini">${ps.map((p) => thumbHtml(p)).join("")}</div>
       ${unfit || gone ? `<span class="small err">${[unfit ? `${unfit} no longer ${unfit === 1 ? "fits" : "fit"}` : "", gone ? `${gone} removed from the rail` : ""].filter(Boolean).join(", ")}.</span>` : ""}
@@ -1442,7 +1608,7 @@ function renderSavedLooks() {
   const box = $("looks");
   box.querySelector("#looks-bad")?.addEventListener("click", () => { showDisliked = !showDisliked; renderSavedLooks(); hydratePhotos(box); });
   box.querySelectorAll("[data-lrate]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.l); const r = +b.dataset.lrate; store.set("looks/" + b.dataset.l, { ...l, rating: l.rating === r ? 0 : r }); }));
-  box.querySelectorAll("[data-lboard]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.lboard); board = { slots: { ...l.slots }, level: l.level, lookId: b.dataset.lboard }; saveBoard(); renderLooks(); window.scrollTo(0, 0); }));
+  box.querySelectorAll("[data-lboard]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.lboard); board = { slots: { ...l.slots }, level: l.level, style: l.style || null, lookId: b.dataset.lboard }; saveBoard(); renderLooks(); window.scrollTo(0, 0); }));
   box.querySelectorAll("[data-lwear]").forEach((b) => (b.onclick = () => wearToday(lookIds(store.get("looks/" + b.dataset.lwear)).filter((id) => piece(id)))));
   box.querySelectorAll("[data-ldel]").forEach((b) => (b.onclick = () => undoable("Look removed.", ["looks/" + b.dataset.ldel], () => store.remove("looks/" + b.dataset.ldel))));
 }
@@ -1748,8 +1914,8 @@ async function runGap() {
   } catch (e) { gapErr = e; }
   gapAsking = false; renderBuy();
 }
-function buySheet(id) {
-  const x = id ? { id, ...store.get("buy/" + id) } : { item: "", when: "Now", budget: "", where: "", why: "" };
+function buySheet(id, prefill = {}) {
+  const x = id ? { id, ...store.get("buy/" + id) } : { item: "", when: "Now", budget: "", where: "", why: "", ...prefill };
   openSheet(`<h2>${id ? "Edit" : "Add to the list"}</h2>
     <label class="field">What<input type="text" id="b-item" value="${esc(x.item)}"></label>
     <label class="field">Why<input type="text" id="b-why" value="${esc(x.why || "")}"></label>
