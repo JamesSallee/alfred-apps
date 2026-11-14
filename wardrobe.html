@@ -213,6 +213,10 @@ nav.tabs svg{width:22px;height:22px}
       <span class="label">Today is</span>
       <div class="chips" id="levels" style="margin-top:6px"></div>
     </div>
+    <div>
+      <span class="label">In the mood for</span>
+      <div class="chips scroller" id="day-styles" style="margin-top:6px"></div>
+    </div>
     <label class="sr" for="today-note">Anything else?</label>
     <input type="text" id="today-note" placeholder="Anything else? (e.g. lots of walking, dinner out)">
     <button class="btn primary big stack" type="button" id="dress-go">Dress me, Alfred <span class="cost">about 3¢, with a second look at the photos</span></button>
@@ -763,7 +767,7 @@ function render() {
 }
 
 // ===================== TODAY =====================
-let dayLevel = null, dressing = false, dressErr = null;
+let dayLevel = null, dayStyle = null, dressing = false, dressErr = null;
 function defaultLevel() {
   const occ = occasions().find((o) => o.kind !== "trip" && o.date === today());
   if (occ) return occ.level;
@@ -776,11 +780,17 @@ function renderToday() {
   $("today-date").textContent = "The Wardrobe · " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   dayLevel ||= defaultLevel();
   $("levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-level="${esc(l)}" aria-pressed="${l === dayLevel}">${esc(l)}</button>`).join("");
+  // Only styles with something to wear; "Any style" leaves Alfred the whole rail.
+  const fit = pieces().filter(wearable);
+  $("day-styles").innerHTML = [`<button class="chip" type="button" data-dstyle="" aria-pressed="${!dayStyle}">Any style</button>`,
+    ...STYLES.filter((st) => st.id === dayStyle || fit.some((p) => hasStyle(p, st.id)))
+      .map((st) => `<button class="chip" type="button" data-dstyle="${st.id}" aria-pressed="${st.id === dayStyle}">${esc(st.name)}</button>`)].join("");
   renderWeather();
   renderOutfits();
   renderNotes();
 }
 $("levels").addEventListener("click", (e) => { const b = e.target.closest("[data-level]"); if (b) { dayLevel = b.dataset.level; renderToday(); } });
+$("day-styles").addEventListener("click", (e) => { const b = e.target.closest("[data-dstyle]"); if (b) { dayStyle = b.dataset.dstyle || null; renderToday(); } });
 
 // Weather from Open-Meteo (free, no key). The place is kept in settings; the forecast is cached for an hour.
 let wx = (() => { try { return JSON.parse(localStorage.getItem("wardrobe:wx")) || null; } catch { return null; } })();
@@ -859,8 +869,10 @@ $("dress-go").onclick = async () => {
   try {
     await loadWeather();
     const recent = pieces().filter((p) => lastWorn(p) && daysUntil(lastWorn(p)) > -4).map((p) => `${p.id} (${lastWorn(p)})`).join(", ");
-    const res = await ai("w_outfit", { ...aboutMe(), rail: railLines(wearable), weather: wxText(wxFor(today())), level: dayLevel,
-      note: $("today-note").value.trim(), recent });
+    // The style goes first in the note, so his own words are what gets clipped if it runs long.
+    const st = styleOf(dayStyle);
+    const note = [st ? `Style: ${st.name} (${st.blurb}) Use pieces tagged ${st.name}; borrow others only if an outfit needs it.` : "", $("today-note").value.trim()].filter(Boolean).join(" ");
+    const res = await ai("w_outfit", { ...aboutMe(), rail: railLines(wearable), weather: wxText(wxFor(today())), level: dayLevel, note, recent });
     // The pick was made from descriptions; before showing it, Alfred looks at the photos of his first choice.
     const top = res.outfits?.[0], ps = (top?.piece_ids || []).map(piece).filter(Boolean);
     if (ps.length >= 2) {
@@ -870,7 +882,7 @@ $("dress-go").onclick = async () => {
         res.outfits[0] = { ...top, check: { verdict: check.verdict, comment: check.comment, swap_out: check.swap_out, swap_in: check.swap_in, swap_why: check.swap_why } };
       } catch { /* the outfit still stands without the second look */ }
     }
-    store.set("outfits/" + today(), { ...res, level: dayLevel, at: Date.now() });
+    store.set("outfits/" + today(), { ...res, level: dayLevel, style: dayStyle, at: Date.now() });
   } catch (e) { dressErr = e; }
   dressing = false; renderOutfits();
 };
@@ -915,14 +927,14 @@ function renderOutfits() {
   }));
   box.querySelectorAll("[data-board]").forEach((b) => (b.onclick = () => {
     const x = o.outfits[+b.dataset.board];
-    board = { slots: assignSlots(x.piece_ids || []), level: o.level || dayLevel, lookId: x.lookId || null };
+    board = { slots: assignSlots(x.piece_ids || []), level: o.level || dayLevel, style: o.style || null, lookId: x.lookId || null };
     saveBoard(); go("looks");
   }));
   box.querySelectorAll("[data-rate]").forEach((b) => (b.onclick = () => {
     const n = +b.dataset.n, r = +b.dataset.rate, cur = store.get("outfits/" + today()), x = cur.outfits[n];
     const rated = x.rated === r ? 0 : r;
     const id = x.lookId || uid();
-    if (rated) store.set("looks/" + id, { name: x.name || "Alfred's pick", level: cur.level, slots: assignSlots(x.piece_ids || []), rating: rated, from: "Alfred", created: Date.now() });
+    if (rated) store.set("looks/" + id, { name: x.name || "Alfred's pick", level: cur.level, style: cur.style || null, slots: assignSlots(x.piece_ids || []), rating: rated, from: "Alfred", created: Date.now() });
     else store.remove("looks/" + id);
     cur.outfits[n] = { ...x, rated, lookId: rated ? id : null };
     store.set("outfits/" + today(), cur);
