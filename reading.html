@@ -197,6 +197,43 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
 .dl li:first-child{border-top:0}
 .dl .s{display:block;font-size:var(--t-xs);color:var(--muted)}
 .dl a{color:var(--green);font-weight:600}
+/* Offline: the line under the shelf tools, the mark on a spine, and the reading view */
+.offline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:var(--t-sm);color:var(--muted);margin:2px 0 10px}
+.offline .btn{min-height:32px;padding:4px 10px;font-size:var(--t-sm)}
+.offline .sw[aria-pressed="false"]{opacity:.7}
+.spine .sv{position:absolute;top:13px;font:700 9px var(--body);color:#f6eedd;opacity:.85}
+.spine.paper .sv{top:22px;color:#2b2218}
+.onlineonly{font-size:var(--t-xs);color:var(--muted)}
+dialog.reader{max-width:min(760px,100%);height:100%;max-height:100%;margin:0 auto}
+dialog.reader::backdrop{background:rgba(20,14,8,.55)}
+.reader .page{background:var(--paper);min-height:100%;padding:18px 20px 28px;display:flex;flex-direction:column;gap:12px}
+.reader .bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:sticky;top:0;background:var(--paper);padding:6px 0;border-bottom:1px solid var(--rule);z-index:1}
+.reader .bar .s{font-size:var(--t-xs);color:var(--muted)}
+.reader h2{font-size:var(--t-2xl,30px);line-height:1.15}
+.reader .body{font-family:Georgia,"Iowan Old Style",serif;font-size:19px;line-height:1.65;color:var(--ink);overflow-wrap:break-word}
+.reader .body img{max-width:100%;height:auto;display:block;margin:12px auto;border-radius:6px}
+.reader .body figure{margin:16px 0}
+.reader .body figcaption{font:var(--t-xs) var(--body);color:var(--muted)}
+.reader .body blockquote{margin:12px 0;padding-left:14px;border-left:3px solid var(--brass)}
+.reader .body pre{white-space:pre-wrap;font-size:14px;background:var(--bg);padding:10px;border-radius:6px}
+.reader .body a{color:var(--green)}
+.reader .body h1,.reader .body h2,.reader .body h3{font-family:var(--display);line-height:1.2;margin:18px 0 6px}
+.reader .body table{border-collapse:collapse;font-size:15px;display:block;overflow-x:auto}
+.reader .body td,.reader .body th{border:1px solid var(--rule);padding:4px 6px}
+.reader .end{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;border-top:1px solid var(--rule);padding-top:14px}
+
+/* Inside a drawer: + Add, wish-list photos, and what you've got */
+.addline{display:flex;flex-direction:column;gap:6px;background:var(--drawer);border:1px solid var(--drawer-line);border-radius:10px;padding:10px;color:var(--drawer-ink)}
+.addline .r{display:flex;gap:6px;flex-wrap:wrap}
+.addline input{flex:1 1 140px;min-width:0;border:1px solid var(--drawer-line);border-radius:var(--r-control);background:var(--label);color:var(--drawer-ink);padding:8px 10px;font-size:var(--t-sm)}
+.addline input.sm{flex:0 1 110px}
+.dl .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.dl .thumbrow{display:flex;gap:10px;align-items:center;min-width:0}
+.dl .thumb{width:52px;height:52px;flex:none;border-radius:8px;object-fit:cover;background:var(--drawer);border:1px solid var(--drawer-line)}
+.dl .who{color:var(--ox);font-weight:600}
+details.got{border-top:1px solid var(--rule);padding-top:6px}
+details.got summary{cursor:pointer;font-size:var(--t-sm);color:var(--muted)}
+details.got .dl{opacity:.75}
 .hint{background:var(--brass-soft);color:var(--brass-ink);border-radius:var(--r-control);padding:6px 10px;font-size:var(--t-sm)}
 
 .routes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -235,6 +272,7 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
         <label for="sort" hidden>Sort</label>
         <select id="sort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="short">Shortest first</option><option value="long">Longest first</option></select>
       </div>
+      <div class="offline" id="offline" hidden></div>
       <div id="case"></div>
       <ul class="list" id="list" hidden></ul>
       <div id="open" hidden></div>
@@ -267,7 +305,16 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
 
 <dialog id="drawerDlg"><div class="sheet">
   <h2 id="drawerH"></h2>
+  <form class="addline" id="addForm">
+    <div class="r"><label for="addText" hidden>A link or a note</label>
+      <input id="addText" autocomplete="off" placeholder="Paste a link, or jot a note…"><button class="btn ox" type="submit">+ Add</button></div>
+    <div class="r" id="addWants" hidden>
+      <label for="addPrice" hidden>Rough price</label><input class="sm" id="addPrice" autocomplete="off" placeholder="Price (optional)">
+      <label for="addFor" hidden>Who it's for</label><input id="addFor" autocomplete="off" list="whoList" placeholder="For: me, or a name"></div>
+  </form>
+  <datalist id="whoList"></datalist>
   <ul class="dl" id="drawerList"></ul>
+  <details class="got" id="gotBox" hidden><summary id="gotSub"></summary><ul class="dl" id="gotList"></ul></details>
   <div class="foot"><span class="row"><button class="btn quiet" type="button" id="renameDrawer">Rename</button><button class="btn quiet" type="button" id="dropDrawer">Remove drawer</button></span><button class="btn ox" type="button" data-close>Close</button></div>
 </div></dialog>
 
@@ -281,6 +328,11 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
     <label class="f" id="itDrawerF">Drawer<select id="itDrawer"></select></label>
     <label class="f" id="itMinsF">Minutes<input id="itMins" type="number" min="1" max="600" inputmode="numeric"></label>
   </div>
+  <div class="grid2" id="itWantsF">
+    <label class="f">Price<input id="itPrice" autocomplete="off" placeholder="$450"></label>
+    <label class="f">For<input id="itFor" autocomplete="off" list="whoList" placeholder="me, or a name"></label>
+  </div>
+  <label class="f" id="itImageF">Photo (a picture's web address)<input id="itImage" type="url" placeholder="https://"></label>
   <label class="f">Tags (comma between)<input id="itTags" placeholder="MoMA"></label>
   <label class="f">Note<textarea id="itNote"></textarea></label>
   <div class="foot"><span class="row"><button class="btn quiet" type="button" id="itBin">Bin it</button><button class="btn quiet" type="button" id="itErr">Send to Errand Book</button><button class="btn quiet" type="button" id="itDesk">Send to Writing Desk</button></span>
@@ -302,6 +354,13 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
   <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Put it on the idea shelf</button></span></div>
 </form></dialog>
 
+<dialog id="readerDlg" class="reader"><div class="page">
+  <div class="bar"><span class="s" id="readerSite"></span><span class="row"><a class="btn quiet" id="readerOrig" target="_blank" rel="noopener">Original</a><button class="btn ox" type="button" data-close>Close</button></span></div>
+  <h2 id="readerH"></h2>
+  <div class="body" id="readerBody"></div>
+  <div class="end"><button class="btn ox" type="button" id="readerDone">Mark read</button><button class="btn" type="button" data-close>Close</button></div>
+</div></dialog>
+
 <dialog id="routeDlg"><div class="sheet">
   <h2 id="routeH">Where should this go?</h2>
   <p class="muted" id="routeFrom"></p>
@@ -313,7 +372,8 @@ import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { todoTasks, mirrorSoon } from "./js/rooms.js";
-import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, CLEAR_DAYS, clearsIn, dueForClearing, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor } from "./js/reading.js";
+import * as offline from "./js/reading-offline.js";
+import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, CLEAR_DAYS, clearsIn, dueForClearing, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor, isWants } from "./js/reading.js";
 mountShell("reading");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -348,7 +408,7 @@ const spineW = (m) => (m == null ? 22 : Math.max(12, Math.min(48, Math.round(8 +
 const minTxt = (m) => (m == null ? "?" : String(m));
 const shortDate = (s) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
 
-const matches = (it) => !q || [it.title, it.site, it.note, ...(it.tags || [])].join(" ").toLowerCase().includes(q);
+const matches = (it) => !q || [it.title, it.site, it.note, it.forWho, ...(it.tags || [])].join(" ").toLowerCase().includes(q);
 const sorters = {
   new: (a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""),
   old: (a, b) => (a.savedAt || "").localeCompare(b.savedAt || ""),
@@ -357,11 +417,12 @@ const sorters = {
 };
 
 // ---------- Adding ----------
-function add({ kind, url = "", title = "", minutes = null, source = "paste", drawer = null, tags = [], note = "" }) {
-  const live = itemsOf(store).find((x) => url && x.url === url && !x.readAt);
+function add({ kind, url = "", title = "", minutes = null, source = "paste", drawer = null, tags = [], note = "", wants = null }) {
+  const live = itemsOf(store).find((x) => url && x.url === url && !x.readAt && !x.gotAt);
   if (live) { save({ ...live, openedAt: nowIso() }); return { it: live, dup: true }; }
   const it = { id: newId(), kind, url, title: title || siteOf(url) || "Untitled", site: siteOf(url), minutes, source, tags, note, savedAt: nowIso() };
   if (kind === "curio") it.drawer = drawer;
+  if (wants) Object.assign(it, wants); // { price, forWho }, both optional
   save(it);
   if (url && (minutes == null || !title)) peek(it.id, !title);
   return { it, dup: false };
@@ -383,7 +444,12 @@ async function peek(id, wantTitle) {
     const next = { ...now };
     if (now.minutes == null && data.minutes) next.minutes = data.minutes;
     if (wantTitle && data.title) next.title = data.title;
-    if (next.minutes !== now.minutes || next.title !== now.title) save(next);
+    // A wish gets its photo and, if James didn't give one, the shop's price.
+    if (now.kind === "curio" && isWants(now.drawer)) {
+      if (!now.image && data.image) next.image = data.image;
+      if (!now.price && data.price) next.price = data.price;
+    }
+    if (["minutes", "title", "image", "price"].some((k) => next[k] !== now[k])) save(next);
   } catch { /* leave it unmeasured; a tap on the open card can set it */ }
 }
 
@@ -419,6 +485,7 @@ function render() {
     ? `${shelf.length} piece${shelf.length === 1 ? "" : "s"}${mins ? " · about " + fmtTotal(mins) : ""} · a spine's thickness is its reading time`
     : "Nothing waiting. Paste a link above, or send one from Chrome or your phone.";
 
+  offlineLine(shelf);
   const shown = shelf.filter(matches).sort(sorters[sort]);
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
   $("case").hidden = view !== "case"; $("list").hidden = view !== "list";
@@ -431,7 +498,7 @@ function render() {
     document.querySelectorAll(".shelf").forEach(fadeIfMore);
   } else {
     $("list").innerHTML = shown.length ? shown.map((it) => `<li><button type="button" data-open="${it.id}" ${it.id === openId ? 'aria-current="true"' : ""}>
-      <i class="dot" style="--c:${cloth(it)}"></i><span class="lt">${esc(it.title)}</span><span class="lm">${esc(it.site || "")} · ${it.minutes ? it.minutes + " min" : "?"} · ${shortDate(it.savedAt)}</span></button></li>`).join("")
+      <i class="dot" style="--c:${cloth(it)}"></i><span class="lt">${esc(it.title)}</span><span class="lm">${esc(it.site || "")} · ${it.minutes ? it.minutes + " min" : "?"} · ${shortDate(it.savedAt)}${isSaved(it) ? " · ⬇" : ""}</span></button></li>`).join("")
       : `<li class="muted" style="padding:8px 0">${q ? "Nothing matches." : "Nothing on the shelf."}</li>`;
   }
 
@@ -448,7 +515,7 @@ function render() {
     const inside = cabinet.filter((it) => it.drawer === d && matches(it));
     return `<button class="drawer" type="button" data-drawer="${esc(d)}" aria-label="${esc(d)}, ${inside.length} inside">
       <span class="top"><span class="lab">${esc(d)}</span><span class="n">${inside.length}</span></span>
-      <ul>${inside.slice(0, 3).map((it) => `<li>${esc(it.title)}${(it.tags || []).length ? ` <em>· ${esc(it.tags[0])}</em>` : ""}</li>`).join("") || '<li class="none">Empty for now</li>'}</ul>
+      <ul>${inside.slice(0, 3).map((it) => `<li>${esc(it.title)}${tileNote(it) ? ` <em>· ${esc(tileNote(it))}</em>` : ""}</li>`).join("") || '<li class="none">Empty for now</li>'}</ul>
       <i class="knob" aria-hidden="true"></i></button>`;
   }).join("");
 
@@ -475,13 +542,14 @@ function render() {
   if (drawerOpen && $("drawerDlg").open) fillDrawer();
 }
 
+const tileNote = (it) => (isWants(it.drawer) ? (it.forWho && !/^me$/i.test(it.forWho) ? "for " + it.forWho : it.price || "") : (it.tags || [])[0] || "");
 const titleLink = (it) => (it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a>` : esc(it.title));
 
 function spine(it) {
   const m = it.minutes, w = spineW(m);
   return `<button class="spine ${binding(it)}${w >= 40 ? " wide" : ""}" type="button" data-open="${it.id}" style="--h:${spineH(it)}px;--w:${w}px;--c:${cloth(it)}"
-    title="${esc(it.title)}" aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}" ${it.id === openId ? 'aria-current="true"' : ""}>
-    ${w >= 16 ? `<span class="st">${esc(it.title)}</span>` : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
+    title="${esc(it.title)}" aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}${isSaved(it) ? ", ready offline" : ""}" ${it.id === openId ? 'aria-current="true"' : ""}>
+    ${w >= 16 ? `<span class="st">${esc(it.title)}</span>` : ""}${isSaved(it) ? '<span class="sv" title="Ready offline">⬇</span>' : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
 }
 
 function fadeIfMore(el) {
@@ -511,6 +579,7 @@ function openCard(it) {
       <div class="muted">${[it.site, "saved " + shortDate(it.savedAt), it.source === "extension" ? "from Chrome" : it.source === "share" ? "from your phone" : it.source === "import" ? "from the Errand Book" : ""].filter(Boolean).map(esc).join(" · ")}</div>
       ${m == null ? `<div class="mins" style="margin-top:6px">How long? ${[5, 15, 30, 45].map((n) => `<button class="chip" type="button" data-mins="${n}">${n} min</button>`).join("")}</div>` : ""}
       <div class="row">
+        ${isSaved(it) ? `<button class="btn${navigator.onLine ? "" : " ox"}" type="button" data-reader="${it.id}">Read here</button>` : ""}
         ${it.url ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener" data-opened="${it.id}">Read it</a>
         <a class="btn" href="${esc(archiveUrl(it.url, archiveBase()))}" target="_blank" rel="noopener" data-opened="${it.id}">Archived copy</a>` : ""}
         <button class="btn ox" type="button" id="markRead">Mark read</button>
@@ -521,6 +590,7 @@ function openCard(it) {
       </div>
       <form class="inline" id="readForm" hidden><label for="readNote" hidden>What you took from it</label>
         <input id="readNote" placeholder="One line on what you took from it (optional)"><button class="btn ox" type="submit">Done</button></form>
+      ${offline.savedState()[it.id]?.ok === false ? '<div class="onlineonly">Online only: the site showed a paywall or a sign-in instead of the article.</div>' : ""}
       ${errandsLine(it)}${deskLine(it)}
     </div></div>`;
 }
@@ -538,7 +608,13 @@ document.addEventListener("click", (e) => {
   if (d.err) { openErrand(d.err); return; }
   if (d.desk) { openDesk(d.desk); return; }
   if (d.edit) { openItem(d.edit); return; }
-  if (d.drawer) { drawerOpen = d.drawer; fillDrawer(); $("drawerDlg").showModal(); return; }
+  if (d.reader) { openReader(d.reader); return; }
+  if (b.id === "packBtn") { pack(); return; }
+  if (b.id === "picsBtn") { offline.setPics(!offline.picsOn()); render(); if (offline.picsOn()) toast("Pictures on for this device. Pack for the trip to fetch them now."); return; }
+  if (d.drawer) { drawerOpen = d.drawer; fillWho(); fillDrawer(); $("drawerDlg").showModal(); return; }
+  if (d.got) { const it = get(d.got); if (it) { save({ ...it, gotAt: nowIso() }); toast("Got it. Kept below, out of the way.", () => save(it)); } return; }
+  if (d.ungot) { const it = get(d.ungot); if (it) { const { gotAt, ...rest } = it; save(rest); toast("Back in the drawer."); } return; }
+  if (d.bingot) { const it = get(d.bingot); if (it) { store.remove("items/" + it.id); toast("Binned.", () => save(it)); } return; }
   if (d.revive) { const it = get(d.revive); if (it) { save({ ...it, openedAt: nowIso() }); if (it.kind === "read") openId = it.id; toast("Back from the attic."); } return; }
   if (d.unread) { const it = get(d.unread); if (it) { const { readAt, ...rest } = it; save({ ...rest, openedAt: nowIso() }); toast("Back on the shelf."); } return; }
   if (d.file) { const it = get(d.file); if (it) { save({ ...it, filedAt: nowIso() }); toast("Filed away. It stays until you bin it.", () => save(it)); } return; }
@@ -577,16 +653,55 @@ $("q").addEventListener("input", (e) => { q = e.target.value.trim().toLowerCase(
 $("sort").addEventListener("change", (e) => { sort = e.target.value; setPref("sort", sort); render(); });
 
 // ---------- Drawers ----------
-function fillDrawer() {
-  const d = drawerOpen;
-  const inside = itemsOf(store).filter((it) => it.kind === "curio" && it.drawer === d && !it.readAt);
-  $("drawerH").textContent = d;
-  $("drawerList").innerHTML = inside.length ? inside.map((it) => `<li><span>${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener" data-opened="${it.id}">${esc(it.title)}</a>` : esc(it.title)}
-    <span class="s">${[...(it.tags || []), it.note].filter(Boolean).map(esc).join(" · ")}</span></span>
-    <button class="btn quiet" type="button" data-edit="${it.id}">Edit</button></li>`).join("") : '<li class="muted">Nothing in here yet.</li>';
-  $("dropDrawer").disabled = !!inside.length;
-  $("dropDrawer").title = inside.length ? "Empty it first" : "";
+const forLine = (it) => (it.forWho ? `<span class="who">${/^me$/i.test(it.forWho) ? "For me" : "For " + esc(it.forWho)}</span>` : "");
+function drawerRow(it, wants, got = false) {
+  const link = it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener" data-opened="${it.id}">${esc(it.title)}</a>` : esc(it.title);
+  const meta = [forLine(it), wants && it.price ? esc(it.price) : "", ...(it.tags || []).map(esc), esc(it.note || ""),
+    got ? "Got " + shortDate(it.gotAt) : ""].filter(Boolean).join(" · ");
+  const pic = wants && it.image ? `<img class="thumb" src="${esc(it.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-pic>` : "";
+  const acts = got
+    ? `<button class="btn quiet" type="button" data-ungot="${it.id}">Back in</button><button class="btn quiet" type="button" data-bingot="${it.id}">Bin it</button>`
+    : `${wants ? `<button class="btn" type="button" data-got="${it.id}">Got it</button>` : ""}<button class="btn quiet" type="button" data-edit="${it.id}">Edit</button>`;
+  return `<li><span class="thumbrow">${pic}<span>${link}<span class="s">${meta}</span></span></span><span class="acts">${acts}</span></li>`;
 }
+function fillDrawer() {
+  const d = drawerOpen, wants = isWants(d);
+  const mine = itemsOf(store).filter((it) => it.kind === "curio" && it.drawer === d && !it.readAt);
+  const inside = mine.filter((it) => !it.gotAt), got = mine.filter((it) => it.gotAt).sort((a, b) => b.gotAt.localeCompare(a.gotAt));
+  $("drawerH").textContent = d;
+  $("addWants").hidden = !wants;
+  $("addText").placeholder = wants ? "Paste a link to the thing, or describe it…" : "Paste a link, or jot a note…";
+  $("drawerList").innerHTML = inside.length ? inside.map((it) => drawerRow(it, wants)).join("") : '<li class="muted">Nothing in here yet.</li>';
+  $("gotBox").hidden = !got.length;
+  $("gotSub").textContent = `Got it · ${got.length}, remembered so nobody buys it twice`;
+  $("gotList").innerHTML = got.map((it) => drawerRow(it, wants, true)).join("");
+  $("drawerDlg").querySelectorAll("img[data-pic]").forEach((img) => { img.onerror = () => img.remove(); });
+  $("dropDrawer").disabled = !!mine.length;
+  $("dropDrawer").title = mine.length ? "Empty it first" : "";
+}
+// Who things are for, from what's been typed before, so names stay spelt the same.
+function fillWho() {
+  const names = [...new Set(itemsOf(store).map((it) => (it.forWho || "").trim()).filter(Boolean))].sort();
+  $("whoList").innerHTML = ["me", ...names.filter((n) => !/^me$/i.test(n))].map((n) => `<option value="${esc(n)}">`).join("");
+}
+// + Add, inside a drawer: straight in, link or not. A link already in the room moves into this drawer.
+$("addForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const d = drawerOpen, text = $("addText").value.trim(); if (!d || !text) return;
+  const url = findUrl(text), title = url ? text.replace(url, "").trim() : text;
+  const wants = isWants(d) ? Object.fromEntries([["price", $("addPrice").value.trim()], ["forWho", $("addFor").value.trim()]].filter(([, v]) => v)) : null;
+  const live = url && itemsOf(store).find((x) => x.url === url && !x.readAt && !x.gotAt);
+  if (live) {
+    save({ ...live, kind: "curio", drawer: d, ...(wants || {}), openedAt: nowIso() });
+    if (wants && !live.image) peek(live.id, false);
+    toast(`Moved into ${d}.`, () => save(live));
+  } else {
+    add({ kind: "curio", url, title, drawer: d, source: "paste", wants });
+    toast(url && !title ? `In ${d}. Fetching its name…` : `In ${d}.`);
+  }
+  $("addText").value = ""; $("addPrice").value = ""; $("addFor").value = "";
+  $("addText").focus();
+});
 const setDrawers = (list) => store.set("settings", { ...S(), drawers: list });
 $("newDrawer").onclick = () => {
   const name = (prompt("Name the new drawer") || "").trim();
@@ -614,17 +729,33 @@ function openItem(id) {
   $("itDrawer").value = drawers().includes(it.drawer) ? it.drawer : (guess || "");
   $("itemHint").hidden = !(it.kind === "curio" && !drawers().includes(it.drawer) && guess);
   $("itemHint").textContent = guess ? `Alfred suggests ${guess}.` : "";
-  syncKind(); $("itemDlg").showModal();
+  $("itPrice").value = it.price || ""; $("itFor").value = it.forWho || ""; $("itImage").value = it.image || "";
+  fillWho(); syncKind(); $("itemDlg").showModal();
 }
-const syncKind = () => { const c = $("itKind").value === "curio"; $("itDrawerF").hidden = !c; $("itMinsF").hidden = c; };
+const syncKind = () => {
+  const c = $("itKind").value === "curio", w = c && isWants($("itDrawer").value);
+  $("itDrawerF").hidden = !c; $("itMinsF").hidden = c; $("itWantsF").hidden = !w; $("itImageF").hidden = !w;
+};
 $("itKind").addEventListener("change", syncKind);
+$("itDrawer").addEventListener("change", syncKind);
 $("itemForm").addEventListener("submit", () => {
   const it = get(editing); if (!it) return;
   const url = $("itUrl").value.trim();
-  save({ ...it, title: $("itTitle").value.trim() || it.title, url, site: siteOf(url), kind: $("itKind").value,
-    drawer: $("itKind").value === "curio" ? ($("itDrawer").value || null) : it.drawer,
+  const kind = $("itKind").value, drawer = kind === "curio" ? ($("itDrawer").value || null) : it.drawer;
+  const next = { ...it, title: $("itTitle").value.trim() || it.title, url, site: siteOf(url), kind, drawer,
     minutes: Number($("itMins").value) || null, note: $("itNote").value.trim(),
-    tags: $("itTags").value.split(",").map((s) => s.trim()).filter(Boolean) });
+    tags: $("itTags").value.split(",").map((s) => s.trim()).filter(Boolean) };
+  if (kind === "curio" && isWants(drawer)) {
+    for (const [k, el] of [["price", "itPrice"], ["forWho", "itFor"], ["image", "itImage"]]) {
+      const v = $(el).value.trim(); if (v) next[k] = v; else delete next[k];
+    }
+  }
+  save(next);
+  // Just moved into Wants & gifts, or given a new link: look for its photo.
+  if (kind === "curio" && isWants(drawer) && url && (!next.image || url !== it.url)) {
+    if (url !== it.url && $("itImage").value.trim() === (it.image || "")) { delete next.image; save(next); }
+    peek(next.id, false);
+  }
 });
 $("itBin").onclick = () => { const it = get(editing); if (!it) return; store.remove("items/" + it.id); $("itemDlg").close(); if (openId === it.id) openId = null; toast("Binned.", () => save(it)); };
 $("itErr").onclick = () => { $("itemDlg").close(); openErrand(editing); };
@@ -668,6 +799,70 @@ $("deskForm").addEventListener("submit", () => {
   toast("On the Writing Desk's idea shelf.");
 });
 
+// ---------- Offline copies: words (and pictures) of every shelf piece, kept on this device ----------
+const isSaved = (it) => { const s = offline.savedState()[it.id]; return !!(s?.ok && s.url === it.url); };
+function offlineLine(shelf) {
+  const box = $("offline");
+  const withLinks = shelf.filter((it) => it.url);
+  box.hidden = !offline.supported() || !withLinks.length;
+  if (box.hidden) return;
+  const t = offline.tally(withLinks), on = offline.picsOn();
+  box.innerHTML = `<span>⬇ ${t.ready} of ${withLinks.length} ready offline on this device${t.online ? ` · ${t.online} online only` : ""}${packing ? ` · packing ${packing.done} of ${packing.total}…` : ""}</span>
+    <button class="btn quiet sw" type="button" id="picsBtn" aria-pressed="${on}" title="Pictures take far more room than words">Pictures: ${on ? "on" : "off"}</button>
+    <button class="btn" type="button" id="packBtn"${packing ? " disabled" : ""}>Pack for the trip</button>`;
+}
+// The link reader with { copy: true }: the article's part of the page. Slower than a peek, so a longer wait.
+async function lookCopy(url) {
+  if (!navigator.onLine) return null;
+  try {
+    const call = supabase.functions.invoke("reading-peek", { body: { url, copy: true } }).then((r) => (r.error ? null : r.data || null));
+    return await Promise.race([call, new Promise((ok) => setTimeout(() => ok(null), 25000))]);
+  } catch { return null; }
+}
+let packing = null, copyT = 0;
+// Quietly, a few seconds after things settle: new pieces get their copy, read or binned ones lose it.
+function copySoon() {
+  clearTimeout(copyT);
+  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { onStep: () => render() }).then(render), 4000);
+}
+async function pack() {
+  if (!navigator.onLine) { toast("No signal. Pack before you leave."); return; }
+  try { await navigator.storage?.persist?.(); } catch { /* the browser decides */ }
+  packing = { done: 0, total: 0 }; render();
+  const r = await offline.syncCopies(itemsOf(store), lookCopy, { force: true, onStep: (p) => { packing = p; render(); } });
+  packing = null; render();
+  const t = offline.tally(itemsOf(store).filter((it) => placeOf(it) === "shelf" && it.url));
+  toast(r.done < r.total ? `Stopped at ${r.done} of ${r.total}: the link reader didn't answer. Try again in a bit.`
+    : `Packed: ${t.ready} ready offline${t.online ? `, ${t.online} online only` : ""}.`);
+}
+let readerFor = null;
+async function openReader(id) {
+  const it = get(id), copy = await offline.readCopy(id);
+  if (!it || !copy) { toast("No copy on this device yet."); return; }
+  readerFor = id;
+  save({ ...it, openedAt: nowIso() });
+  $("readerH").textContent = it.title;
+  $("readerSite").textContent = [it.site, it.minutes ? it.minutes + " min" : "", "saved " + shortDate(copy.at)].filter(Boolean).join(" · ");
+  $("readerOrig").href = it.url;
+  $("readerBody").innerHTML = copy.html; // cleaned with an allow-list when it was saved (cleanCopy)
+  $("readerBody").querySelectorAll("img").forEach((img) => { img.onerror = () => img.remove(); });
+  // Most articles repeat their own headline at the top; one is enough.
+  const norm = (t) => (t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const first = $("readerBody").querySelector("h1, h2");
+  if (first && norm(first.textContent) && (norm(it.title).startsWith(norm(first.textContent)) || norm(first.textContent).startsWith(norm(it.title)))) first.remove();
+  $("readerDlg").showModal();
+  $("readerDlg").scrollTop = 0;
+}
+$("readerDone").onclick = () => {
+  $("readerDlg").close();
+  openId = readerFor; render();
+  $("open").scrollIntoView({ block: "nearest" });
+  $("readForm").hidden = false; $("readNote").focus();
+};
+store.subscribe(copySoon);
+addEventListener("online", () => { render(); copySoon(); });
+addEventListener("offline", render);
+
 // ---------- Toast ----------
 let toastEl = null, toastT = 0;
 function toast(msg, undo) {
@@ -699,11 +894,13 @@ function finished(msg) {
   // Back to whatever you were doing: Android lets a shared-to app close itself only sometimes, so this is a try.
   if (shareSrc === "share") setTimeout(() => { try { window.close(); } catch { /* stays open; no harm */ } }, 1400);
 }
-function shelve({ kind, url, title, minutes }) {
-  const { it, dup } = add({ kind, url, title, minutes, source: shareSrc, drawer: kind === "curio" ? suggestDrawer(title + " " + url, drawers()) : null });
-  finished(dup ? "Already in the room. Dusted it off." : kind === "curio" ? "In the cabinet." : `Shelved: ${it.title}`);
+function shelve({ kind, url, title, minutes, drawer }) {
+  const d = kind === "curio" ? (drawer || suggestDrawer(title + " " + url, drawers())) : null;
+  const { it, dup } = add({ kind, url, title, minutes, source: shareSrc, drawer: d });
+  finished(dup ? "Already in the room. Dusted it off." : kind === "curio" ? (drawer ? `In ${drawer}.` : "In the cabinet.") : `Shelved: ${it.title}`);
   if (kind === "read" && shareSrc !== "share") { openId = it.id; render(); }
 }
+const wantsDrawer = () => drawers().find(isWants) || null;
 const toLarder = (url) => location.replace("larder.html?" + new URLSearchParams({ url, src: shareSrc }));
 function toErrands(url, title) {
   todo.set("tasks/" + newId(), { title: title || siteOf(url) || "Look at this link", area: "", priority: "Normal", status: "todo", triage: true,
@@ -757,6 +954,7 @@ async function takeShare() {
     ["On the shelf, to read", "ox wide", () => shelve({ kind: "read", url, title, minutes })],
     ["In the cabinet", "", () => shelve({ kind: "curio", url, title, minutes })],
     ["Larder's cookbook", "", () => toLarder(url)],
+    ...(wantsDrawer() ? [[wantsDrawer(), "wide", () => shelve({ kind: "curio", url, title, minutes, drawer: wantsDrawer() })]] : []),
     ["Errand Book", "wide quiet", () => toErrands(url, title)],
   ], null, () => shelve({ kind: "read", url, title, minutes }));
 }

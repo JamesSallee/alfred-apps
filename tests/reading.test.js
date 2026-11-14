@@ -97,3 +97,39 @@ test("nothing is cleared from a copy that hasn't just synced", () => {
     assert.deepEqual(dueForClearing(fakeStore(rows, status), NOW), [], status);
   }
 });
+
+test("Wants & gifts: found by name, never drifts to the attic, and Got it takes a thing out", async () => {
+  const { isWants } = await import("../js/reading.js");
+  assert.ok(isWants("Wants & gifts"));
+  assert.ok(isWants("Wish list"));
+  assert.ok(isWants("Gift ideas"));
+  assert.ok(!isWants("Art & design"));
+  assert.ok(!isWants(null));
+  assert.equal(placeOf({ kind: "curio", drawer: "Wants & gifts", savedAt: ago(200) }, NOW), "cabinet");
+  assert.equal(placeOf({ kind: "curio", drawer: "Art & design", savedAt: ago(200) }, NOW), "attic");
+  assert.equal(placeOf({ kind: "curio", drawer: "Wants & gifts", savedAt: ago(5), gotAt: ago(1) }, NOW), "got");
+});
+
+test("offline copies: unread shelf links get one, read or binned lose it, online-only waits a week", async () => {
+  const { offlinePlan } = await import("../js/reading.js");
+  const items = [
+    { id: "a", kind: "read", url: "https://a.com" },
+    { id: "b", kind: "read", url: "https://b.com" },
+    { id: "c", kind: "read", url: "https://c.com", readAt: ago(1) },
+    { id: "d", kind: "curio", url: "https://d.com" },
+    { id: "e", kind: "read", url: "https://e.com" },
+    { id: "f", kind: "read", url: "https://f-new.com" },
+  ];
+  const saved = {
+    b: { ok: true, at: ago(3), url: "https://b.com", picsTried: true },
+    c: { ok: true, at: ago(3), url: "https://c.com" },
+    e: { ok: false, at: ago(2), url: "https://e.com" },
+    f: { ok: true, at: ago(2), url: "https://f-old.com" },
+    gone: { ok: true, at: ago(9), url: "https://x.com" },
+  };
+  assert.deepEqual(offlinePlan(items, saved, NOW), { fetch: ["a", "f"], drop: ["c", "gone"] });
+  assert.deepEqual(offlinePlan(items, { ...saved, e: { ...saved.e, at: ago(8) } }, NOW).fetch, ["a", "e", "f"]);
+  assert.deepEqual(offlinePlan(items, saved, NOW, { force: true }).fetch, ["a", "e", "f"]);
+  assert.deepEqual(offlinePlan(items, { ...saved, b: { ...saved.b, picsTried: false } }, NOW, { force: true }).fetch, ["a", "b", "e", "f"]);
+  assert.deepEqual(offlinePlan(items, { ...saved, b: { ...saved.b, picsTried: false } }, NOW, { force: true, pics: false }).fetch, ["a", "e", "f"]);
+});

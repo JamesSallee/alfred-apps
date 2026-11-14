@@ -1,18 +1,25 @@
 // Offline support: always fetch the latest pages when online, fall back to the cache when not.
 // Database traffic (supabase.co) is never cached; the sync layer handles offline edits.
-const CACHE = "alfred-v39";
+const CACHE = "alfred-v41";
+// The Reading Room keeps offline copies in its own caches (js/reading-offline.js); a new version mustn't wipe them.
+const PICS = "alfred-reading-pics";
 const SHELL = ["./", "index.html", "console.html", "console.webmanifest", "ledger.html", "focus.html", "shutdown.html", "larder.html", "larder.webmanifest", "desk.html", "wardrobe.html", "wardrobe.webmanifest", "training.html", "todo.html", "podcast.html", "reading.html",
-  "css/base.css", "js/sync.js", "js/registry.js", "js/ui.js", "js/dates.js", "js/shell.js", "js/icons.js", "js/compat-db.js", "js/rooms.js", "js/study.js", "js/focus-core.js", "js/money.js", "js/fx-sky.js", "js/fx-lanterns.js", "js/fx-plum.js", "js/fx-automaton.js", "js/fx-motion.js", "js/reading.js", "js/mara.js", "js/config.js", "js/vendor/supabase-2.45.4.js", "manifest.webmanifest", "icon.svg"];
+  "css/base.css", "js/sync.js", "js/registry.js", "js/ui.js", "js/dates.js", "js/shell.js", "js/icons.js", "js/compat-db.js", "js/rooms.js", "js/study.js", "js/focus-core.js", "js/money.js", "js/fx-sky.js", "js/fx-lanterns.js", "js/fx-plum.js", "js/fx-automaton.js", "js/fx-motion.js", "js/reading.js", "js/reading-offline.js", "js/mara.js", "js/config.js", "js/vendor/supabase-2.45.4.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && !k.startsWith("alfred-wardrobe-")).map((k) => caches.delete(k))))
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && !k.startsWith("alfred-wardrobe-") && !k.startsWith("alfred-reading-")).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
+  // A picture from another site that the Reading Room kept for offline reading: from the cache, so it shows on a plane.
+  if (e.request.method === "GET" && url.origin !== location.origin && e.request.destination === "image") {
+    e.respondWith(caches.open(PICS).then((c) => c.match(e.request.url)).then((hit) => hit || fetch(e.request)));
+    return;
+  }
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   if (url.pathname.includes("/__wardrobe-photo/")) return; // the Wardrobe keeps its own photo cache
   // Network first, so a new version shows up straight away; the cache is only the offline fallback.
