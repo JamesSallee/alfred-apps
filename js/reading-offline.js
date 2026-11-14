@@ -138,11 +138,11 @@ let running = null;
  * Bring this device's copies up to date with the shelf, one piece at a time.
  * look(url) -> { html, base } | null; onStep({ done, total }) after each piece.
  */
-export function syncCopies(items, look, { force = false, onStep = () => {} } = {}) {
+export function syncCopies(items, look, { force = false, atticDays, onStep = () => {} } = {}) {
   if (!supported()) return Promise.resolve({ done: 0, total: 0 });
   if (running && !force) return running;
   const go = async () => {
-    const plan = offlinePlan(items, saved, Date.now(), { force, pics: picsOn() });
+    const plan = offlinePlan(items, saved, Date.now(), { force, pics: picsOn(), atticDays });
     for (const id of plan.drop) await dropCopy(id);
     const byId = new Map(items.map((it) => [it.id, it]));
     let done = 0;

@@ -119,15 +119,17 @@ test("offline copies: unread shelf links get one, read or binned lose it, online
     { id: "d", kind: "curio", url: "https://d.com" },
     { id: "e", kind: "read", url: "https://e.com" },
     { id: "f", kind: "read", url: "https://f-new.com" },
-  ];
+    { id: "g", kind: "read", url: "https://g.com", savedAt: ago(61) },
+  ].map((it) => ({ savedAt: ago(1), ...it }));
   const saved = {
     b: { ok: true, at: ago(3), url: "https://b.com", picsTried: true },
     c: { ok: true, at: ago(3), url: "https://c.com" },
     e: { ok: false, at: ago(2), url: "https://e.com" },
     f: { ok: true, at: ago(2), url: "https://f-old.com" },
+    g: { ok: true, at: ago(61), url: "https://g.com" },
     gone: { ok: true, at: ago(9), url: "https://x.com" },
   };
-  assert.deepEqual(offlinePlan(items, saved, NOW), { fetch: ["a", "f"], drop: ["c", "gone"] });
+  assert.deepEqual(offlinePlan(items, saved, NOW), { fetch: ["a", "f"], drop: ["c", "g", "gone"] }, "the attic loses its copies");
   assert.deepEqual(offlinePlan(items, { ...saved, e: { ...saved.e, at: ago(8) } }, NOW).fetch, ["a", "e", "f"]);
   assert.deepEqual(offlinePlan(items, saved, NOW, { force: true }).fetch, ["a", "e", "f"]);
   assert.deepEqual(offlinePlan(items, { ...saved, b: { ...saved.b, picsTried: false } }, NOW, { force: true }).fetch, ["a", "b", "e", "f"]);

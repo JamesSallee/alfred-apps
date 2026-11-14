@@ -823,13 +823,13 @@ let packing = null, copyT = 0;
 // Quietly, a few seconds after things settle: new pieces get their copy, read or binned ones lose it.
 function copySoon() {
   clearTimeout(copyT);
-  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { onStep: () => render() }).then(render), 4000);
+  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { atticDays: atticDays(), onStep: () => render() }).then(render), 4000);
 }
 async function pack() {
   if (!navigator.onLine) { toast("No signal. Pack before you leave."); return; }
   try { await navigator.storage?.persist?.(); } catch { /* the browser decides */ }
   packing = { done: 0, total: 0 }; render();
-  const r = await offline.syncCopies(itemsOf(store), lookCopy, { force: true, onStep: (p) => { packing = p; render(); } });
+  const r = await offline.syncCopies(itemsOf(store), lookCopy, { force: true, atticDays: atticDays(), onStep: (p) => { packing = p; render(); } });
   packing = null; render();
   const t = offline.tally(itemsOf(store).filter((it) => placeOf(it) === "shelf" && it.url));
   toast(r.done < r.total ? `Stopped at ${r.done} of ${r.total}: the link reader didn't answer. Try again in a bit.`
