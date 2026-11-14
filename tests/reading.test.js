@@ -97,3 +97,15 @@ test("nothing is cleared from a copy that hasn't just synced", () => {
     assert.deepEqual(dueForClearing(fakeStore(rows, status), NOW), [], status);
   }
 });
+
+test("Wants & gifts: found by name, never drifts to the attic, and Got it takes a thing out", async () => {
+  const { isWants } = await import("../js/reading.js");
+  assert.ok(isWants("Wants & gifts"));
+  assert.ok(isWants("Wish list"));
+  assert.ok(isWants("Gift ideas"));
+  assert.ok(!isWants("Art & design"));
+  assert.ok(!isWants(null));
+  assert.equal(placeOf({ kind: "curio", drawer: "Wants & gifts", savedAt: ago(200) }, NOW), "cabinet");
+  assert.equal(placeOf({ kind: "curio", drawer: "Art & design", savedAt: ago(200) }, NOW), "attic");
+  assert.equal(placeOf({ kind: "curio", drawer: "Wants & gifts", savedAt: ago(5), gotAt: ago(1) }, NOW), "got");
+});

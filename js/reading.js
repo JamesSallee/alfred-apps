@@ -5,10 +5,13 @@
 //                 tags: [..] (e.g. "MoMA", where an imported list came from), note, source: extension|share|paste|import,
 //                 savedAt, openedAt, readAt, filedAt (read and kept: never cleared), unfiledAt (taken back out of
 //                 Filed away: its 14 days start again from here), errands: [todo task ids],
-//                 desk: [Writing Desk piece ids] }
+//                 desk: [Writing Desk piece ids],
+//                 Wants & gifts only: price (as written, e.g. "$450"), forWho ("me" or a name), gotAt (bought or given:
+//                 out of the drawer, still remembered), image (the product photo the link reader found) }
 //   settings    { drawers: [..], archive: "https://archive.ph/newest/", atticDays: 60, clearDays: 14 }
 // Read pieces from the shelf are cleared CLEAR_DAYS after they were read, unless filed away.
 // Curiosities never clear themselves: they leave only when binned.
+// Wants & gifts never drift to the attic (a wish is still a wish in March), and "Got it" moves one out of the drawer.
 // Nothing here is a to-do: Alfred reads the room for the Sunday picks and the Study door, and never counts it.
 
 export const WPM = 230;
@@ -46,9 +49,14 @@ export const archiveUrl = (url, base = ARCHIVE) => base + url;
 const DAY = 864e5;
 const last = (it) => Math.max(Date.parse(it.savedAt || 0) || 0, Date.parse(it.openedAt || 0) || 0);
 
-/** Where an item lives now: "shelf" (to read), "cabinet" (curiosities), "attic", "read" or "filed" (read and kept). */
+/** The wish-list drawer, whatever James calls it: it takes a price, who it's for and a "Got it" tick. */
+export const isWants = (drawer) => /\b(wants?|wish|gifts?)\b/i.test(drawer || "");
+
+/** Where an item lives now: "shelf" (to read), "cabinet" (curiosities), "attic", "read", "filed" (read and kept) or "got". */
 export function placeOf(it, now = Date.now(), atticDays = ATTIC_DAYS) {
   if (it.readAt) return it.filedAt ? "filed" : "read";
+  if (it.gotAt) return "got";
+  if (it.kind === "curio" && isWants(it.drawer)) return "cabinet";
   if (now - last(it) > atticDays * DAY) return "attic";
   return it.kind === "curio" ? "cabinet" : "shelf";
 }
