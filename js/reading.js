@@ -136,3 +136,25 @@ export function routeFor(url, look) {
   if (look?.article || look?.minutes) return "shelf";
   return "ask";
 }
+
+// ---------- Offline copies (kept on each device, never in the database: see js/reading-offline.js) ----------
+// saved: { <item id>: { ok, at, url, pics: [..], picsTried } }  ok false = "online only" (a paywall or a sign-in).
+export const RETRY_DAYS = 7;
+
+/**
+ * Which copies to fetch and which to throw away. Every unread shelf piece with a link (attic too) gets a copy;
+ * read or binned ones lose theirs. "Online only" pieces are tried again after RETRY_DAYS, or now when packing.
+ * force (Pack for the trip) also fetches pictures for copies saved while pictures were off.
+ */
+export function offlinePlan(items, saved = {}, now = Date.now(), { force = false, pics = true } = {}) {
+  const wanted = items.filter((it) => it.kind === "read" && it.url && !it.readAt);
+  const ids = new Set(wanted.map((it) => it.id));
+  const fetch = wanted.filter((it) => {
+    const s = saved[it.id];
+    if (!s || s.url !== it.url) return true;
+    if (!s.ok) return force || now - (Date.parse(s.at) || 0) > RETRY_DAYS * DAY;
+    return force && pics && !s.picsTried;
+  }).map((it) => it.id);
+  const drop = Object.keys(saved).filter((id) => !ids.has(id));
+  return { fetch, drop };
+}

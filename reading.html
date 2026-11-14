@@ -197,6 +197,31 @@ dialog{border:0;padding:0;background:transparent;max-width:min(520px,calc(100% -
 .dl li:first-child{border-top:0}
 .dl .s{display:block;font-size:var(--t-xs);color:var(--muted)}
 .dl a{color:var(--green);font-weight:600}
+/* Offline: the line under the shelf tools, the mark on a spine, and the reading view */
+.offline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:var(--t-sm);color:var(--muted);margin:2px 0 10px}
+.offline .btn{min-height:32px;padding:4px 10px;font-size:var(--t-sm)}
+.offline .sw[aria-pressed="false"]{opacity:.7}
+.spine .sv{position:absolute;top:13px;font:700 9px var(--body);color:#f6eedd;opacity:.85}
+.spine.paper .sv{top:22px;color:#2b2218}
+.onlineonly{font-size:var(--t-xs);color:var(--muted)}
+dialog.reader{max-width:min(760px,100%);height:100%;max-height:100%;margin:0 auto}
+dialog.reader::backdrop{background:rgba(20,14,8,.55)}
+.reader .page{background:var(--paper);min-height:100%;padding:18px 20px 28px;display:flex;flex-direction:column;gap:12px}
+.reader .bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:sticky;top:0;background:var(--paper);padding:6px 0;border-bottom:1px solid var(--rule);z-index:1}
+.reader .bar .s{font-size:var(--t-xs);color:var(--muted)}
+.reader h2{font-size:var(--t-2xl,30px);line-height:1.15}
+.reader .body{font-family:Georgia,"Iowan Old Style",serif;font-size:19px;line-height:1.65;color:var(--ink);overflow-wrap:break-word}
+.reader .body img{max-width:100%;height:auto;display:block;margin:12px auto;border-radius:6px}
+.reader .body figure{margin:16px 0}
+.reader .body figcaption{font:var(--t-xs) var(--body);color:var(--muted)}
+.reader .body blockquote{margin:12px 0;padding-left:14px;border-left:3px solid var(--brass)}
+.reader .body pre{white-space:pre-wrap;font-size:14px;background:var(--bg);padding:10px;border-radius:6px}
+.reader .body a{color:var(--green)}
+.reader .body h1,.reader .body h2,.reader .body h3{font-family:var(--display);line-height:1.2;margin:18px 0 6px}
+.reader .body table{border-collapse:collapse;font-size:15px;display:block;overflow-x:auto}
+.reader .body td,.reader .body th{border:1px solid var(--rule);padding:4px 6px}
+.reader .end{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;border-top:1px solid var(--rule);padding-top:14px}
+
 /* Inside a drawer: + Add, wish-list photos, and what you've got */
 .addline{display:flex;flex-direction:column;gap:6px;background:var(--drawer);border:1px solid var(--drawer-line);border-radius:10px;padding:10px;color:var(--drawer-ink)}
 .addline .r{display:flex;gap:6px;flex-wrap:wrap}
@@ -247,6 +272,7 @@ details.got .dl{opacity:.75}
         <label for="sort" hidden>Sort</label>
         <select id="sort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="short">Shortest first</option><option value="long">Longest first</option></select>
       </div>
+      <div class="offline" id="offline" hidden></div>
       <div id="case"></div>
       <ul class="list" id="list" hidden></ul>
       <div id="open" hidden></div>
@@ -328,6 +354,13 @@ details.got .dl{opacity:.75}
   <div class="foot"><span></span><span class="row"><button class="btn" type="button" data-close>Cancel</button><button class="btn ox" type="submit">Put it on the idea shelf</button></span></div>
 </form></dialog>
 
+<dialog id="readerDlg" class="reader"><div class="page">
+  <div class="bar"><span class="s" id="readerSite"></span><span class="row"><a class="btn quiet" id="readerOrig" target="_blank" rel="noopener">Original</a><button class="btn ox" type="button" data-close>Close</button></span></div>
+  <h2 id="readerH"></h2>
+  <div class="body" id="readerBody"></div>
+  <div class="end"><button class="btn ox" type="button" id="readerDone">Mark read</button><button class="btn" type="button" data-close>Close</button></div>
+</div></dialog>
+
 <dialog id="routeDlg"><div class="sheet">
   <h2 id="routeH">Where should this go?</h2>
   <p class="muted" id="routeFrom"></p>
@@ -339,6 +372,7 @@ import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore, supabase } from "./js/sync.js";
 import { todoTasks, mirrorSoon } from "./js/rooms.js";
+import * as offline from "./js/reading-offline.js";
 import { DRAWERS, SHELVES, ARCHIVE, ATTIC_DAYS, CLEAR_DAYS, clearsIn, dueForClearing, shelfOf, findUrl, siteOf, archiveUrl, placeOf, itemsOf, suggestDrawer, fmtTotal, routeFor, isWants } from "./js/reading.js";
 mountShell("reading");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
@@ -451,6 +485,7 @@ function render() {
     ? `${shelf.length} piece${shelf.length === 1 ? "" : "s"}${mins ? " · about " + fmtTotal(mins) : ""} · a spine's thickness is its reading time`
     : "Nothing waiting. Paste a link above, or send one from Chrome or your phone.";
 
+  offlineLine(shelf);
   const shown = shelf.filter(matches).sort(sorters[sort]);
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
   $("case").hidden = view !== "case"; $("list").hidden = view !== "list";
@@ -463,7 +498,7 @@ function render() {
     document.querySelectorAll(".shelf").forEach(fadeIfMore);
   } else {
     $("list").innerHTML = shown.length ? shown.map((it) => `<li><button type="button" data-open="${it.id}" ${it.id === openId ? 'aria-current="true"' : ""}>
-      <i class="dot" style="--c:${cloth(it)}"></i><span class="lt">${esc(it.title)}</span><span class="lm">${esc(it.site || "")} · ${it.minutes ? it.minutes + " min" : "?"} · ${shortDate(it.savedAt)}</span></button></li>`).join("")
+      <i class="dot" style="--c:${cloth(it)}"></i><span class="lt">${esc(it.title)}</span><span class="lm">${esc(it.site || "")} · ${it.minutes ? it.minutes + " min" : "?"} · ${shortDate(it.savedAt)}${isSaved(it) ? " · ⬇" : ""}</span></button></li>`).join("")
       : `<li class="muted" style="padding:8px 0">${q ? "Nothing matches." : "Nothing on the shelf."}</li>`;
   }
 
@@ -513,8 +548,8 @@ const titleLink = (it) => (it.url ? `<a href="${esc(it.url)}" target="_blank" re
 function spine(it) {
   const m = it.minutes, w = spineW(m);
   return `<button class="spine ${binding(it)}${w >= 40 ? " wide" : ""}" type="button" data-open="${it.id}" style="--h:${spineH(it)}px;--w:${w}px;--c:${cloth(it)}"
-    title="${esc(it.title)}" aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}" ${it.id === openId ? 'aria-current="true"' : ""}>
-    ${w >= 16 ? `<span class="st">${esc(it.title)}</span>` : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
+    title="${esc(it.title)}" aria-label="${esc(it.title)}, ${m ? m + " minutes" : "length unknown"}${isSaved(it) ? ", ready offline" : ""}" ${it.id === openId ? 'aria-current="true"' : ""}>
+    ${w >= 16 ? `<span class="st">${esc(it.title)}</span>` : ""}${isSaved(it) ? '<span class="sv" title="Ready offline">⬇</span>' : ""}<span class="sm">${minTxt(m)}</span>${it.openedAt ? '<i class="rib" aria-hidden="true"></i>' : ""}</button>`;
 }
 
 function fadeIfMore(el) {
@@ -544,6 +579,7 @@ function openCard(it) {
       <div class="muted">${[it.site, "saved " + shortDate(it.savedAt), it.source === "extension" ? "from Chrome" : it.source === "share" ? "from your phone" : it.source === "import" ? "from the Errand Book" : ""].filter(Boolean).map(esc).join(" · ")}</div>
       ${m == null ? `<div class="mins" style="margin-top:6px">How long? ${[5, 15, 30, 45].map((n) => `<button class="chip" type="button" data-mins="${n}">${n} min</button>`).join("")}</div>` : ""}
       <div class="row">
+        ${isSaved(it) ? `<button class="btn${navigator.onLine ? "" : " ox"}" type="button" data-reader="${it.id}">Read here</button>` : ""}
         ${it.url ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener" data-opened="${it.id}">Read it</a>
         <a class="btn" href="${esc(archiveUrl(it.url, archiveBase()))}" target="_blank" rel="noopener" data-opened="${it.id}">Archived copy</a>` : ""}
         <button class="btn ox" type="button" id="markRead">Mark read</button>
@@ -554,6 +590,7 @@ function openCard(it) {
       </div>
       <form class="inline" id="readForm" hidden><label for="readNote" hidden>What you took from it</label>
         <input id="readNote" placeholder="One line on what you took from it (optional)"><button class="btn ox" type="submit">Done</button></form>
+      ${offline.savedState()[it.id]?.ok === false ? '<div class="onlineonly">Online only: the site showed a paywall or a sign-in instead of the article.</div>' : ""}
       ${errandsLine(it)}${deskLine(it)}
     </div></div>`;
 }
@@ -571,6 +608,9 @@ document.addEventListener("click", (e) => {
   if (d.err) { openErrand(d.err); return; }
   if (d.desk) { openDesk(d.desk); return; }
   if (d.edit) { openItem(d.edit); return; }
+  if (d.reader) { openReader(d.reader); return; }
+  if (b.id === "packBtn") { pack(); return; }
+  if (b.id === "picsBtn") { offline.setPics(!offline.picsOn()); render(); if (offline.picsOn()) toast("Pictures on for this device. Pack for the trip to fetch them now."); return; }
   if (d.drawer) { drawerOpen = d.drawer; fillWho(); fillDrawer(); $("drawerDlg").showModal(); return; }
   if (d.got) { const it = get(d.got); if (it) { save({ ...it, gotAt: nowIso() }); toast("Got it. Kept below, out of the way.", () => save(it)); } return; }
   if (d.ungot) { const it = get(d.ungot); if (it) { const { gotAt, ...rest } = it; save(rest); toast("Back in the drawer."); } return; }
@@ -758,6 +798,70 @@ $("deskForm").addEventListener("submit", () => {
   save({ ...it, desk: [...(it.desk || []), pid] });
   toast("On the Writing Desk's idea shelf.");
 });
+
+// ---------- Offline copies: words (and pictures) of every shelf piece, kept on this device ----------
+const isSaved = (it) => { const s = offline.savedState()[it.id]; return !!(s?.ok && s.url === it.url); };
+function offlineLine(shelf) {
+  const box = $("offline");
+  const withLinks = shelf.filter((it) => it.url);
+  box.hidden = !offline.supported() || !withLinks.length;
+  if (box.hidden) return;
+  const t = offline.tally(withLinks), on = offline.picsOn();
+  box.innerHTML = `<span>⬇ ${t.ready} of ${withLinks.length} ready offline on this device${t.online ? ` · ${t.online} online only` : ""}${packing ? ` · packing ${packing.done} of ${packing.total}…` : ""}</span>
+    <button class="btn quiet sw" type="button" id="picsBtn" aria-pressed="${on}" title="Pictures take far more room than words">Pictures: ${on ? "on" : "off"}</button>
+    <button class="btn" type="button" id="packBtn"${packing ? " disabled" : ""}>Pack for the trip</button>`;
+}
+// The link reader with { copy: true }: the article's part of the page. Slower than a peek, so a longer wait.
+async function lookCopy(url) {
+  if (!navigator.onLine) return null;
+  try {
+    const call = supabase.functions.invoke("reading-peek", { body: { url, copy: true } }).then((r) => (r.error ? null : r.data || null));
+    return await Promise.race([call, new Promise((ok) => setTimeout(() => ok(null), 25000))]);
+  } catch { return null; }
+}
+let packing = null, copyT = 0;
+// Quietly, a few seconds after things settle: new pieces get their copy, read or binned ones lose it.
+function copySoon() {
+  clearTimeout(copyT);
+  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { onStep: () => render() }).then(render), 4000);
+}
+async function pack() {
+  if (!navigator.onLine) { toast("No signal. Pack before you leave."); return; }
+  try { await navigator.storage?.persist?.(); } catch { /* the browser decides */ }
+  packing = { done: 0, total: 0 }; render();
+  const r = await offline.syncCopies(itemsOf(store), lookCopy, { force: true, onStep: (p) => { packing = p; render(); } });
+  packing = null; render();
+  const t = offline.tally(itemsOf(store).filter((it) => placeOf(it) === "shelf" && it.url));
+  toast(r.done < r.total ? `Stopped at ${r.done} of ${r.total}: the link reader didn't answer. Try again in a bit.`
+    : `Packed: ${t.ready} ready offline${t.online ? `, ${t.online} online only` : ""}.`);
+}
+let readerFor = null;
+async function openReader(id) {
+  const it = get(id), copy = await offline.readCopy(id);
+  if (!it || !copy) { toast("No copy on this device yet."); return; }
+  readerFor = id;
+  save({ ...it, openedAt: nowIso() });
+  $("readerH").textContent = it.title;
+  $("readerSite").textContent = [it.site, it.minutes ? it.minutes + " min" : "", "saved " + shortDate(copy.at)].filter(Boolean).join(" · ");
+  $("readerOrig").href = it.url;
+  $("readerBody").innerHTML = copy.html; // cleaned with an allow-list when it was saved (cleanCopy)
+  $("readerBody").querySelectorAll("img").forEach((img) => { img.onerror = () => img.remove(); });
+  // Most articles repeat their own headline at the top; one is enough.
+  const norm = (t) => (t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const first = $("readerBody").querySelector("h1, h2");
+  if (first && norm(first.textContent) && (norm(it.title).startsWith(norm(first.textContent)) || norm(first.textContent).startsWith(norm(it.title)))) first.remove();
+  $("readerDlg").showModal();
+  $("readerDlg").scrollTop = 0;
+}
+$("readerDone").onclick = () => {
+  $("readerDlg").close();
+  openId = readerFor; render();
+  $("open").scrollIntoView({ block: "nearest" });
+  $("readForm").hidden = false; $("readNote").focus();
+};
+store.subscribe(copySoon);
+addEventListener("online", () => { render(); copySoon(); });
+addEventListener("offline", render);
 
 // ---------- Toast ----------
 let toastEl = null, toastT = 0;
