@@ -142,12 +142,12 @@ export function routeFor(url, look) {
 export const RETRY_DAYS = 7;
 
 /**
- * Which copies to fetch and which to throw away. Every unread shelf piece with a link (attic too) gets a copy;
- * read or binned ones lose theirs. "Online only" pieces are tried again after RETRY_DAYS, or now when packing.
+ * Which copies to fetch and which to throw away. Every unread shelf piece with a link gets a copy; read, binned
+ * or attic ones lose theirs (bringing one back from the attic saves it again). "Online only" pieces are tried again after RETRY_DAYS, or now when packing.
  * force (Pack for the trip) also fetches pictures for copies saved while pictures were off.
  */
-export function offlinePlan(items, saved = {}, now = Date.now(), { force = false, pics = true } = {}) {
-  const wanted = items.filter((it) => it.kind === "read" && it.url && !it.readAt);
+export function offlinePlan(items, saved = {}, now = Date.now(), { force = false, pics = true, atticDays = ATTIC_DAYS } = {}) {
+  const wanted = items.filter((it) => it.kind === "read" && it.url && placeOf(it, now, atticDays) === "shelf");
   const ids = new Set(wanted.map((it) => it.id));
   const fetch = wanted.filter((it) => {
     const s = saved[it.id];
