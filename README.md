@@ -187,6 +187,10 @@ a fit verdict on every piece, a tailoring list, and a buying plan that waits on 
   usage log and monthly cap. Household members can't call them.
 - **Looks.** The dressing board lays pieces from the rail on a figure (coat, jacket, shirt, tie, trousers, belt,
   shoes); Alfred gives a verdict and one swap. Saved looks and 👍/👎 on his outfits feed back into every later suggestion.
+- **Styles.** Tags, not buckets: a piece can carry several of twelve styles (casual, smart casual, business casual,
+  formal, active & outdoor, lounge, travel, conference, game day, gig & record shop, yard & DIY, occasion). Picking a
+  style on the rail shows its pieces, the looks saved for it and what its capsule still lacks. Alfred suggests styles
+  when he tags a new piece.
 - **Fit by photo.** A photo of him wearing a piece gets a fit verdict on the clothes (never the body); the photo isn't
   kept. Pieces are flagged for a re-check once he's 10 lb lighter than when they were last checked.
 - **Weather** comes from Open-Meteo (no key), for the town chosen on the Today tab.

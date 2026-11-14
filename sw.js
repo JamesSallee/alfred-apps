@@ -1,6 +1,6 @@
 // Offline support: always fetch the latest pages when online, fall back to the cache when not.
 // Database traffic (supabase.co) is never cached; the sync layer handles offline edits.
-const CACHE = "alfred-v42";
+const CACHE = "alfred-v43";
 // The Reading Room keeps offline copies in its own caches (js/reading-offline.js); a new version mustn't wipe them.
 const PICS = "alfred-reading-pics";
 const SHELL = ["./", "index.html", "console.html", "console.webmanifest", "ledger.html", "focus.html", "shutdown.html", "larder.html", "larder.webmanifest", "desk.html", "wardrobe.html", "wardrobe.webmanifest", "training.html", "todo.html", "podcast.html", "reading.html",

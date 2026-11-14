@@ -27,7 +27,8 @@ type Tools = {
 const VALET = `You are Alfred, a calm, dry, kindly gentleman's butler who also acts as a discreet valet and personal stylist
 for one man. He is losing weight towards a target, so his sizes are changing; he wants to look sharp without
 wasting money on clothes he will soon outgrow. He dresses for four levels: Casual, Family holiday, Business casual,
-and Formal (official occasions). Use British spelling. Keep prose short and warm, with at most a dash of dry wit.
+and Formal (official occasions). Each piece may also carry style tags (Casual, Smart casual, Business casual, Formal,
+Active & outdoor, Lounge, Travel, Conference, Game day, Gig & record shop, Yard & DIY, Occasion). Use British spelling. Keep prose short and warm, with at most a dash of dry wit.
 Give concrete, practical advice (colours, fits, what goes with what, what a tailor can and cannot fix).
 Never ask about or mention his work beyond "formal" or "official" occasions. Only refer to pieces by the ids given.`;
 
@@ -45,6 +46,8 @@ export const CATEGORIES = ["Suit", "Blazer", "Jacket", "Coat", "Dress shirt", "C
 export const FORMALITY = ["Casual", "Smart casual", "Business casual", "Formal"];
 const LEVELS = ["Casual", "Family holiday", "Business casual", "Formal"];
 const VERDICTS = ["Fits", "Tailor", "Too big", "Too small", "Retire", "Donate"];
+// Style tag ids, as wardrobe.html's STYLES has them.
+export const STYLES = ["casual", "smart", "business", "formal", "active", "lounge", "travel", "conference", "gameday", "gig", "yard", "occasion"];
 
 // Clip what the page sends, so a mistaken payload can't run up the bill.
 const clip = (x: unknown, n: number) => String(x ?? "").slice(0, n);
@@ -62,7 +65,7 @@ function about(b: Record<string, unknown>) {
     b.disliked ? `Combinations he didn't like:\n${lines(b.disliked, 10)}` : "",
   ].filter(Boolean).join("\n");
 }
-const RAIL_HELP = "Rail (one piece per line: id | name | category | colour | formality | labelled size | fit verdict | wears | last worn):";
+const RAIL_HELP = "Rail (one piece per line: id | name | category | colour | formality | labelled size | fit verdict | wears | last worn | styles):";
 
 export function wardrobeHandlers({ ask, parseJson, photoOf, fail }: Tools): Record<string, Handler> {
   const run = async (content: unknown, schema: Record<string, unknown>, effort: "low" | "medium" = "low") => {
@@ -138,11 +141,17 @@ combination is right as it is), and "swap_why" is one line.` });
         { type: "text", text: `Catalogue this piece of clothing (or pair of shoes, or accessory). If the photo holds no clothing,
 set found=false. "name" is a short everyday name a man would use ("Navy wool suit", "White Oxford shirt").
 "size_seen" is the size on a visible label, else "". "care" is your best guess from the fabric.
-"pairs_with" is one line of styling advice: what it goes with.` },
+"pairs_with" is one line of styling advice: what it goes with.
+"styles" are the occasions it suits; most pieces have two to four. casual: everyday weekends. smart: smart casual and
+date night. business: business casual. formal: official occasions. active: walks, gym, hikes, weather layers. lounge:
+at home. travel: comfortable, crease-resistant, mix-and-match. conference: tech casual, a sharp layer over jeans.
+gameday: Miami Dolphins and other team kit, cold-stadium layers. gig: band tees, denim, jackets with edge. yard: house
+projects, clothes he can ruin. occasion: weddings, funerals and holidays.` },
       ], obj({
         found: bool, name: str, category: oneOf(...CATEGORIES), colour: str, pattern: str, fabric: str,
         formality: oneOf(...FORMALITY), seasons: arr(oneOf("Spring", "Summer", "Autumn", "Winter")),
         care: oneOf("Machine wash", "Hand wash", "Dry clean", "Polish", "Spot clean"), size_seen: str, pairs_with: str,
+        styles: arr(oneOf(...STYLES)),
       }));
     },
 
