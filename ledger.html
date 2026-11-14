@@ -135,6 +135,17 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
   #v-today{max-width:none;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
   #v-store,#v-habits{width:100%;max-width:680px}
 }
+.mara .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.mara select{width:auto;font-size:13px;padding:5px 8px}
+.mara .chips{display:flex;gap:6px;flex-wrap:wrap}
+.mara .chip.quiet{border-style:dashed}
+.mara .chips.scale{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.mara .scale .chip{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;padding:6px 2px;border-radius:12px}
+.mara .scale .chip b{font-family:var(--display);font-weight:400;font-size:18px;line-height:1.1}
+.mara .scale .chip span{font-size:11.5px;font-weight:500;color:var(--muted)}
+.mara .scale .chip.hi b{color:var(--danger)}
+.mara .fields{display:grid;grid-template-columns:110px 1fr;gap:8px}
+.mara .care{font-size:13px;background:var(--brass-soft);border:1px solid var(--brass);border-radius:10px;padding:8px 12px}
 @media (prefers-reduced-motion: reduce){.toast div{transition:none}}
 @media (max-width:420px){form.edit{grid-template-columns:1fr}.variants{padding-left:0}}
 </style>
@@ -173,6 +184,7 @@ import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, rou
 import { pad, ymd, parse, addDays, today } from "./js/dates.js";
 import { mountPlum } from "./js/fx-plum.js";
 import { countTo } from "./js/fx-motion.js";
+import { TRIGGERS, QUIET, SCALE, PHASES, makeEntry, weekSummary, trend, recentBigReaction, phaseOf } from "./js/mara.js";
 // The plum branch lives outside the re-rendered HTML so its blossoms keep their state between renders.
 const plum = mountPlum();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
@@ -193,6 +205,9 @@ const LINES = {
   workout: ["The Peloton forgives you.","Changed and showered, I trust.","Your future knees send their regards."],
   write: ["The page is less blank than it was.","Words on paper. The rest is editing."],
   walk: ["Walk done. Somebody is delighted."],
+  mara: ["Noted for the record. Good girl, or near enough.","In the book. Patterns show up in a fortnight.","Logged. Chicken was dispensed, I trust."],
+  maraQuiet: ["A quiet walk. The best kind of entry.","Nothing to report. Splendid."],
+  maraBig: ["Logged. U-turn, some find-it, and an easy day or two. It happens."],
   "bed-by-11": ["Bed before eleven. Practically heroic."],
   tidy: ["Ten minutes of order. The house exhales."],
   journal: ["Written down, and therefore real."],
@@ -206,7 +221,7 @@ let toastTimer;
 function say(text){ const t=$("#toast"); t.firstElementChild.innerHTML='<span class="who">Alfred</span>'+esc(text); t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),3200); }
 
 // State
-const S = { habits:[], days:{}, store:[], spends:[], weekDocs:{}, settings:{streakMode:"grace"}, loaded:{}, view:"today", sel:ymd(new Date()), weekStart:monday(ymd(new Date())), editing:null, confirm:null, addingItem:false, addingHabit:false };
+const S = { habits:[], days:{}, mara:[], maraTrig:null, store:[], spends:[], weekDocs:{}, settings:{streakMode:"grace"}, loaded:{}, view:"today", sel:ymd(new Date()), weekStart:monday(ymd(new Date())), editing:null, confirm:null, addingItem:false, addingHabit:false };
 let db = null;
 
 // One write at a time per document
@@ -324,6 +339,7 @@ function renderToday(R){
   html += `<div class="list">${daily.map(row).join("")}</div>`;
   if (weekly.length) html += `<h3 style="font-size:16px;margin-top:4px">This week</h3><div class="list">${weekly.map(row).join("")}</div>`;
   // Week summary: points, bonuses and what they're worth
+  html += maraPanel(sel, t);
   html += `</div><div class="tside">`; // Today on the left, the week beside it on wide screens
   const wk = monday(sel), W = R.byWeek[wk];
   const wo = S.habits.find(x=>x.id==="workout" && x.variants);
@@ -365,8 +381,51 @@ function renderToday(R){
   bindToday();
 }
 
+// Mara: a quick log of what she met and how she took it, for her reactivity training (js/mara.js).
+function maraPanel(sel, t){
+  const ph = phaseOf(S.settings);
+  const dayEntries = S.mara.filter(e=>e.day===sel).sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  const W = weekSummary(S.mara, monday(sel));
+  const tr = trend(S.mara, sel, 4);
+  const big = sel===t ? recentBigReaction(S.mara, t) : null;
+  const label = k => (TRIGGERS.find(x=>x.key===k)||{label:"Quiet walk"}).label;
+  let h = `<div class="panel mara"><div class="head"><h3>Mara</h3>
+    <select id="maraPhase" aria-label="Training phase">${PHASES.map(p=>`<option value="${p.n}" ${p.n===ph.n?"selected":""}>Phase ${p.n}: ${esc(p.label)}</option>`).join("")}</select></div>`;
+  if (big) h += `<div class="care">A big one ${big.day===t?"today":"on "+esc(fmtLong(big.day).split(" ")[0])}. Her stress stays up for a day or two: sniff walks and enrichment, no sessions, until she's herself again.</div>`;
+  h += `<div class="small">What did she meet${sel===t?"":" that day"}? Won't take a treat she loves? Too close: add distance.</div>
+    <div class="chips">${TRIGGERS.map(x=>`<button class="chip" data-mtrig="${x.key}" aria-pressed="${S.maraTrig===x.key}">${esc(x.label)}</button>`).join("")}
+      <button class="chip quiet" data-mquiet>Quiet walk</button></div>`;
+  if (S.maraTrig){
+    h += `<div class="fields"><label class="f">Distance (ft)<input id="maraFt" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="optional"></label>
+      <label class="f">Note<input id="maraNote" maxlength="120" placeholder="optional: sleep, weather, what came before"></label></div>
+      <div class="small">How did she take it?</div>
+      <div class="chips scale">${SCALE.map((w,i)=>`<button class="chip${i>=4?" hi":""}" data-mreact="${i}"><b class="num">${i}</b><span>${esc(w)}</span></button>`).join("")}</div>`;
+  }
+  if (dayEntries.length) h += `<div class="hist">${dayEntries.map(e=>`<div><span>${esc(label(e.trigger))}${e.trigger!==QUIET?` · <b class="num">${e.react}</b> ${esc(SCALE[e.react]||"").toLowerCase()}`:""}${e.ft?` · ${e.ft} ft`:""}${e.note?` <span class="small">${esc(e.note)}</span>`:""}</span><button class="iconbtn" data-mundo="${esc(e.id)}">Undo</button></div>`).join("")}</div>`;
+  const parts = TRIGGERS.filter(x=>W.by[x.key]).map(x=>`${x.label.toLowerCase()} ${W.by[x.key].avg}`);
+  if (W.n || W.quiet) h += `<div class="small">This week: ${W.n} moment${W.n===1?"":"s"}${W.n?` averaging ${W.avg} (${parts.join(", ")})`:""}${W.quiet?`, ${W.quiet} quiet walk${W.quiet===1?"":"s"}`:""}.</div>`;
+  if (tr.filter(w=>w.avg!=null).length>1) h += `<div class="small">Last four weeks: ${tr.map(w=>w.avg==null?"–":w.avg).join(" → ")}. Lower is calmer; bad days are normal.</div>`;
+  h += `<div class="small">Move on when: ${esc(ph.next.charAt(0).toLowerCase()+ph.next.slice(1))}.</div></div>`;
+  return h;
+}
+function addMara(fields){
+  const e = makeEntry({ day:S.sel, ...fields }); if (!e) return say("That didn't make sense to me. Try again?");
+  const id = "m"+Date.now().toString(36);
+  S.mara.push({ id, ...e }); S.maraTrig=null; render();
+  say(pick(e.trigger===QUIET ? LINES.maraQuiet : e.react>=4 ? LINES.maraBig : LINES.mara));
+  if (db) write("mara/"+id, ()=>db.doc("mara/"+id).set(e));
+}
+function bindMara(v){
+  v.querySelectorAll("[data-mtrig]").forEach(b=>b.onclick=()=>{ S.maraTrig = S.maraTrig===b.dataset.mtrig ? null : b.dataset.mtrig; render(); });
+  const q=v.querySelector("[data-mquiet]"); if (q) q.onclick=()=>addMara({ trigger:QUIET });
+  v.querySelectorAll("[data-mreact]").forEach(b=>b.onclick=()=>addMara({ trigger:S.maraTrig, react:Number(b.dataset.mreact), ft:$("#maraFt")?.value, note:$("#maraNote")?.value }));
+  v.querySelectorAll("[data-mundo]").forEach(b=>b.onclick=()=>{ const id=b.dataset.mundo; S.mara=S.mara.filter(x=>x.id!==id); render(); say(pick(LINES.undo)); if (db) write("mara/"+id,()=>db.doc("mara/"+id).delete()); });
+  const ps=$("#maraPhase"); if (ps) ps.onchange=()=>{ const n=Number(ps.value); saveSettings({ mara:{ ...(S.settings.mara||{}), phase:n, since:today() } }, n>phaseOf(S.settings).n?"On to the next phase. Steady does it.":"Back a phase. Normal, not a failure."); };
+}
+
 function bindToday(){
   const v = $("#v-today");
+  bindMara(v);
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ S.sel=b.dataset.day; S.choosing=null; render(); });
   const p=$("#prevWeek"), n=$("#nextWeek");
   if (p) p.onclick=()=>{ S.weekStart=addDays(S.weekStart,-7); S.sel=addDays(S.weekStart,6); render(); };
@@ -648,6 +707,7 @@ render();
   db.collection("weeks").onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data()); S.weekDocs=o; S.loaded.weeks=true; render(); }, fail);
   db.collection("store").onSnapshot(s=>{ S.store=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
   db.collection("spends").onSnapshot(s=>{ S.spends=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
+  db.collection("mara").onSnapshot(s=>{ S.mara=s.docs.map(d=>({id:d.id,...d.data()})); render(); }, fail);
   // A Peloton class ticks the workout on its own: fetch new classes (at most every 30 minutes) and tick their days.
   const KL = { strength:"Strength", cardio:"Cardio", yoga:"Yoga or stretch" };
   const { training } = linkWorkoutsToLedger(ticked => say(ticked.length===1
