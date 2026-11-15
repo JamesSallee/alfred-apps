@@ -180,8 +180,13 @@ If a sensible outfit needs something he lacks, name it in "missing". "why" is on
 ${RAIL_HELP}
 ${lines(b.rail)}
 
-From his latest measurements, work out his current size for each garment type he owns (e.g. "Dress shirt: 16 / 34",
-"Trousers: 34W 32L", "Jacket: 42R"), noting how they differ from the labelled sizes on the rail.
+Work out the size to look for on the label for each garment type he owns (e.g. "Dress shirt: 16 / 34",
+"Trousers: 34W 32L", "Jacket: 42R"). Start from the labelled sizes of pieces whose verdict is Fits: those are what
+actually fit him. Ready-to-wear labels, waists above all, run smaller than a tape measurement (jeans and trousers
+are commonly labelled 2 to 5 inches under the measured waist), so never turn a tape figure straight into a label
+size. Use his measurements only for the direction he's heading and to judge pieces with no fit verdict yet.
+A current size marked "his own, from the labels" is fact: repeat it unchanged, and flag in the summary if the rail
+seems to disagree.
 Then list only the pieces whose verdict should change or that need a decision. For each, give a verdict and
 practical advice. Rules of thumb: trousers can usually come in up to about 2 inches at the waist; a jacket's
 shoulders cannot be made smaller; a shirt with a loose collar should go; knitwear and T-shirts are rarely worth

@@ -576,7 +576,9 @@ function tasteLines() {
 function measureLines() {
   return measures().slice(0, 4).map((m) => `${m.date}: ` + MEASURES.filter(([k]) => m[k]).map(([k, l, u]) => `${l} ${m[k]}${u === "US" ? "" : " " + u}`).join(", "));
 }
-const sizesLine = () => Object.entries(settings().sizes || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("; ");
+// Sizes James typed himself: fit checks leave these alone, and Claude treats them as fact.
+const sizesMine = () => new Set(settings().sizesMine || []);
+const sizesLine = () => { const mine = sizesMine(); return Object.entries(settings().sizes || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}${mine.has(k) ? " (his own, from the labels)" : ""}`).join("; "); };
 const targetLine = () => { const s = settings(); return [s.targetWeight ? `${s.targetWeight} lb` : "", s.targetNote || ""].filter(Boolean).join(", "); };
 const styleLine = () => { const st = store.get("style"); if (!st) return ""; return [st.summary, `Palette: ${(st.palette || []).map((c) => c.colour).join(", ")}`, `Avoid: ${(st.avoid || []).join(", ")}`, `Fits: ${(st.fits || []).join("; ")}`].join(" "); };
 function aboutMe() {
@@ -1661,9 +1663,10 @@ function renderFit() {
     + (trend.length ? `<div class="card pad"><span class="label">Trend</span><div class="mgrid">${trend.map((k) => spark(k, ms)).join("")}</div></div>` : "");
   // sizes
   const sizes = s.sizes || {};
+  const mine = sizesMine();
   const fit = store.get("fit");
   $("sizes").innerHTML = `<div class="row"><h2>My sizes</h2><button class="linkbtn" type="button" id="sizes-edit">Edit</button></div>
-    ${Object.values(sizes).some(Boolean) ? `<div class="rows">${sizeKeys(sizes).map((g) => `<div class="sizei${String(sizes[g]).length > 30 ? " long" : ""}"><span class="k">${esc(g)}</span><b>${esc(sizes[g])}</b></div>`).join("")}</div>`
+    ${Object.values(sizes).some(Boolean) ? `<div class="rows">${sizeKeys(sizes).map((g) => `<div class="sizei${String(sizes[g]).length > 30 ? " long" : ""}"><span class="k">${esc(g)}${mine.has(g) ? ` <span class="muted small">· yours</span>` : ""}</span><b>${esc(sizes[g])}</b></div>`).join("")}</div>`
       : `<p class="small muted">Not set yet. Log your measurements and ask Alfred, or fill them in yourself.</p>`}
     <button class="btn primary stack" type="button" id="fit-go" ${latest ? "" : "disabled"}>Check what still fits <span class="cost">about 3¢ for the whole rail</span></button>
     ${fit ? `<span class="small muted">Last checked ${esc(fmtDate(ymd(new Date(fit.at))))}${latest && fit.measured !== latest.date ? ", before your latest measurements" : ""}.</span>` : ""}`;
@@ -1727,11 +1730,19 @@ $("target-open").onclick = () => {
 function sizesSheet() {
   const sizes = settings().sizes || {};
   const keys = [...GARMENTS, ...Object.keys(sizes).filter((k) => !GARMENTS.includes(k))];
-  openSheet(`<h2>My sizes</h2><p class="small muted">What to look for on the label today. Alfred updates these when he checks your fit.</p>
+  openSheet(`<h2>My sizes</h2><p class="small muted">What to look for on the label today. Alfred fills these in when he checks your fit; anything you change here is yours, and he leaves it alone until you clear it.</p>
     ${keys.map((g, i) => `<label class="field">${esc(g)}<input type="text" id="sz-${i}" value="${esc(sizes[g] || "")}"></label>`).join("")}
     <div class="two"><button class="btn" type="button" id="sz-cancel">Cancel</button><button class="btn primary" type="button" id="sz-save">Save</button></div>`, (p) => {
     p.querySelector("#sz-cancel").onclick = closeSheet;
-    p.querySelector("#sz-save").onclick = () => { const out = {}; keys.forEach((g, i) => { const v = p.querySelector("#sz-" + i).value.trim(); if (v) out[g] = v; }); setSettings({ sizes: out }); closeSheet(); };
+    p.querySelector("#sz-save").onclick = () => {
+      const out = {}, mine = sizesMine();
+      keys.forEach((g, i) => {
+        const v = p.querySelector("#sz-" + i).value.trim();
+        if (v) out[g] = v;
+        if (!v) mine.delete(g); else if (v !== (sizes[g] || "")) mine.add(g);
+      });
+      setSettings({ sizes: out, sizesMine: [...mine] }); closeSheet();
+    };
   });
 }
 async function runFit() {
@@ -1740,9 +1751,9 @@ async function runFit() {
   try {
     const res = await ai("w_fit", { ...aboutMe(), rail: railLines((p) => !["Retire", "Donate"].includes(p.verdict)) });
     store.set("fit", { ...res, at: Date.now(), measured: measures()[0]?.date, applied: {} });
-    // Fold Claude's sizes into "My sizes", keeping anything typed by hand for garments it didn't mention.
-    const sizes = { ...(settings().sizes || {}) };
-    (res.sizes || []).forEach(({ garment, size }) => { sizes[garmentOf(garment)] = size; });
+    // Fold Claude's sizes into "My sizes", never over a size James typed himself.
+    const sizes = { ...(settings().sizes || {}) }, mine = sizesMine();
+    (res.sizes || []).forEach(({ garment, size }) => { const g = garmentOf(garment); if (!mine.has(g)) sizes[g] = size; });
     setSettings({ sizes });
   } catch (e) { fitErr = e; }
   fitAsking = false; render();
