@@ -93,6 +93,14 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .rows{overflow:hidden}
 .rowi{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--rule);min-height:52px}
 .rowi:first-child{border-top:0}
+/* My sizes: label and value side by side; a value too long for the line drops beneath its label instead of overlapping it. */
+.sizei{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;column-gap:16px;row-gap:2px;padding:9px 0;border-top:1px solid var(--rule)}
+.sizei:first-child{border-top:0}
+.sizei .k{flex:0 0 auto;max-width:100%}
+.sizei b{flex:0 1 auto;min-width:0;text-align:right;overflow-wrap:anywhere}
+.sizei.long{flex-direction:column;align-items:stretch}
+.sizei.long .k{font-size:13px;color:var(--muted)}
+.sizei.long b{text-align:left}
 .rowi .grow{flex:1;min-width:0;display:flex;flex-direction:column}
 .rowi .t{font-weight:600;overflow-wrap:anywhere}
 .rowi .s{font-size:12.5px;color:var(--muted)}
@@ -1655,7 +1663,7 @@ function renderFit() {
   const sizes = s.sizes || {};
   const fit = store.get("fit");
   $("sizes").innerHTML = `<div class="row"><h2>My sizes</h2><button class="linkbtn" type="button" id="sizes-edit">Edit</button></div>
-    ${Object.values(sizes).some(Boolean) ? `<div class="rows">${sizeKeys(sizes).map((g) => `<div class="rowi" style="padding:8px 0;min-height:0"><span class="grow">${esc(g)}</span><b>${esc(sizes[g])}</b></div>`).join("")}</div>`
+    ${Object.values(sizes).some(Boolean) ? `<div class="rows">${sizeKeys(sizes).map((g) => `<div class="sizei${String(sizes[g]).length > 30 ? " long" : ""}"><span class="k">${esc(g)}</span><b>${esc(sizes[g])}</b></div>`).join("")}</div>`
       : `<p class="small muted">Not set yet. Log your measurements and ask Alfred, or fill them in yourself.</p>`}
     <button class="btn primary stack" type="button" id="fit-go" ${latest ? "" : "disabled"}>Check what still fits <span class="cost">about 3¢ for the whole rail</span></button>
     ${fit ? `<span class="small muted">Last checked ${esc(fmtDate(ymd(new Date(fit.at))))}${latest && fit.measured !== latest.date ? ", before your latest measurements" : ""}.</span>` : ""}`;
