@@ -78,6 +78,8 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 .item .for{font-size:12px;color:var(--brass-ink)}
 .item .by{font-size:12px;font-weight:700;color:var(--muted);min-width:14px;text-align:center}
 .item .handle{flex:none;width:32px;height:40px;border:0;background:none;color:var(--muted);touch-action:none;cursor:grab;display:grid;place-items:center}
+.dragmode .group.ghost .rows{min-height:46px;border-style:dashed;background:transparent}
+.dragmode{user-select:none;-webkit-user-select:none}
 .item.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.18);position:relative;z-index:2}
 .item.isdone .name{text-decoration:line-through;color:var(--muted)}
 .item{transition:transform .15s ease}
@@ -594,29 +596,67 @@ const endSwipe = () => {
 $("list-body").addEventListener("pointerup", endSwipe);
 $("list-body").addEventListener("pointercancel", endSwipe);
 
-// Drag to reorder within an aisle, by the handle.
+// Drag by the handle to reorder, or into another aisle (which is remembered, like moving it in the edit sheet).
+// While dragging, empty aisles appear so anything can go anywhere, and the page scrolls near the edges.
 let dragging = null;
+function showAllAisles() {
+  const body = $("list-body");
+  AISLE_ORDER.forEach((a, n) => {
+    if (body.querySelector(`[data-group="${a}"]`)) return;
+    const g = document.createElement("div");
+    g.className = "group ghost";
+    g.innerHTML = `<span class="label">${esc(a)}</span><div class="card rows" data-group="${esc(a)}"></div>`;
+    const next = AISLE_ORDER.slice(n + 1).map((b) => body.querySelector(`[data-group="${b}"]`)?.parentElement).find(Boolean);
+    body.insertBefore(g, next || body.querySelector(".ticked-head, .empty") || null);
+  });
+}
+function edgeScroll() {
+  if (!dragging) return;
+  const y = dragging.y, h = innerHeight, zone = 90;
+  const v = y < zone ? -(zone - y) / 6 : y > h - zone - 70 ? (y - (h - zone - 70)) / 6 : 0;
+  if (v) { scrollBy(0, v); placeDragged(); }
+  requestAnimationFrame(edgeScroll);
+}
+function placeDragged() {
+  const { row, y } = dragging;
+  const boxes = [...$("list-body").querySelectorAll("[data-group]")];
+  const box = boxes.find((b) => { const r = b.getBoundingClientRect(); return y >= r.top - 22 && y <= r.bottom + 6; })
+    || boxes.reduce((best, b) => { const r = b.getBoundingClientRect(), d = Math.min(Math.abs(y - r.top), Math.abs(y - r.bottom)); return !best || d < best.d ? { b, d } : best; }, null)?.b;
+  if (!box) return;
+  const siblings = [...box.children].filter((r) => r !== row);
+  const after = siblings.find((r) => y < r.getBoundingClientRect().top + r.offsetHeight / 2);
+  if (row.parentElement !== box || row.nextElementSibling !== (after || null)) box.insertBefore(row, after || null);
+}
 $("list-body").addEventListener("pointerdown", (e) => {
   const h = e.target.closest("[data-handle]"); if (!h) return;
-  const row = h.closest(".item"), box = row.parentElement;
-  e.preventDefault(); h.setPointerCapture(e.pointerId);
-  dragging = { row, box, startY: e.clientY };
+  const row = h.closest(".item");
+  e.preventDefault(); try { h.setPointerCapture(e.pointerId); } catch {}
+  dragging = { row, from: row.parentElement.dataset.group, y: e.clientY };
   row.classList.add("dragging");
+  $("list-body").classList.add("dragmode");
+  showAllAisles();
+  requestAnimationFrame(edgeScroll);
 });
 $("list-body").addEventListener("pointermove", (e) => {
   if (!dragging) return;
-  const { row, box } = dragging;
-  const siblings = [...box.children].filter((r) => r !== row);
-  const after = siblings.find((r) => e.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2);
-  box.insertBefore(row, after || null);
+  dragging.y = e.clientY;
+  placeDragged();
 });
 const endDrag = () => {
   if (!dragging) return;
-  const { row, box } = dragging; row.classList.remove("dragging");
+  const { row, from } = dragging; row.classList.remove("dragging");
+  $("list-body").classList.remove("dragmode");
+  const box = row.parentElement, aisle = box.dataset.group;
   const ids = [...box.children].map((r) => r.dataset.item);
   const all = items(); const base = Math.min(...ids.map((id) => all.find((i) => i.id === id)?.order || 0));
   dragging = null;
-  ids.forEach((id, n) => { const it = all.find((i) => i.id === id); if (it && it.order !== base + n) store.set("items/" + id, { ...strip(it), order: base + n }); });
+  const moved = all.find((i) => i.id === row.dataset.item);
+  if (moved && aisle && aisle !== from) {
+    store.set("items/" + moved.id, { ...strip(moved), aisle });
+    rememberAisle(moved.name, aisle);
+    toast(`${moved.name} will go in ${aisle} from now on.`);
+  }
+  ids.forEach((id, n) => { const it = items().find((i) => i.id === id); if (it && it.order !== base + n) store.set("items/" + id, { ...strip(it), order: base + n }); });
   renderList();
 };
 $("list-body").addEventListener("pointerup", endDrag);
