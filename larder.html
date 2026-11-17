@@ -319,12 +319,9 @@ function rememberAisle(name, aisle) {
 }
 const placeFor = (a) => a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard";
 const daysFor = (a) => a === "Produce" ? 5 : a === "Meat & fish" ? 3 : a === "Dairy & eggs" ? 7 : a === "Bakery" ? 4 : null;
-// A moved aisle only overrides the pantry spot when it's a chilled or frozen aisle; otherwise the name decides
-// (oat milk moved to Drinks still goes in the fridge, and keeps like milk).
-const pantryPlace = (aisle, name) => ["Produce", "Meat & fish", "Dairy & eggs", "Frozen"].includes(aisle) ? placeFor(aisle) : placeFor(guessAisle(name));
-const pantryDays = (aisle, name) => daysFor(aisle) ?? daysFor(guessAisle(name));
-const whereOf = (name) => pantryPlace(aisleOf(name), name);
-const keepsDays = (name) => pantryDays(aisleOf(name), name);
+// The pantry sorts by its own logic, from the name alone: aisle moves on the shopping list don't change it.
+const whereOf = (name) => placeFor(guessAisle(name));
+const keepsDays = (name) => daysFor(guessAisle(name));
 const DESCRIBERS = new Set(["baby", "fresh", "frozen", "dried", "large", "small", "medium", "ripe", "organic", "free", "range", "whole", "chopped", "sliced", "raw", "cooked", "plain", "natural", "big", "tin", "tinned", "can", "canned", "pack", "bag", "fillet", "breast", "thigh"]);
 const STAPLES = /\b(salt|pepper|black pepper|water|olive oil|oil|cooking spray)\b/i;
 const norm = (s) => String(s).toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s]/g, " ").split(/\s+/)
@@ -527,8 +524,8 @@ function toggleTick(it) {
       const exists = pantry().find((p) => nameKey(p.name) === nameKey(it.name));
       if (!exists) {
         pantryId = uid();
-        const keep = pantryDays(aisle, it.name);
-        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: pantryPlace(aisle, it.name), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
+        const keep = keepsDays(it.name);
+        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: whereOf(it.name), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
       }
     }
     undoable(`Ticked ${it.name}.`, [key, ...(pantryId ? ["pantry/" + pantryId] : [])], () =>
@@ -675,7 +672,7 @@ const CUPBOARD_TYPES = [
 const TYPE_ORDER = ["Produce", "Meat & fish", "Dairy & eggs", "Bakery", ...CUPBOARD_TYPES.map(([t]) => t), "Frozen", "Drinks", "Household", "Everything else"];
 function foodType(name) {
   if (/\b(frozen|ice cream)/i.test(name)) return "Frozen";
-  const a = aisleOf(name);
+  const a = guessAisle(name);
   if (a === "Cupboard" || a === "Other") return (CUPBOARD_TYPES.find(([, re]) => re.test(name)) || ["Everything else"])[0];
   return a;
 }
