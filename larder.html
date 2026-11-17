@@ -71,9 +71,11 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 .rows{overflow:hidden}
 .item{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-top:1px solid var(--rule);min-height:52px;background:var(--paper);touch-action:pan-y}
 .item:first-child{border-top:0}
-.tick{flex:none;width:30px;height:30px;border-radius:9px;border:2px solid var(--green);background:transparent;display:grid;place-items:center;padding:0;color:var(--green-ink)}
-.tick.done{background:var(--green)}
-.item .txt{flex:1;min-width:0;display:flex;flex-direction:column;border:0;background:none;text-align:left;padding:4px 0}
+/* The tick is a full 44px tap target; the square box is drawn inside it, so the shared tap height can't stretch it. */
+.tick{flex:none;width:44px;height:44px;min-height:0;margin-left:-7px;border:0;background:none;display:grid;place-items:center;padding:0;color:var(--green-ink);position:relative;isolation:isolate;font-weight:700}
+.tick::before{content:"";position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%);border:2px solid var(--green);border-radius:8px;z-index:-1;box-sizing:border-box}
+.tick.done::before{background:var(--green)}
+.item .txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;border:0;background:none;text-align:left;padding:4px 0}
 .item .name{font-weight:500;overflow-wrap:anywhere}
 .item .for{font-size:12px;color:var(--brass-ink)}
 .item .by{font-size:12px;font-weight:700;color:var(--muted);min-width:14px;text-align:center}
@@ -319,9 +321,17 @@ function rememberAisle(name, aisle) {
 }
 const placeFor = (a) => a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard";
 const daysFor = (a) => a === "Produce" ? 5 : a === "Meat & fish" ? 3 : a === "Dairy & eggs" ? 7 : a === "Bakery" ? 4 : null;
-// The pantry sorts by its own logic, from the name alone: aisle moves on the shopping list don't change it.
-const whereOf = (name) => placeFor(guessAisle(name));
-const keepsDays = (name) => daysFor(guessAisle(name));
+// The pantry sorts by its own logic: aisle moves on the shopping list don't change it.
+// It guesses fridge, cupboard or freezer from the name, and remembers when someone moves a thing (shared, key "places").
+const placeMemory = () => store.get("places")?.places || {};
+const whereOf = (name) => placeMemory()[nameKey(name)] || placeFor(guessAisle(name));
+const keepsDays = (name) => whereOf(name) === "freezer" ? null : daysFor(guessAisle(name));
+function rememberPlace(name, where) {
+  const key = nameKey(name); if (!key || placeMemory()[key] === where) return;
+  const mem = { ...placeMemory() };
+  if (where === placeFor(guessAisle(name))) delete mem[key]; else mem[key] = where;
+  store.set("places", { places: mem });
+}
 const DESCRIBERS = new Set(["baby", "fresh", "frozen", "dried", "large", "small", "medium", "ripe", "organic", "free", "range", "whole", "chopped", "sliced", "raw", "cooked", "plain", "natural", "big", "tin", "tinned", "can", "canned", "pack", "bag", "fillet", "breast", "thigh"]);
 const STAPLES = /\b(salt|pepper|black pepper|water|olive oil|oil|cooking spray)\b/i;
 const norm = (s) => String(s).toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s]/g, " ").split(/\s+/)
@@ -739,8 +749,10 @@ $("add-pantry-name").addEventListener("input", (e) => { $("add-pantry-where").va
 $("add-pantry").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = $("add-pantry-name").value.trim(); if (!name) return;
-  const keep = keepsDays(name);
-  store.set("pantry/" + uid(), { name, where: $("add-pantry-where").value, useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial });
+  const where = $("add-pantry-where").value;
+  if (where !== whereOf(name)) rememberPlace(name, where);
+  const keep = where === "freezer" ? null : keepsDays(name);
+  store.set("pantry/" + uid(), { name, where, useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial });
   $("add-pantry-name").value = ""; $("add-pantry-name").focus();
 });
 $("pantry-body").addEventListener("click", (e) => {
@@ -762,7 +774,12 @@ $("pantry-body").addEventListener("click", (e) => {
     <label class="field">Use by<input type="date" id="p-use" value="${esc(p.useBy || "")}"></label>
     <div class="chips"><button class="chip" type="button" data-pin>Pin: use up ${esc(p.name)}</button><button class="chip" type="button" data-relist>Add to the list</button></div>
     <div class="two"><button class="btn" type="button" id="p-gone">Used up</button><button class="btn primary" type="button" id="p-save">Save</button></div>`, (s) => {
-    s.querySelector("#p-save").onclick = () => { store.set("pantry/" + p.id, { ...strip(p), where: s.querySelector("#p-where").value, useBy: s.querySelector("#p-use").value || null, auto: false }); closeSheet(); };
+    s.querySelector("#p-save").onclick = () => {
+      const where = s.querySelector("#p-where").value;
+      store.set("pantry/" + p.id, { ...strip(p), where, useBy: s.querySelector("#p-use").value || null, auto: false });
+      if (where !== p.where) { rememberPlace(p.name, where); toast(`${p.name} will go in the ${where} from now on.`); }
+      closeSheet();
+    };
     s.querySelector("#p-gone").onclick = () => { undoable(`${p.name}: used up.`, ["pantry/" + p.id], () => store.remove("pantry/" + p.id)); closeSheet(); };
     s.querySelector("[data-pin]").onclick = () => { setPins([...pins(), `use up ${p.name.toLowerCase()}`]); closeSheet(); toast("Pinned. Alfred will steer towards it."); };
     s.querySelector("[data-relist]").onclick = () => { addItem(p.name); closeSheet(); toast(`${p.name} is on the list.`); };
@@ -796,7 +813,7 @@ $("fridge-photo").addEventListener("change", async (e) => {
     box.querySelector("[data-add]").onclick = () => {
       box.querySelectorAll("input[data-n]:checked").forEach((cb) => {
         const i = found[+cb.dataset.n];
-        store.set("pantry/" + uid(), { name: i.name, where: i.where, useBy: i.use_within_days != null ? addDays(i.use_within_days) : null, added: Date.now(), by: me.initial });
+        store.set("pantry/" + uid(), { name: i.name, where: placeMemory()[nameKey(i.name)] || i.where, useBy: i.use_within_days != null ? addDays(i.use_within_days) : null, added: Date.now(), by: me.initial });
       });
       box.innerHTML = "";
     };
