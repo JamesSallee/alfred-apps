@@ -80,6 +80,15 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 .item .handle{flex:none;width:32px;height:40px;border:0;background:none;color:var(--muted);touch-action:none;cursor:grab;display:grid;place-items:center}
 .item.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.18);position:relative;z-index:2}
 .item.isdone .name{text-decoration:line-through;color:var(--muted)}
+.item{transition:transform .15s ease}
+.item{position:relative}
+.item.swiping{transition:none}
+.item.swiping::after{content:"Delete";position:absolute;top:0;bottom:0;left:100%;width:100%;background:var(--danger);color:#fff;font-weight:600;font-size:14px;display:flex;align-items:center;padding-left:18px}
+.item .del{flex:none;display:none;width:32px;height:40px;border:0;background:none;color:var(--muted);font-size:20px;line-height:1;place-items:center;border-radius:8px}
+.item .del:hover,.item .del:focus-visible{color:var(--danger);background:var(--danger-soft)}
+@media (hover:hover) and (pointer:fine){.item .del{display:grid}}
+.switch{display:flex;align-items:center;gap:10px;font-size:14px;min-height:44px}
+.switch input{width:20px;height:20px;accent-color:var(--green)}
 .ticked-head{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
 .ticked-head button{border:0;background:none;color:var(--muted);padding:8px 0;font-size:13px}
 
@@ -295,9 +304,21 @@ const AISLES = [
   ["Cupboard", /\b(rice|pasta|noodle|oat|flour|sugar|honey|oil|vinegar|sauce|soy|miso|stock|broth|tin|can|bean|chickpea|lentil|quinoa|couscous|spice|paprika|cumin|curry|harissa|pesto|mustard|ketchup|mayo|nut|seed|peanut|almond|cereal|granola|crisp|cracker|chocolate|jam|salt|pepper)/i],
 ];
 const AISLE_ORDER = ["Produce", "Meat & fish", "Dairy & eggs", "Bakery", "Cupboard", "Frozen", "Drinks", "Household", "Other"];
-const aisleOf = (name) => (AISLES.find(([, re]) => re.test(name)) || ["Other"])[0];
-const whereOf = (name) => { const a = aisleOf(name); return a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard"; };
-const keepsDays = (name) => { const a = aisleOf(name); return a === "Produce" ? 5 : a === "Meat & fish" ? 3 : a === "Dairy & eggs" ? 7 : a === "Bakery" ? 4 : null; };
+const guessAisle = (name) => (AISLES.find(([, re]) => re.test(name)) || ["Other"])[0];
+// When someone moves an item to another aisle, the Larder remembers it for that name (shared, key "aisles").
+const nameKey = (name) => norm(String(name).replace(/\s*[×x]\s*\d+$/, "")).join(" ");
+const aisleMemory = () => store.get("aisles")?.aisles || {};
+const aisleOf = (name) => aisleMemory()[nameKey(name)] || guessAisle(name);
+function rememberAisle(name, aisle) {
+  const key = nameKey(name); if (!key) return;
+  const mem = { ...aisleMemory() };
+  if (aisle === guessAisle(name)) delete mem[key]; else mem[key] = aisle;
+  store.set("aisles", { aisles: mem });
+}
+const placeFor = (a) => a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard";
+const daysFor = (a) => a === "Produce" ? 5 : a === "Meat & fish" ? 3 : a === "Dairy & eggs" ? 7 : a === "Bakery" ? 4 : null;
+const whereOf = (name) => placeFor(aisleOf(name));
+const keepsDays = (name) => daysFor(aisleOf(name));
 const DESCRIBERS = new Set(["baby", "fresh", "frozen", "dried", "large", "small", "medium", "ripe", "organic", "free", "range", "whole", "chopped", "sliced", "raw", "cooked", "plain", "natural", "big", "tin", "tinned", "can", "canned", "pack", "bag", "fillet", "breast", "thigh"]);
 const STAPLES = /\b(salt|pepper|black pepper|water|olive oil|oil|cooking spray)\b/i;
 const norm = (s) => String(s).toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s]/g, " ").split(/\s+/)
@@ -319,6 +340,8 @@ const items = () => store.list("items/").map(({ key, value }) => ({ id: key.slic
 const pantry = () => store.list("pantry/").map(({ key, value }) => ({ id: key.slice(7), ...value }));
 const recipes = () => store.list("recipes/").map(({ key, value }) => ({ id: key.slice(8), ...value }));
 const lists = () => store.get("lists")?.lists || [{ id: "weekly", name: "Weekly shop" }];
+// Only lists that stock the pantry send ticked items there. Weekly shop does unless switched off; others don't unless switched on.
+const stocksPantry = (listId) => { const l = lists().find((x) => x.id === listId); return l ? (l.pantry ?? l.id === "weekly") : false; };
 const pins = () => store.get("pins")?.pins || [];
 const settings = () => store.get("settings") || {};
 const setPins = (p) => store.set("pins", { pins: [...new Set(p)].slice(0, 12) });
@@ -429,6 +452,7 @@ function itemRow(i) {
     <button type="button" class="tick${i.done ? " done" : ""}" data-tick aria-label="${i.done ? "Untick" : "Tick"} ${esc(i.name)}" aria-pressed="${!!i.done}">${i.done ? "✓" : ""}</button>
     <button type="button" class="txt" data-edit><span class="name">${esc(i.name)}</span>${i.meal ? `<span class="for">for ${esc(i.meal)}</span>` : ""}</button>
     <span class="by" title="Added by">${esc(i.by || "")}</span>
+    ${i.done ? "" : `<button type="button" class="del" data-del aria-label="Delete ${esc(i.name)}">×</button>`}
     ${i.done ? "" : `<button type="button" class="handle" data-handle aria-label="Drag to reorder ${esc(i.name)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>`}
   </div>`;
 }
@@ -446,13 +470,15 @@ $("lists").addEventListener("click", (e) => {
 function listSheet(edit = null) {
   openSheet(`<h2>${edit ? "Rename list" : "A new list"}</h2>
     <label class="field">Name<input type="text" id="ls-name" value="${esc(edit?.name || "")}" placeholder="e.g. Costco"></label>
+    <label class="switch"><input type="checkbox" id="ls-pantry" ${edit && stocksPantry(edit.id) ? "checked" : ""}><span>Ticked items go to the pantry</span></label>
     <div class="two">${edit && lists().length > 1 ? `<button class="btn" type="button" id="ls-del">Delete list</button>` : `<button class="btn" type="button" id="ls-cancel">Cancel</button>`}
     <button class="btn primary" type="button" id="ls-save">Save</button></div>`, (p) => {
     p.querySelector("#ls-cancel")?.addEventListener("click", closeSheet);
     p.querySelector("#ls-save").onclick = () => {
       const name = p.querySelector("#ls-name").value.trim(); if (!name) return;
       const ls = lists();
-      if (edit) ls.find((l) => l.id === edit.id).name = name; else { const id = uid().slice(0, 8); ls.push({ id, name }); currentList = id; }
+      const pantry = p.querySelector("#ls-pantry").checked;
+      if (edit) Object.assign(ls.find((l) => l.id === edit.id), { name, pantry }); else { const id = uid().slice(0, 8); ls.push({ id, name, pantry }); currentList = id; }
       store.set("lists", { lists: ls }); closeSheet();
     };
     p.querySelector("#ls-del")?.addEventListener("click", () => {
@@ -477,20 +503,24 @@ $("list-body").addEventListener("click", (e) => {
   }
   if (!row) return;
   const it = items().find((i) => i.id === row.dataset.item); if (!it) return;
-  if (e.target.closest("[data-tick]")) toggleTick(it);
+  if (swiped) { swiped = false; return; }
+  if (e.target.closest("[data-del]")) deleteItem(it);
+  else if (e.target.closest("[data-tick]")) toggleTick(it);
   else if (e.target.closest("[data-edit]")) itemSheet(it);
 });
 function toggleTick(it) {
   const key = "items/" + it.id;
   if (!it.done) {
-    // Ticked groceries go into the pantry, so Alfred knows they're in the house.
+    // Ticked groceries go into the pantry, so Alfred knows they're in the house:
+    // only from lists that stock the pantry, and never Household things.
     let pantryId = null;
-    if (it.list === "weekly" || aisleOf(it.name) !== "Household") {
-      const exists = pantry().find((p) => norm(p.name).join(" ") === norm(it.name).join(" "));
-      if (!exists && aisleOf(it.name) !== "Household") {
+    const aisle = it.aisle || aisleOf(it.name);
+    if (stocksPantry(it.list) && aisle !== "Household") {
+      const exists = pantry().find((p) => nameKey(p.name) === nameKey(it.name));
+      if (!exists) {
         pantryId = uid();
-        const keep = keepsDays(it.name);
-        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: whereOf(it.name), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
+        const keep = daysFor(aisle);
+        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: placeFor(aisle), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
       }
     }
     undoable(`Ticked ${it.name}.`, [key, ...(pantryId ? ["pantry/" + pantryId] : [])], () =>
@@ -509,12 +539,54 @@ function itemSheet(it) {
     <div class="two"><button class="btn" type="button" id="it-del">Delete</button><button class="btn primary" type="button" id="it-save">Save</button></div>`, (p) => {
     p.querySelector("#it-save").onclick = () => {
       const name = p.querySelector("#it-name").value.trim() || it.name;
-      store.set("items/" + it.id, { ...strip(it), name, aisle: p.querySelector("#it-aisle").value, list: p.querySelector("#it-list")?.value || it.list });
+      const aisle = p.querySelector("#it-aisle").value;
+      store.set("items/" + it.id, { ...strip(it), name, aisle, list: p.querySelector("#it-list")?.value || it.list });
+      if (aisle !== (it.aisle || aisleOf(it.name))) {
+        // Remember the move for next time, and move any other unticked copies with it.
+        rememberAisle(name, aisle);
+        items().filter((o) => o.id !== it.id && !o.done && nameKey(o.name) === nameKey(name) && o.aisle !== aisle)
+          .forEach((o) => store.set("items/" + o.id, { ...strip(o), aisle }));
+        toast(`${name} will go in ${aisle} from now on.`);
+      }
       closeSheet();
     };
-    p.querySelector("#it-del").onclick = () => { undoable(`Deleted ${it.name}.`, ["items/" + it.id], () => store.remove("items/" + it.id)); closeSheet(); };
+    p.querySelector("#it-del").onclick = () => { deleteItem(it); closeSheet(); };
   });
 }
+// Deleting takes an item off the list without it going to the pantry.
+function deleteItem(it) { undoable(`Deleted ${it.name}.`, ["items/" + it.id], () => store.remove("items/" + it.id)); }
+
+// Swipe an unticked item left to delete it (phones); the × does the same on a computer.
+let swipe = null, swiped = false;
+$("list-body").addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse" || e.target.closest("[data-handle],[data-tick]")) return;
+  const row = e.target.closest(".item:not(.isdone)"); if (!row) return;
+  swipe = { row, x: e.clientX, y: e.clientY, dx: 0, on: false };
+});
+$("list-body").addEventListener("pointermove", (e) => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  if (!swipe.on) {
+    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; }
+    if (dx < -12 && Math.abs(dx) > Math.abs(dy)) { swipe.on = true; swipe.row.classList.add("swiping"); }
+    else return;
+  }
+  swipe.dx = Math.min(0, dx);
+  swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+});
+const endSwipe = () => {
+  if (!swipe) return;
+  const { row, dx, on } = swipe; swipe = null;
+  if (!on) return;
+  swiped = true; setTimeout(() => { swiped = false; }, 350);
+  if (dx < -Math.min(110, row.offsetWidth * 0.35)) {
+    row.style.transition = "transform .15s ease"; row.style.transform = `translateX(-${row.offsetWidth}px)`;
+    const it = items().find((i) => i.id === row.dataset.item);
+    setTimeout(() => it && deleteItem(it), 150);
+  } else { row.classList.remove("swiping"); row.style.transform = ""; }
+};
+$("list-body").addEventListener("pointerup", endSwipe);
+$("list-body").addEventListener("pointercancel", endSwipe);
 
 // Drag to reorder within an aisle, by the handle.
 let dragging = null;
