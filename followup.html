@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Alfred · Follow-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
+<style>
+/* Opened from a button in Alfred's morning email. It asks for one tap before settling anything,
+   so mail scanners that open links can't mark a follow-up done on their own. */
+body{color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;
+  padding:max(16px, env(safe-area-inset-top, 0px)) 16px 48px;min-height:100vh;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center}
+.card{width:100%;max-width:420px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden}
+.top{background:var(--green);color:var(--on-green);padding:16px 22px;font-family:var(--display);font-size:22px}
+.body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:14px}
+.what{font-size:17px;margin:0}
+.ask{color:var(--muted);margin:0}
+.go{appearance:none;border:0;border-radius:999px;padding:12px 18px;font:600 16px var(--body);
+  background:var(--green);color:var(--on-green);cursor:pointer;min-height:44px}
+.go:disabled{opacity:.6}
+.go:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+.note{margin:0;font-family:var(--display);font-size:20px;color:var(--green)}
+.err{color:var(--danger)}
+</style>
+<body>
+<main class="card">
+  <div class="top">&#9670; Alfred</div>
+  <div class="body" id="body">
+    <p class="what" id="what">One of your follow-ups.</p>
+    <p class="ask" id="ask"></p>
+    <button class="go" id="go" type="button">Confirm</button>
+  </div>
+</main>
+<script type="module">
+import { SUPABASE_URL } from "./js/config.js";
+const q = new URLSearchParams(location.search);
+const f = q.get("f") || "", a = q.get("a") || "", s = q.get("s") || "";
+const words = {
+  done: ["Mark this done?", "Mark done", "Done. I'll stop asking."],
+  drop: ["Drop this one? I'll stop asking about it.", "Drop it", "Dropped. I'll stop asking."],
+  later: ["Ask again in three days?", "In 3 days", "Right. I'll ask again on "],
+};
+const el = (id) => document.getElementById(id);
+const w = words[a];
+if (!w || !f || !s) {
+  el("what").textContent = "That link doesn't look like one of mine.";
+  el("go").hidden = true;
+} else {
+  el("ask").textContent = w[0];
+  el("go").textContent = w[1];
+  el("go").addEventListener("click", async () => {
+    el("go").disabled = true;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/alfred-mail`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "tap", f, a, s }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || "Something went wrong.");
+      el("what").textContent = out.what || "Your follow-up.";
+      el("ask").remove();
+      el("go").remove();
+      const p = document.createElement("p");
+      p.className = "note";
+      p.textContent = a === "later" ? w[2] + new Date(out.checkOn + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) + "." : w[2];
+      el("body").append(p);
+    } catch (e) {
+      el("go").disabled = false;
+      el("ask").textContent = e.message;
+      el("ask").className = "ask err";
+    }
+  });
+}
+</script>
