@@ -317,8 +317,12 @@ function rememberAisle(name, aisle) {
 }
 const placeFor = (a) => a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard";
 const daysFor = (a) => a === "Produce" ? 5 : a === "Meat & fish" ? 3 : a === "Dairy & eggs" ? 7 : a === "Bakery" ? 4 : null;
-const whereOf = (name) => placeFor(aisleOf(name));
-const keepsDays = (name) => daysFor(aisleOf(name));
+// A moved aisle only overrides the pantry spot when it's a chilled or frozen aisle; otherwise the name decides
+// (oat milk moved to Drinks still goes in the fridge, and keeps like milk).
+const pantryPlace = (aisle, name) => ["Produce", "Meat & fish", "Dairy & eggs", "Frozen"].includes(aisle) ? placeFor(aisle) : placeFor(guessAisle(name));
+const pantryDays = (aisle, name) => daysFor(aisle) ?? daysFor(guessAisle(name));
+const whereOf = (name) => pantryPlace(aisleOf(name), name);
+const keepsDays = (name) => pantryDays(aisleOf(name), name);
 const DESCRIBERS = new Set(["baby", "fresh", "frozen", "dried", "large", "small", "medium", "ripe", "organic", "free", "range", "whole", "chopped", "sliced", "raw", "cooked", "plain", "natural", "big", "tin", "tinned", "can", "canned", "pack", "bag", "fillet", "breast", "thigh"]);
 const STAPLES = /\b(salt|pepper|black pepper|water|olive oil|oil|cooking spray)\b/i;
 const norm = (s) => String(s).toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z\s]/g, " ").split(/\s+/)
@@ -425,6 +429,7 @@ function renderList() {
   const ls = lists();
   if (!ls.some((l) => l.id === currentList)) currentList = ls[0].id;
   $("lists").innerHTML = ls.map((l) => `<button class="chip" type="button" data-list="${esc(l.id)}" aria-pressed="${l.id === currentList}">${esc(l.name)}</button>`).join("")
+    + `<button class="chip" type="button" data-editlist aria-label="Rename or set up ${esc(ls.find((l) => l.id === currentList)?.name || "this list")}">⋯</button>`
     + `<button class="chip dash" type="button" data-newlist>+ List</button>`;
   const mine = items().filter((i) => i.list === currentList);
   const todo = mine.filter((i) => !i.done), done = mine.filter((i) => i.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
@@ -466,6 +471,7 @@ $("lists").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.list) { currentList = b.dataset.list; try { localStorage.setItem("larder:list", currentList); } catch {} renderList(); }
   if ("newlist" in b.dataset) listSheet();
+  if ("editlist" in b.dataset) listSheet(lists().find((l) => l.id === currentList));
 });
 function listSheet(edit = null) {
   openSheet(`<h2>${edit ? "Rename list" : "A new list"}</h2>
@@ -519,8 +525,8 @@ function toggleTick(it) {
       const exists = pantry().find((p) => nameKey(p.name) === nameKey(it.name));
       if (!exists) {
         pantryId = uid();
-        const keep = daysFor(aisle);
-        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: placeFor(aisle), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
+        const keep = pantryDays(aisle, it.name);
+        store.set("pantry/" + pantryId, { name: it.name.replace(/\s*[×x]\s*\d+$/, ""), where: pantryPlace(aisle, it.name), useBy: keep ? addDays(keep) : null, added: Date.now(), by: me.initial, auto: true });
       }
     }
     undoable(`Ticked ${it.name}.`, [key, ...(pantryId ? ["pantry/" + pantryId] : [])], () =>
