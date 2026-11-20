@@ -26,6 +26,9 @@ body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-w
 .wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-top:20px}
 h2{font-size:19px}
 button,input,select,textarea{font:inherit;color:inherit}
+/* iPhone zooms in on any text box under 16px when it's tapped, and a home-screen app doesn't always zoom back out.
+   Keeping every box at 16px stops the zoom, which is what threw the list's sizing off after editing an item. */
+input,select,textarea{font-size:16px}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .muted{color:var(--muted)}
@@ -78,6 +81,7 @@ header.top .row{display:flex;justify-content:space-between;align-items:center;ga
 .item .txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;border:0;background:none;text-align:left;padding:4px 0}
 .item .name{font-weight:500;overflow-wrap:anywhere}
 .item .for{font-size:12px;color:var(--brass-ink)}
+.item .q{font-size:13px;font-weight:600;color:var(--brass-ink);margin-left:6px;white-space:nowrap}
 .item .by{font-size:12px;font-weight:700;color:var(--muted);min-width:14px;text-align:center}
 .item .handle{flex:none;width:32px;height:40px;border:0;background:none;color:var(--muted);touch-action:none;cursor:grab;display:grid;place-items:center}
 .dragmode .group.ghost .rows{min-height:46px;border-style:dashed;background:transparent}
@@ -160,6 +164,16 @@ nav.tabs svg{width:22px;height:22px}
 .sheet .panel{width:min(560px,100%);background:var(--paper);border-radius:16px 16px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;max-height:88vh;overflow:auto}
 .sheet input[type=text],.sheet input[type=date],.sheet select{height:44px;border:1px solid var(--line);border-radius:10px;background:transparent;padding:0 12px;width:100%}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.field .hint{display:flex;justify-content:space-between;align-items:baseline}
+.field .hint .linkbtn{padding:0;min-height:0}
+/* categories sheet */
+.cats{display:flex;flex-direction:column;gap:6px}
+.cat{display:flex;align-items:center;gap:4px}
+.cat input{flex:1;min-width:0}
+.cat .btn.sq{width:38px;height:40px;font-size:16px;flex:none}
+.cat .btn.sq[disabled]{opacity:.3}
+.cat .fixed{flex:none;width:38px;text-align:center;font-size:11px;color:var(--muted)}
+.foot-link{display:flex;justify-content:center}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabs) + 56px + env(safe-area-inset-bottom));z-index:70;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 18px rgba(0,0,0,.2)}
 .toast button{border:0;background:none;color:var(--brass-ink);font-weight:700;padding:4px 0}
 .busy{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}
@@ -272,7 +286,7 @@ nav.tabs svg{width:22px;height:22px}
   <button type="button" data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/></svg>Ask Alfred</button>
 </nav>
 
-<div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="sheet-panel"></div></div>
+<div class="sheet" id="sheet" hidden><div class="panel" role="dialog" aria-modal="true" id="sheet-panel" tabindex="-1"></div></div>
 <div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
 
 <script type="module">
@@ -308,15 +322,28 @@ const AISLES = [
   ["Cupboard", /\b(rice|pasta|noodle|oat|flour|sugar|honey|oil|vinegar|sauce|soy|miso|stock|broth|tin|can|bean|chickpea|lentil|quinoa|couscous|spice|paprika|cumin|curry|harissa|pesto|mustard|ketchup|mayo|nut|seed|peanut|almond|cereal|granola|crisp|cracker|chocolate|jam|salt|pepper)/i],
 ];
 const AISLE_ORDER = ["Produce", "Meat & fish", "Dairy & eggs", "Bakery", "Cupboard", "Frozen", "Drinks", "Household", "Other"];
+// The built-in guess, always one of AISLE_ORDER. The pantry's fridge/cupboard/freezer logic runs on this, not on the categories.
 const guessAisle = (name) => (AISLES.find(([, re]) => re.test(name)) || ["Other"])[0];
+// The household's own categories (shared, key "categories"): their order is the list's order.
+// Each keeps the built-in aisle it grew from in "base" (null for one someone added), so guesses still land
+// after a rename. "Other" can be renamed but not deleted: it's where everything without a home goes.
+// Items store the category's name in "aisle", as before, so nothing needs migrating.
+const cats = () => store.get("categories")?.categories || AISLE_ORDER.map((name) => ({ name, base: name }));
+const catOrder = () => cats().map((c) => c.name);
+const otherCat = () => cats().find((c) => c.base === "Other")?.name || "Other";
+/** The category an item's stored aisle belongs in now: itself, the category that grew from it, or null. */
+const resolveCat = (a, list = cats()) => !a ? null : list.find((c) => c.name === a)?.name || list.find((c) => c.base === a)?.name || null;
+const guessCat = (name) => resolveCat(guessAisle(name)) || otherCat();
+const baseOf = (cat) => cats().find((c) => c.name === cat)?.base || null;
 // When someone moves an item to another aisle, the Larder remembers it for that name (shared, key "aisles").
 const nameKey = (name) => norm(String(name).replace(/\s*[×x]\s*\d+$/, "")).join(" ");
 const aisleMemory = () => store.get("aisles")?.aisles || {};
-const aisleOf = (name) => aisleMemory()[nameKey(name)] || guessAisle(name);
+const aisleOf = (name) => resolveCat(aisleMemory()[nameKey(name)]) || guessCat(name);
+const catOf = (it) => resolveCat(it.aisle) || aisleOf(it.name);
 function rememberAisle(name, aisle) {
   const key = nameKey(name); if (!key) return;
   const mem = { ...aisleMemory() };
-  if (aisle === guessAisle(name)) delete mem[key]; else mem[key] = aisle;
+  if (aisle === guessCat(name)) delete mem[key]; else mem[key] = aisle;
   store.set("aisles", { aisles: mem });
 }
 const placeFor = (a) => a === "Frozen" ? "freezer" : ["Produce", "Meat & fish", "Dairy & eggs"].includes(a) ? "fridge" : "cupboard";
@@ -359,16 +386,28 @@ const pins = () => store.get("pins")?.pins || [];
 const settings = () => store.get("settings") || {};
 const setPins = (p) => store.set("pins", { pins: [...new Set(p)].slice(0, 12) });
 
+// "2 lemons", "2c flour", "500g mince", "1 1/2 tsp cumin": a number at the front, with or without a unit, becomes the quantity.
+const QTY = /^((?:\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[¼½¾⅓⅔⅛])?|[¼½¾⅓⅔⅛])(?:\s*-\s*\d+)?\s*(?:x\s*)?(?:(?:g|kg|ml|l|lbs?|oz|tbsp|tbs|tsp|c|cups?|box(?:es)?|bags?|packs?|packets?|tins?|cans?|jars?|bottles?|bunch(?:es)?|dozen|loaf|loaves|heads?|cloves?|pints?|quarts?|gallons?|sticks?|cartons?|pcs?|pieces?)\b\.?)?)\s+(?:of\s+)?(.+)$/i;
+function splitQty(text) {
+  const m = String(text).trim().match(QTY);
+  return m && /[a-z]/i.test(m[2]) ? { qty: m[1].trim(), name: m[2].trim() } : { qty: "", name: String(text).trim() };
+}
 let currentList = (() => { try { return localStorage.getItem("larder:list") || "weekly"; } catch { return "weekly"; } })();
 function addItem(name, extra = {}) {
   name = name.trim(); if (!name) return null;
   name = name[0].toUpperCase() + name.slice(1);
   const listId = extra.list || currentList;
   const dupe = items().find((i) => !i.done && i.list === listId && norm(i.name).join(" ") === norm(name).join(" "));
-  if (dupe) { if (extra.meal && !dupe.meal) store.set("items/" + dupe.id, { ...strip(dupe), meal: extra.meal }); return { dupe }; }
+  if (dupe) {
+    const patch = {};
+    if (extra.meal && !dupe.meal) patch.meal = extra.meal;
+    if (extra.qty && !dupe.qty) patch.qty = extra.qty;
+    if (Object.keys(patch).length) store.set("items/" + dupe.id, { ...strip(dupe), ...patch });
+    return { dupe };
+  }
   const id = uid();
   const maxOrder = Math.max(0, ...items().map((i) => i.order || 0));
-  store.set("items/" + id, { name, list: listId, done: false, by: extra.by || me.initial, meal: extra.meal || "", aisle: aisleOf(name), order: maxOrder + 1, created: Date.now() });
+  store.set("items/" + id, { name, list: listId, done: false, by: extra.by || me.initial, meal: extra.meal || "", ...(extra.qty ? { qty: extra.qty } : {}), aisle: aisleOf(name), order: maxOrder + 1, created: Date.now() });
   return { id };
 }
 const strip = (o) => { const { id, ...rest } = o; return rest; };
@@ -389,12 +428,31 @@ function undoable(text, keys, change) {
 }
 
 // ---------- sheet ----------
-function openSheet(html, wire) {
+// On a phone, opening a sheet no longer jumps into its first box: the keyboard only comes up when you tap one
+// (pass { type: true } for sheets that are only for typing). Closing puts the keyboard away and the page back
+// where it was, because iPhone home-screen apps can be left shifted after the keyboard goes.
+const finePointer = matchMedia("(hover:hover) and (pointer:fine)");
+let sheetScroll = 0;
+function openSheet(html, wire, { type = false } = {}) {
+  if ($("sheet").hidden) sheetScroll = scrollY;
   $("sheet-panel").innerHTML = html; $("sheet").hidden = false;
   wire?.($("sheet-panel"));
-  $("sheet-panel").querySelector("input,textarea,button")?.focus();
+  const first = $("sheet-panel").querySelector("input,textarea,select,button");
+  if (first && (type || finePointer.matches || first.tagName === "BUTTON")) first.focus({ preventScroll: true });
+  else $("sheet-panel").focus({ preventScroll: true });
 }
-const closeSheet = () => { $("sheet").hidden = true; };
+function closeSheet() {
+  if ($("sheet").hidden) return;
+  if ($("sheet").contains(document.activeElement)) document.activeElement.blur();
+  $("sheet").hidden = true;
+  const y = sheetScroll;
+  requestAnimationFrame(() => scrollTo(0, y));
+}
+// After the keyboard goes away, iPhone sometimes leaves the page scrolled under its fixed tab bar; a nudge resets it.
+window.visualViewport?.addEventListener("resize", () => {
+  const ae = document.activeElement;
+  if (!ae || !/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) scrollTo(scrollX, scrollY);
+});
 $("sheet").addEventListener("click", (e) => { if (e.target.id === "sheet") closeSheet(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
 
@@ -447,9 +505,9 @@ function renderList() {
   $("list-eyebrow").textContent = todo.length ? `The Larder · ${plural(todo.length, "thing", "things")} to get` : "The Larder";
 
   const groups = {};
-  todo.forEach((i) => (groups[i.aisle || aisleOf(i.name)] ||= []).push(i));
+  todo.forEach((i) => (groups[catOf(i)] ||= []).push(i));
   let html = "";
-  AISLE_ORDER.filter((a) => groups[a]).forEach((a) => {
+  catOrder().filter((a) => groups[a]).forEach((a) => {
     const rows = groups[a].sort((x, y) => (x.order || 0) - (y.order || 0));
     html += `<div class="group"><span class="label">${esc(a)}</span><div class="card rows" data-group="${esc(a)}">${rows.map(itemRow).join("")}</div></div>`;
   });
@@ -459,12 +517,13 @@ function renderList() {
       <button type="button" data-clear class="linkbtn">Clear ticked</button></div>`;
     if (showTicked) html += `<div class="card rows">${done.map(itemRow).join("")}</div>`;
   }
+  html += `<div class="foot-link"><button type="button" class="linkbtn" data-cats>Edit categories</button></div>`;
   $("list-body").innerHTML = html;
 }
 function itemRow(i) {
   return `<div class="item${i.done ? " isdone" : ""}" data-item="${esc(i.id)}">
     <button type="button" class="tick${i.done ? " done" : ""}" data-tick aria-label="${i.done ? "Untick" : "Tick"} ${esc(i.name)}" aria-pressed="${!!i.done}">${i.done ? "✓" : ""}</button>
-    <button type="button" class="txt" data-edit><span class="name">${esc(i.name)}</span>${i.meal ? `<span class="for">for ${esc(i.meal)}</span>` : ""}</button>
+    <button type="button" class="txt" data-edit><span class="name">${esc(i.name)}${i.qty ? `<span class="q">${esc(i.qty)}</span>` : ""}</span>${i.meal ? `<span class="for">for ${esc(i.meal)}</span>` : ""}</button>
     <span class="by" title="Added by">${esc(i.by || "")}</span>
     ${i.done ? "" : `<button type="button" class="del" data-del aria-label="Delete ${esc(i.name)}">×</button>`}
     ${i.done ? "" : `<button type="button" class="handle" data-handle aria-label="Drag to reorder ${esc(i.name)}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>`}
@@ -473,7 +532,7 @@ function itemRow(i) {
 $("add-item").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("add-item-name");
-  input.value.split(/\s*,\s*|\n/).forEach((n) => { const r = addItem(n); if (r?.dupe) toast(`${r.dupe.name} is already on the list.`); });
+  input.value.split(/\s*,\s*|\n/).forEach((n) => { const { qty, name } = splitQty(n); const r = addItem(name, { qty }); if (r?.dupe) toast(`${r.dupe.name} is already on the list.`); });
   input.value = ""; input.focus();
 });
 $("lists").addEventListener("click", (e) => {
@@ -504,7 +563,7 @@ function listSheet(edit = null) {
       });
       closeSheet();
     });
-  });
+  }, { type: !edit });
 }
 $("lists").addEventListener("contextmenu", (e) => { const b = e.target.closest("[data-list]"); if (!b) return; e.preventDefault(); listSheet(lists().find((l) => l.id === b.dataset.list)); });
 $("lists").addEventListener("dblclick", (e) => { const b = e.target.closest("[data-list]"); if (b) listSheet(lists().find((l) => l.id === b.dataset.list)); });
@@ -516,6 +575,7 @@ $("list-body").addEventListener("click", (e) => {
     const done = items().filter((i) => i.list === currentList && i.done);
     return undoable(`Cleared ${plural(done.length, "item", "items")}.`, done.map((i) => "items/" + i.id), () => done.forEach((i) => store.remove("items/" + i.id)));
   }
+  if (e.target.closest("[data-cats]")) return catSheet();
   if (!row) return;
   const it = items().find((i) => i.id === row.dataset.item); if (!it) return;
   if (swiped) { swiped = false; return; }
@@ -529,8 +589,7 @@ function toggleTick(it) {
     // Ticked groceries go into the pantry, so Alfred knows they're in the house:
     // only from lists that stock the pantry, and never Household things.
     let pantryId = null;
-    const aisle = it.aisle || aisleOf(it.name);
-    if (stocksPantry(it.list) && aisle !== "Household") {
+    if (stocksPantry(it.list) && baseOf(catOf(it)) !== "Household") {
       const exists = pantry().find((p) => nameKey(p.name) === nameKey(it.name));
       if (!exists) {
         pantryId = uid();
@@ -546,17 +605,22 @@ function toggleTick(it) {
   }
 }
 function itemSheet(it) {
+  const cur = catOf(it);
   openSheet(`<h2>Edit item</h2>
-    <label class="field">Name<input type="text" id="it-name" value="${esc(it.name)}"></label>
-    <label class="field">Aisle<select id="it-aisle">${AISLE_ORDER.map((a) => `<option ${a === (it.aisle || aisleOf(it.name)) ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></label>
+    <label class="field">Name<input type="text" id="it-name" value="${esc(it.name)}" enterkeyhint="done"></label>
+    <label class="field"><span>How many <span class="small">(optional)</span></span><input type="text" id="it-qty" value="${esc(it.qty || "")}" placeholder="e.g. 2, 2 boxes, 2 tsp" enterkeyhint="done" autocomplete="off"></label>
+    <div class="field"><span class="hint"><label for="it-aisle">Category</label><button type="button" class="linkbtn" id="it-cats">Edit categories</button></span>
+      <select id="it-aisle">${catOrder().map((a) => `<option ${a === cur ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></div>
     ${lists().length > 1 ? `<label class="field">List<select id="it-list">${lists().map((l) => `<option value="${esc(l.id)}" ${l.id === it.list ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></label>` : ""}
     ${it.meal ? `<p class="small muted" style="margin:0">For ${esc(it.meal)}</p>` : ""}
     <div class="two"><button class="btn" type="button" id="it-del">Delete</button><button class="btn primary" type="button" id="it-save">Save</button></div>`, (p) => {
     p.querySelector("#it-save").onclick = () => {
       const name = p.querySelector("#it-name").value.trim() || it.name;
       const aisle = p.querySelector("#it-aisle").value;
-      store.set("items/" + it.id, { ...strip(it), name, aisle, list: p.querySelector("#it-list")?.value || it.list });
-      if (aisle !== (it.aisle || aisleOf(it.name))) {
+      const qty = p.querySelector("#it-qty").value.trim();
+      const { qty: _old, ...rest } = strip(it);
+      store.set("items/" + it.id, { ...rest, ...(qty ? { qty } : {}), name, aisle, list: p.querySelector("#it-list")?.value || it.list });
+      if (aisle !== cur) {
         // Remember the move for next time, and move any other unticked copies with it.
         rememberAisle(name, aisle);
         items().filter((o) => o.id !== it.id && !o.done && nameKey(o.name) === nameKey(name) && o.aisle !== aisle)
@@ -566,6 +630,89 @@ function itemSheet(it) {
       closeSheet();
     };
     p.querySelector("#it-del").onclick = () => { deleteItem(it); closeSheet(); };
+    p.querySelector("#it-cats").onclick = () => catSheet(it);
+    p.querySelectorAll("input").forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); p.querySelector("#it-save").click(); } }));
+  });
+}
+
+// ---------- categories: add, rename, delete, reorder ----------
+// Works on a draft; nothing changes until Save, and Save can be undone from the toast.
+// Renaming carries items and remembered moves across; deleting sends its items to the catch-all.
+function catSheet(back = null) {
+  const draft = cats().map((c) => ({ ...c, orig: c.name }));
+  const draw = (p, focusIdx = null) => {
+    p.querySelector("#cat-rows").innerHTML = draft.map((c, n) => `<div class="cat" data-n="${n}">
+      <label class="sr" for="cat-${n}">Category ${n + 1}</label>
+      <input type="text" id="cat-${n}" value="${esc(c.name)}" data-name enterkeyhint="done" autocomplete="off">
+      <button type="button" class="btn sq" data-up ${n ? "" : "disabled"} aria-label="Move ${esc(c.name)} up">↑</button>
+      <button type="button" class="btn sq" data-down ${n < draft.length - 1 ? "" : "disabled"} aria-label="Move ${esc(c.name)} down">↓</button>
+      ${c.base === "Other" ? `<span class="fixed" aria-hidden="true"></span>` : `<button type="button" class="btn sq" data-delcat aria-label="Delete ${esc(c.name)}">×</button>`}
+    </div>`).join("");
+    if (focusIdx != null) p.querySelector(`#cat-${focusIdx}`)?.focus();
+  };
+  openSheet(`<h2>Categories</h2>
+    <p class="small muted" style="margin:0">The list sorts by this order. Renaming keeps everything in it. Deleting moves its things to ${esc(otherCat())}, which always stays for anything without a home.</p>
+    <div class="cats" id="cat-rows"></div>
+    <form class="adder" id="cat-add" autocomplete="off" style="padding-left:12px">
+      <label class="sr" for="cat-new">New category</label>
+      <input id="cat-new" placeholder="New category, e.g. Baking" enterkeyhint="done">
+      <button class="btn primary sq" aria-label="Add category">+</button>
+    </form>
+    <p class="err" id="cat-err" hidden></p>
+    <div class="two"><button class="btn" type="button" id="cat-cancel">Cancel</button><button class="btn primary" type="button" id="cat-save">Save</button></div>`, (p) => {
+    draw(p);
+    const rows = p.querySelector("#cat-rows");
+    rows.addEventListener("input", (e) => { const n = +e.target.closest("[data-n]")?.dataset.n; if (e.target.matches("[data-name]")) draft[n].name = e.target.value; });
+    rows.addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      const n = +b.closest("[data-n]").dataset.n;
+      if ("up" in b.dataset && n > 0) { [draft[n - 1], draft[n]] = [draft[n], draft[n - 1]]; draw(p); p.querySelector(`[data-n="${n - 1}"] [data-up]`)?.focus() || p.querySelector(`[data-n="${n - 1}"] [data-down]`)?.focus(); }
+      if ("down" in b.dataset && n < draft.length - 1) { [draft[n + 1], draft[n]] = [draft[n], draft[n + 1]]; draw(p); (p.querySelector(`[data-n="${n + 1}"] [data-down]:not([disabled])`) || p.querySelector(`[data-n="${n + 1}"] [data-up]`))?.focus(); }
+      if ("delcat" in b.dataset) { draft.splice(n, 1); draw(p); }
+    });
+    p.querySelector("#cat-add").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = p.querySelector("#cat-new"), name = input.value.trim(); if (!name) return;
+      // New categories go just above the catch-all.
+      const at = draft.findIndex((c) => c.base === "Other");
+      draft.splice(at < 0 ? draft.length : at, 0, { name: name[0].toUpperCase() + name.slice(1), base: null, orig: null });
+      input.value = ""; draw(p);
+    });
+    const done = () => back ? itemSheet(items().find((i) => i.id === back.id) || back) : closeSheet();
+    p.querySelector("#cat-cancel").onclick = done;
+    p.querySelector("#cat-save").onclick = () => {
+      const pending = p.querySelector("#cat-new").value.trim();
+      if (pending) p.querySelector("#cat-add").requestSubmit();
+      const err = p.querySelector("#cat-err");
+      draft.forEach((c) => (c.name = c.name.trim()));
+      const seen = new Set();
+      const clash = draft.find((c) => { const k = c.name.toLowerCase(); if (!k || seen.has(k)) return true; seen.add(k); return false; });
+      if (clash) { err.textContent = clash.name ? `There are two called ${clash.name}.` : "Every category needs a name."; err.hidden = false; return; }
+      saveCats(draft);
+      done();
+    };
+  });
+}
+function saveCats(draft) {
+  const old = cats();
+  const next = draft.map(({ name, base }) => ({ name, base }));
+  const fallback = next.find((c) => c.base === "Other")?.name || "Other";
+  // Where each old category's things go now: its new name, or the catch-all if it was deleted.
+  const moveTo = Object.fromEntries(old.map((c) => [c.name, draft.find((d) => d.orig === c.name)?.name || fallback]));
+  const target = (a) => { const was = resolveCat(a, old); return was ? moveTo[was] : null; };
+  const changed = items().filter((i) => { const t = target(i.aisle); return t && t !== i.aisle; });
+  const mem = { ...aisleMemory() };
+  let memChanged = false;
+  Object.entries(mem).forEach(([k, a]) => {
+    const t = target(a), wasDeleted = resolveCat(a, old) && !draft.some((d) => d.orig === resolveCat(a, old));
+    if (wasDeleted) { delete mem[k]; memChanged = true; } else if (t && t !== a) { mem[k] = t; memChanged = true; }
+  });
+  const isDefault = next.length === AISLE_ORDER.length && next.every((c, n) => c.name === AISLE_ORDER[n] && c.base === AISLE_ORDER[n]);
+  const keys = ["categories", ...(memChanged ? ["aisles"] : []), ...changed.map((i) => "items/" + i.id)];
+  undoable("Categories saved.", keys, () => {
+    if (!(isDefault && !store.get("categories"))) store.set("categories", { categories: next });
+    if (memChanged) store.set("aisles", { aisles: mem });
+    changed.forEach((i) => store.set("items/" + i.id, { ...strip(i), aisle: target(i.aisle) }));
   });
 }
 // Deleting takes an item off the list without it going to the pantry.
@@ -608,13 +755,14 @@ $("list-body").addEventListener("pointercancel", endSwipe);
 let dragging = null;
 function showAllAisles() {
   const body = $("list-body");
-  AISLE_ORDER.forEach((a, n) => {
-    if (body.querySelector(`[data-group="${a}"]`)) return;
+  const order = catOrder();
+  order.forEach((a, n) => {
+    if (body.querySelector(`[data-group="${CSS.escape(a)}"]`)) return;
     const g = document.createElement("div");
     g.className = "group ghost";
     g.innerHTML = `<span class="label">${esc(a)}</span><div class="card rows" data-group="${esc(a)}"></div>`;
-    const next = AISLE_ORDER.slice(n + 1).map((b) => body.querySelector(`[data-group="${b}"]`)?.parentElement).find(Boolean);
-    body.insertBefore(g, next || body.querySelector(".ticked-head, .empty") || null);
+    const next = order.slice(n + 1).map((b) => body.querySelector(`[data-group="${CSS.escape(b)}"]`)?.parentElement).find(Boolean);
+    body.insertBefore(g, next || body.querySelector(".ticked-head, .empty, .foot-link") || null);
   });
 }
 function edgeScroll() {
@@ -986,9 +1134,9 @@ function renderRecipe() {
   box.querySelector("#r-fav").onclick = () => save({ fav: !r.fav });
   box.querySelector("#r-less").onclick = () => { servings = Math.max(1, servings - 1); renderRecipe(); };
   box.querySelector("#r-more-s").onclick = () => { servings = Math.min(20, servings + 1); renderRecipe(); };
-  box.querySelectorAll("[data-addone]").forEach((b) => (b.onclick = () => { const i = ings[+b.dataset.addone]; addItem(shortName(i.line), { meal: r.title }); toast(`${shortName(i.line)} is on the list.`); }));
+  box.querySelectorAll("[data-addone]").forEach((b) => (b.onclick = () => { const i = ings[+b.dataset.addone]; addItem(shortName(i.line), { meal: r.title, qty: splitQty(i.line).qty }); toast(`${shortName(i.line)} is on the list.`); }));
   box.querySelector("#r-addall")?.addEventListener("click", () => {
-    const added = need.map((i) => addItem(shortName(i.line), { meal: r.title })).filter((x) => x?.id).map((x) => "items/" + x.id);
+    const added = need.map((i) => addItem(shortName(i.line), { meal: r.title, qty: splitQty(i.line).qty })).filter((x) => x?.id).map((x) => "items/" + x.id);
     toast(`Added ${plural(added.length, "item", "items")} to the list.`, () => added.forEach((k) => store.remove(k)));
   });
   box.querySelector("#r-cook").onclick = async () => {
