@@ -2,7 +2,7 @@
 //
 // The Pixel Watch's Google Calendar app shows Google Tasks and has a tile, and Gemini on the watch can add
 // to a named Tasks list. This function keeps two Google Tasks lists in step with the rooms:
-//   "Errands"  Errand Book tasks due today or this week (to Sunday), plus overdue ones.
+//   "Errands"  Errand Book tasks due today or this week (to Sunday), plus overdue ones (shown as due today).
 //              Tick one on the watch and it's ticked in the Errand Book. Anything added by voice
 //              ("add stamps to my Errands list") becomes an Errand Book triage task.
 //   "Ideas"    Anything added here ("add ... to my Ideas list") moves to the Writing Desk idea shelf
@@ -228,6 +228,9 @@ async function sync(c: Ctx) {
     const wanted = (x: any) => x && !x.someday && !["done", "waiting"].includes(x.status)
       && !(x.snoozeUntil && x.snoozeUntil > t)
       && ((x.due && x.due <= sunday) || (x.source === "watch" && !x.due));
+    // The watch only shows today's and upcoming tasks, so overdue and undated errands show as due today
+    // there. Their real dates in the Errand Book are untouched.
+    const shown = (x: any) => (!x.due || x.due < t ? t : x.due);
 
     const gtasks = await listTasks(call, errandsList);
     const byG = new Map(gtasks.map((g) => [g.id, g]));
@@ -269,9 +272,9 @@ async function sync(c: Ctx) {
         continue;
       }
       const g = byG.get(gid);
-      const due = x.due ? `${x.due}T00:00:00.000Z` : undefined;
-      if (g && g.status !== "completed" && (g.title !== x.title || (g.due || undefined)?.slice(0, 10) !== x.due)) {
-        await call("PATCH", `/lists/${errandsList}/tasks/${gid}`, { title: x.title, ...(due ? { due } : { due: null }) });
+      const day = shown(x);
+      if (g && g.status !== "completed" && (g.title !== x.title || (g.due || "").slice(0, 10) !== day)) {
+        await call("PATCH", `/lists/${errandsList}/tasks/${gid}`, { title: x.title, due: `${day}T00:00:00.000Z` });
         n.updated++;
       }
     }
@@ -280,9 +283,7 @@ async function sync(c: Ctx) {
     const toAdd = [...errands.entries()].filter(([eid, x]) => wanted(x) && !map[eid])
       .sort((a, b) => String(b[1].due || "9").localeCompare(String(a[1].due || "9")));
     for (const [eid, x] of toAdd) {
-      const made = await call("POST", `/lists/${errandsList}/tasks`, {
-        title: x.title, ...(x.due ? { due: `${x.due}T00:00:00.000Z` } : {}),
-      });
+      const made = await call("POST", `/lists/${errandsList}/tasks`, { title: x.title, due: `${shown(x)}T00:00:00.000Z` });
       map[eid] = made.id; n.added++;
     }
 
