@@ -3,7 +3,7 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { fakeStore } from "./setup.js";
 
-const { tickWorkouts, tickWriting, todoBucket, planLabel, nextRepeat, repeatLabel } = await import("../js/rooms.js");
+const { tickWorkouts, tickWriting, todoBucket, planLabel, nextRepeat, repeatLabel, inSeason } = await import("../js/rooms.js");
 const { parseFocusPlan } = await import("../js/study.js");
 
 mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-12T15:00:00") });
@@ -97,4 +97,33 @@ test("a pasted Focus Plan is read into blocks and hard stops", () => {
     { day: "2026-11-11", id: "F3", start: "13:00", end: "14:00", overflow: false },
   ]);
   assert.deepEqual(hardStops, { "2026-11-09": "17:30", "2026-11-12": "16:00" });
+});
+
+test("weekly chores repeat by the week, and seasonal ones wait for their season", () => {
+  const office = nextRepeat({ id: "o", title: "Office tidy", planFor: "2026-11-23", repeats: { n: 1, unit: "week" } }, "2026-11-27");
+  assert.equal(office.planFor, "2026-11-30");
+  assert.equal(office.due, null);
+  const mop = nextRepeat({ id: "m", planFor: "2026-12-28", repeats: { n: 2, unit: "week" } }, "2026-12-30");
+  assert.equal(mop.planFor, "2027-01-11", "across the new year");
+  const bins = nextRepeat({ id: "b", due: "2026-11-23", repeats: { n: 1, unit: "week" } }, "2026-11-23");
+  assert.equal(bins.due, "2026-11-30");
+  assert.equal(bins.planFor, "2026-11-30");
+  const loose = nextRepeat({ id: "l", repeats: { n: 1, unit: "week" } }, "2026-11-26");
+  assert.equal(loose.planFor, "2026-11-30", "no plan: the week after the one it was ticked in");
+  const mow = nextRepeat({ id: "w", title: "Mow the lawn", planFor: "2026-10-26", repeats: { n: 1, unit: "week" }, season: { from: 4, to: 10 } }, "2026-10-31");
+  assert.equal(mow.planFor, "2027-04-05", "skips the winter to the first week starting in April");
+  assert.deepEqual(mow.season, { from: 4, to: 10 });
+  const inSeasonMow = nextRepeat({ id: "w2", planFor: "2026-06-01", repeats: { n: 1, unit: "week" }, season: { from: 4, to: 10 } });
+  assert.equal(inSeasonMow.planFor, "2026-06-08");
+  const weeds = nextRepeat({ id: "x", planFor: "2026-09", repeats: { n: 1, unit: "month" }, season: { from: 5, to: 9 } });
+  assert.equal(weeds.planFor, "2027-05");
+  const dueWeeds = nextRepeat({ id: "y", due: "2026-09-30", repeats: { n: 1, unit: "month" }, season: { from: 5, to: 9 } });
+  assert.equal(dueWeeds.due, "2027-05-30");
+  const leaves = nextRepeat({ id: "z", planFor: "2026-11-30", repeats: { n: 1, unit: "week" }, season: { from: 10, to: 11 } });
+  assert.equal(leaves.planFor, "2027-10-04");
+  const snow = nextRepeat({ id: "s", planFor: "2026-12", repeats: { n: 1, unit: "month" }, season: { from: 11, to: 3 } });
+  assert.equal(snow.planFor, "2027-01", "a season can wrap the new year");
+  assert.equal(repeatLabel({ n: 1, unit: "week" }), "every week");
+  assert.equal(repeatLabel({ n: 2, unit: "week" }, { from: 4, to: 10 }), "every 2 weeks, Apr–Oct");
+  assert.ok(inSeason(1, { from: 11, to: 3 }) && !inSeason(6, { from: 11, to: 3 }) && inSeason(6, null));
 });

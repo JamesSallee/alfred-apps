@@ -141,6 +141,7 @@ const plan = (p: string) => p.length > 7
   : new Date(p + "-01T12:00:00Z").toLocaleDateString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
 const size = (m: number) => m < 60 ? `${m} min` : m === 240 ? "half a day" : m >= 480 ? "a day" : `${m / 60} hr`;
 
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function taskProps(t: any) {
   const notes = [
     t.notes,
@@ -149,7 +150,7 @@ function taskProps(t: any) {
     t.snoozeUntil && t.snoozeUntil > today() ? `Snoozed until ${t.snoozeUntil}` : "",
     t.size ? `About ${size(t.size)}` : "",
     t.planFor ? `Planned for ${plan(t.planFor)}` : "",
-    t.repeats?.unit ? `Repeats every ${t.repeats.n > 1 ? t.repeats.n + " " + t.repeats.unit + "s" : t.repeats.unit}` : "",
+    t.repeats?.unit ? `Repeats every ${t.repeats.n > 1 ? t.repeats.n + " " + t.repeats.unit + "s" : t.repeats.unit}` + (t.season?.from ? ` (in season ${MON[t.season.from - 1]}–${MON[t.season.to - 1]})` : "") : "",
     t.someday ? "Someday" : "",
     "(Copied from the Errand Book: edit it there.)",
   ].filter(Boolean).join("\n");

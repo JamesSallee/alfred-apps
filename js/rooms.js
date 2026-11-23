@@ -267,20 +267,48 @@ export function planLabel(p, t = ymd(new Date())) {
   const d = parse(p + "-01");
   return d.toLocaleDateString("en-GB", p.slice(0, 4) === t.slice(0, 4) ? { month: "long" } : { month: "long", year: "numeric" });
 }
-const REPEAT_UNITS = { month: 1, year: 12 };
-/** "every month", "every 3 months", "every year". */
-export const repeatLabel = (r) => !r?.unit ? "" : `every ${r.n > 1 ? r.n + " " : ""}${r.unit}${r.n > 1 ? "s" : ""}`;
+const REPEAT_UNITS = { week: 0, month: 1, year: 12 }; // months per unit (weeks are counted in days instead)
+const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "every week", "every 2 weeks", "every 3 months", "every year"; a season adds ", Apr–Oct". */
+export const repeatLabel = (r, season) => !r?.unit ? "" : `every ${r.n > 1 ? r.n + " " : ""}${r.unit}${r.n > 1 ? "s" : ""}` + (season ? ", " + seasonLabel(season) : "");
+/** "Apr–Oct" for { from: 4, to: 10 }. */
+export const seasonLabel = (s) => (s?.from && s?.to ? `${MONTHS3[s.from - 1]}–${MONTHS3[s.to - 1]}` : "");
+/** Whether a month (1–12) falls in a season { from, to } (which may wrap the new year, e.g. Nov–Mar). No season = always. */
+export const inSeason = (m, s) => !s?.from || !s?.to || (s.from <= s.to ? m >= s.from && m <= s.to : m >= s.from || m <= s.to);
 const plusMonths = (s, m) => { const [y, mo, d] = s.split("-").map(Number); const total = y * 12 + mo - 1 + m;
   const ny = Math.floor(total / 12), nm = total % 12 + 1; const last = new Date(ny, nm, 0).getDate();
   return `${ny}-${pad(nm)}` + (d ? "-" + pad(Math.min(d, last)) : ""); };
-/** The next copy of a repeating task, ticked off on `doneDay`: the due date and planned month move on by the
- *  interval (from the old due date when there was one, so a late tick doesn't drift the schedule). */
+/** The first month on or after "YYYY-MM" that is in season. */
+const nextInSeason = (ym, s) => { let m = ym; for (let i = 0; i < 12 && !inSeason(Number(m.slice(5, 7)), s); i++) m = plusMonths(m, 1); return m; };
+/** The first Monday whose week starts in that month (the "Which week" list starts there too). */
+const firstMondayIn = (ym) => { let w = mondayOf(ym + "-01"); return w < ym + "-01" ? addDays(w, 7) : w; };
+/** The next copy of a repeating task, ticked off on `doneDay`: the due date and plan move on by the interval (from
+ *  the old due date or planned week when there was one, so a late tick doesn't drift the schedule). Weekly repeats
+ *  plan the next copy for a week (its Monday); monthly and yearly ones for a month. Out of season, the copy skips
+ *  ahead to the first in-season week or month. */
 export function nextRepeat(x, doneDay = ymd(new Date())) {
-  const r = x.repeats; if (!r?.unit || !REPEAT_UNITS[r.unit]) return null;
-  const months = REPEAT_UNITS[r.unit] * Math.max(1, r.n || 1);
-  const due = x.due ? plusMonths(x.due, months) : null;
-  const base = x.planFor ? x.planFor.slice(0, 7) : (x.due || doneDay).slice(0, 7);
-  const planFor = due ? due.slice(0, 7) : plusMonths(base, months);
+  const r = x.repeats; if (!r?.unit || !(r.unit in REPEAT_UNITS)) return null;
+  const n = Math.max(1, r.n || 1), s = x.season;
+  let due = null, planFor;
+  if (r.unit === "week") {
+    const base = planWeek(x.planFor) || mondayOf(x.due || doneDay);
+    planFor = addDays(base, 7 * n);
+    if (x.due) due = addDays(x.due, 7 * n);
+    if (!inSeason(Number(planFor.slice(5, 7)), s)) {
+      planFor = firstMondayIn(nextInSeason(planFor.slice(0, 7), s));
+      if (due) due = null;
+    }
+  } else {
+    const months = REPEAT_UNITS[r.unit] * n;
+    due = x.due ? plusMonths(x.due, months) : null;
+    const base = x.planFor ? x.planFor.slice(0, 7) : (x.due || doneDay).slice(0, 7);
+    planFor = due ? due.slice(0, 7) : plusMonths(base, months);
+    const ok = nextInSeason(planFor, s);
+    if (ok !== planFor) {
+      const gap = (+ok.slice(0, 4) - +planFor.slice(0, 4)) * 12 + (+ok.slice(5, 7) - +planFor.slice(5, 7));
+      planFor = ok; if (due) due = plusMonths(due, gap);
+    }
+  }
   const { id, doneAt, booked, snoozeUntil, snoozes, ...keep } = x;
   return { ...keep, status: "todo", due, planFor, booked: null, wantsSlot: false, triage: false,
     repeatOf: x.repeatOf || id, created: new Date().toISOString() };
