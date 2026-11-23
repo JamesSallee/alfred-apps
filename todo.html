@@ -75,6 +75,20 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .tag.slot{background:var(--brass-soft);color:var(--brass-ink)}
 .tag.new{border:1px dashed var(--brass);background:transparent;color:var(--brass-ink)}
 .tag.wait{background:var(--brass-soft);color:var(--brass-ink)}
+.tag.plan{background:var(--green-soft);color:var(--green)}
+
+/* Months: the month ahead, week by week, with roughly how much errand time each week holds. */
+.views{display:flex;gap:6px}
+.month{display:flex;flex-direction:column;gap:8px}
+.month h2{font-size:19px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.week{border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:4px}
+.week:first-of-type{border-top:0;padding-top:0}
+.week .wh{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.week .wh .over{color:var(--rust)}
+.week ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+.week li .body{flex-direction:row;gap:8px;justify-content:space-between;width:100%;padding:3px 0}
+.week li .title{font-size:14px}
+.week li .sz{font-size:12px;color:var(--muted);white-space:nowrap}
 .acts{display:flex;gap:6px;align-items:center}
 /* The dot is 10px; the button around it is a full tap tall (min-height comes from base.css) and invisible. */
 .pri{--dot:var(--line);width:24px;border:0;padding:0;background:transparent;display:grid;place-items:center;cursor:pointer}
@@ -135,6 +149,10 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
         <span class="saved" id="capSaved" aria-live="polite">Or just tell Alfred in chat; he'll suggest a time.</span>
       </article>
 
+      <div class="chips views" role="group" aria-label="View" id="views">
+        <button class="chip" type="button" data-view="lists" aria-pressed="true">Lists</button>
+        <button class="chip" type="button" data-view="months" aria-pressed="false">By month</button>
+      </div>
       <div id="groups" class="col"></div>
     </div>
 
@@ -180,6 +198,13 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
         <select id="edStatus"><option value="todo">To do</option><option value="doing">Doing</option><option value="waiting">Waiting on…</option><option value="done">Done</option></select></div>
       <div class="f" id="edWaitF"><label class="label" for="edWait">Waiting on</label><input id="edWait" placeholder="The electrician's quote"></div>
     </div>
+    <div class="grid2">
+      <div class="f"><label class="label" for="edMonth">Planned for</label><select id="edMonth"></select></div>
+      <div class="f"><label class="label" for="edWeek">Which week</label><select id="edWeek"><option value="">Any time that month</option></select></div>
+      <div class="f"><label class="label" for="edRepeat">Repeats</label>
+        <select id="edRepeat"><option value="">Doesn't repeat</option><option value="1 month">Every month</option><option value="3 month">Every 3 months</option><option value="6 month">Every 6 months</option><option value="1 year">Every year</option><option value="2 year">Every 2 years</option><option value="3 year">Every 3 years</option></select></div>
+    </div>
+    <label class="check" id="edTriageL"><input type="checkbox" id="edTriage"> New: Alfred still to size it</label>
     <div class="bookedbox" id="edBooked" hidden><span id="edBookedTxt"></span><button class="link" type="button" id="edUnbook">Clear</button></div>
     <label class="check"><input type="checkbox" id="edSlot"> Ask Alfred to find a slot</label>
     <label class="check"><input type="checkbox" id="edSomeday"> Someday, not now</label>
@@ -203,7 +228,7 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
 import { esc, byId as $ } from "./js/ui.js";
 import { mountShell } from "./js/shell.js";
 import { openStore } from "./js/sync.js";
-import { todoTasks, todoBucket, ymd, addDays, mirrorSoon as nudge } from "./js/rooms.js";
+import { todoTasks, todoBucket, planWeek, planLabel, repeatLabel, nextRepeat, ymd, addDays, mondayOf, mirrorSoon as nudge } from "./js/rooms.js";
 import { today } from "./js/dates.js";
 import { findUrl, siteOf, suggestDrawer, DRAWERS } from "./js/reading.js";
 mountShell("todo");
@@ -213,14 +238,20 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // Store "todo":
 //   tasks/<id>  { title, area, priority: High|Normal|Low, status: todo|doing|waiting|done, due, size (minutes),
 //                 someday, snoozeUntil, snoozes, waitingOn, notes, booked: { start, end } | null,
-//                 wantsSlot, triage (captured here, not yet sized by Alfred), order, created, doneAt }
+//                 wantsSlot, triage (captured here, not yet sized by Alfred), order, created, doneAt,
+//                 planFor: "YYYY-MM" (the month Alfred gives it when he sizes it) | "YYYY-MM-DD" (the Monday of
+//                 the week the month ahead gives it), repeats: { n, unit: month|year } | null, repeatOf }
 //   settings    { areas: [..] }
 // Alfred adds tasks from chat and sets `booked` once a slot is on the calendar. A server function copies
 // every change one way to Notion Tasks (see supabase/functions/alfred-notion).
 const store = openStore("todo");
 const AREAS = ["Home", "Car", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
 const PRI = { High: 0, Normal: 1, Low: 2 };
-const GROUPS = [["today", "Today"], ["week", "This week"], ["later", "Later"], ["someday", "Someday"]];
+const GROUPS = [["today", "Today"], ["week", "This week"], ["month", "This month"], ["later", "Later"], ["someday", "Someday"]];
+const WEEK_BUDGET = 660; // minutes of errands a normal week holds: about 6 h at the weekend + 5 h on weekdays (11–15 h)
+const WEEK_MAX = 900;    // past 15 h the week is overfull
+let view = "lists";
+try { view = localStorage.getItem("todo-view") === "months" ? "months" : "lists"; } catch {}
 
 const parse = (s) => new Date(s + "T12:00");
 const short = (s) => parse(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -271,7 +302,9 @@ function render() {
   $("areaFilter").innerHTML = ["all", ...used].map((a) => `<button class="chip" type="button" data-area="${esc(a)}" aria-pressed="${a === areaFilter}">${a === "all" ? "All" : esc(a)}</button>`).join("");
   $("areaList").innerHTML = areas().map((a) => `<option value="${esc(a)}">`).join("");
 
-  // Groups
+  // Groups, or the months
+  document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
+  if (view === "months") { $("groups").innerHTML = monthsView(shown.filter((x) => x.status !== "waiting"), t); renderSide(all, shown, t); return; }
   const by = Object.fromEntries(GROUPS.map(([k]) => [k, []]));
   live.forEach((x) => by[todoBucket(x, t)].push(x));
   $("groups").innerHTML = GROUPS.map(([k, name]) => {
@@ -283,7 +316,10 @@ function render() {
         : `<p class="empty">${open.length ? "Nothing for today. A rare and pleasant state." : "Nothing on the list. Add something above, or tell Alfred."}</p>`}
     </section>`;
   }).join("");
+  renderSide(all, shown, t);
+}
 
+function renderSide(all, shown, t) {
   // Waiting
   const waiting = shown.filter((x) => x.status === "waiting").sort(sorter);
   $("waitCard").hidden = !waiting.length;
@@ -308,6 +344,44 @@ function render() {
     : `<li><span class="muted">Nothing ticked off yet. It'll fill up.</span></li>`;
 }
 
+// The month ahead: this month and the next two, week by week. A task sits in the week it's planned for,
+// booked in, or due in; a task planned only to a month waits under "Sometime in <month>".
+const weekOf = (x) => planWeek(x.planFor) || (x.booked?.start ? mondayOf(ymd(new Date(x.booked.start))) : null) || (x.due ? mondayOf(x.due) : null);
+const minsTxt = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}`;
+function monthsView(list, t) {
+  const open = list.filter((x) => !x.someday);
+  const thisWeek = mondayOf(t);
+  const months = [0, 1, 2].map((i) => { const d = new Date(+t.slice(0, 4), +t.slice(5, 7) - 1 + i, 1); return ymd(d).slice(0, 7); });
+  const end = addDays(ymd(new Date(+months[2].slice(0, 4), +months[2].slice(5, 7), 0)), 0);
+  const placed = new Set();
+  const item = (x) => `<li><button class="body" type="button" data-edit="${x.id}"><span class="title">${esc(x.title)}</span><span class="sz">${x.size ? sizeTxt(x.size) : "size?"}</span></button></li>`;
+  const html = months.map((m, i) => {
+    const first = i === 0 ? thisWeek : mondayOf(m + "-01") < m + "-01" ? addDays(mondayOf(m + "-01"), 7) : m + "-01";
+    const weeks = []; for (let w = first; w.slice(0, 7) <= m && w <= end; w = addDays(w, 7)) weeks.push(w);
+    const rows = weeks.map((w) => {
+      const tasks = open.filter((x) => { const k = weekOf(x); return k && (k === w || (w === thisWeek && k < thisWeek)); }).sort(sorter);
+      tasks.forEach((x) => placed.add(x.id));
+      const mins = tasks.reduce((a, x) => a + (Number(x.size) || 0), 0);
+      const label = (w === thisWeek ? "This week · " : "") + "w/c " + short(w).replace(/^\w+ /, "");
+      return `<div class="week"><div class="wh"><span>${label}</span><span class="${mins > WEEK_MAX ? "over" : ""}">${tasks.length ? minsTxt(mins) + " of about " + WEEK_BUDGET / 60 + " h" : "free"}</span></div>
+        ${tasks.length ? `<ul>${tasks.map(item).join("")}</ul>` : ""}</div>`;
+    }).join("");
+    const loose = open.filter((x) => !placed.has(x.id) && !weekOf(x) && x.planFor && (x.planFor.slice(0, 7) === m || (i === 0 && x.planFor.slice(0, 7) < m))).sort(sorter);
+    loose.forEach((x) => placed.add(x.id));
+    const looseMins = loose.reduce((a, x) => a + (Number(x.size) || 0), 0);
+    return `<section class="card month" aria-label="${planLabel(m, t)}"><h2>${planLabel(m, t)}<span class="n muted">${loose.length ? `${loose.length} still to place · ${minsTxt(looseMins)}` : ""}</span></h2>
+      ${rows}
+      ${loose.length ? `<div class="week"><div class="wh"><span>Sometime in ${planLabel(m, t).split(" ")[0]}</span><span>${minsTxt(looseMins)}</span></div><ul>${loose.map(item).join("")}</ul></div>` : ""}
+    </section>`;
+  }).join("");
+  const later = open.filter((x) => !placed.has(x.id) && (x.planFor || x.due) && (x.planFor || x.due).slice(0, 7) > months[2]);
+  const unplanned = open.filter((x) => !placed.has(x.id) && !x.planFor && !x.due && !x.booked?.start);
+  const asks = unplanned.filter((x) => x.wantsSlot || x.triage).sort(sorter);
+  return html + `<section class="card month"><h2>Further off<span class="n muted"></span></h2>
+    <p class="muted">${later.length} planned beyond ${planLabel(months[2], t).split(" ")[0]} · ${unplanned.length} with no month yet${asks.length ? `, ${asks.length} waiting for Alfred to size or place` : ""}.</p>
+    ${asks.length ? `<div class="week"><ul>${asks.map(item).join("")}</ul></div>` : ""}</section>`;
+}
+
 const sorter = (a, b) => (a.order ?? 1e15) - (b.order ?? 1e15) || PRI[a.priority || "Normal"] - PRI[b.priority || "Normal"]
   || (a.due || "9999").localeCompare(b.due || "9999") || (a.created || "").localeCompare(b.created || "");
 
@@ -319,7 +393,11 @@ function row(x) {
   if (x.priority === "High") tags.push(`<span class="tag high">High</span>`);
   if (x.due) tags.push(x.due < t ? `<span class="tag late">due ${short(x.due)}</span>` : `<span class="tag">${x.due === t ? "due today" : "due " + short(x.due)}</span>`);
   if (x.booked?.start) tags.push(`<span class="tag booked">booked ${bookedTxt(x.booked)}</span>`);
-  else if (x.wantsSlot) tags.push(`<span class="tag slot">slot requested</span>`);
+  else {
+    if (x.planFor) tags.push(`<span class="tag plan">${esc(planLabel(x.planFor, t))}</span>`);
+    if (x.wantsSlot) tags.push(`<span class="tag slot">slot requested</span>`);
+  }
+  if (x.repeats?.unit) tags.push(`<span>↻ ${repeatLabel(x.repeats)}</span>`);
   if (x.size) tags.push(`<span>${sizeTxt(x.size)}</span>`);
   if (x.status === "doing") tags.push(`<span class="tag booked">doing</span>`);
   // Asks: a booked time that's passed, or something snoozed three times.
@@ -356,6 +434,12 @@ function complete(id) {
   const x = find(id); if (!x) return;
   const before = { ...x };
   save({ ...x, status: "done", doneAt: new Date().toISOString(), wantsSlot: false });
+  const next = nextRepeat(x, today());
+  if (next) {
+    const id2 = newId(); save({ id: id2, ...next });
+    toast(`Done. Next one: ${planLabel(next.planFor)}.`, () => { store.remove("tasks/" + id2); mirrorSoon(); save(before); });
+    return;
+  }
   toast("Done. Well handled.", () => save(before));
 }
 function snooze(id, until) {
@@ -371,6 +455,7 @@ document.addEventListener("click", (e) => {
   if (!b) { closeMenu(); return; }
   const d = b.dataset;
   if (d.area) { areaFilter = d.area; render(); return; }
+  if (d.view) { view = d.view; try { localStorage.setItem("todo-view", view); } catch {} render(); return; }
   if (d.edit) { openEditor(d.edit); return; }
   if (d.pri) { const x = find(d.pri); const next = { High: "Low", Normal: "High", Low: "Normal" }[x.priority || "Normal"]; save({ ...x, priority: next }); return; }
   if (d.menu) { openMenu(d.menu, b); return; }
@@ -472,12 +557,37 @@ function openEditor(id) {
   $("edWait").value = x.waitingOn || "";
   $("edSlot").checked = !!x.wantsSlot;
   $("edSomeday").checked = !!x.someday;
+  fillMonths(x.planFor ? (planWeek(x.planFor) || x.planFor).slice(0, 7) : "");
+  fillWeeks(planWeek(x.planFor) || "");
+  $("edRepeat").value = x.repeats?.unit ? `${x.repeats.n || 1} ${x.repeats.unit}` : "";
+  $("edTriage").checked = !!x.triage;
+  $("edTriageL").hidden = !x.triage;
   $("edNotes").value = x.notes || "";
   $("edBooked").hidden = !x.booked?.start;
   $("edBookedTxt").textContent = x.booked?.start ? "Booked " + bookedTxt(x.booked) : "";
   syncWaitField();
   $("editor").showModal();
 }
+// A plain list of months (this one and the next 17), so it works the same in every browser.
+function fillMonths(selected) {
+  const t = today(); const ms = [];
+  for (let i = 0; i < 18; i++) ms.push(ymd(new Date(+t.slice(0, 4), +t.slice(5, 7) - 1 + i, 1)).slice(0, 7));
+  if (selected && !ms.includes(selected)) ms.unshift(selected);
+  $("edMonth").innerHTML = `<option value="">Not planned yet</option>` + ms.map((m) => `<option value="${m}">${planLabel(m, t)}</option>`).join("");
+  $("edMonth").value = selected || "";
+}
+// The weeks of the chosen month (by their Mondays), for narrowing a month down to a week.
+function fillWeeks(selected) {
+  const m = $("edMonth").value;
+  let opts = `<option value="">Any time that month</option>`;
+  if (m) { let w = mondayOf(m + "-01"); if (w < m + "-01") w = addDays(w, 7);
+    for (; w.slice(0, 7) === m; w = addDays(w, 7)) opts += `<option value="${w}">Week of ${short(w)}</option>`; }
+  $("edWeek").innerHTML = opts; $("edWeek").value = selected && selected.slice(0, 7) === m ? selected : "";
+  $("edWeek").disabled = !m;
+}
+$("edMonth").addEventListener("change", () => fillWeeks(""));
+// Giving it a size is sizing it: the "new" flag goes.
+$("edSize").addEventListener("change", () => { if ($("edSize").value) $("edTriage").checked = false; });
 $("edUnbook").onclick = () => { if (editing) { editing = { ...editing, booked: null }; $("edBooked").hidden = true; } };
 $("edForm").addEventListener("submit", () => {
   if (!editing) return;
@@ -493,6 +603,9 @@ $("edForm").addEventListener("submit", () => {
     waitingOn: status === "waiting" ? $("edWait").value.trim() : "",
     wantsSlot: $("edSlot").checked,
     someday: $("edSomeday").checked,
+    planFor: $("edWeek").value || $("edMonth").value || null,
+    repeats: $("edRepeat").value ? { n: Number($("edRepeat").value.split(" ")[0]), unit: $("edRepeat").value.split(" ")[1] } : null,
+    triage: $("edTriage").checked,
     notes: $("edNotes").value.trim(),
     doneAt: status === "done" ? (editing.doneAt || new Date().toISOString()) : null,
   });

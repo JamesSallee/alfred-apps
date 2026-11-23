@@ -135,6 +135,10 @@ async function claim(db: SupabaseClient, owner: string, key: string): Promise<bo
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+// "December 2026" for a month, "the week of 7 Dec 2026" for a week (planFor is "YYYY-MM" or a Monday "YYYY-MM-DD").
+const plan = (p: string) => p.length > 7
+  ? "the week of " + new Date(p + "T12:00:00Z").toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })
+  : new Date(p + "-01T12:00:00Z").toLocaleDateString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
 const size = (m: number) => m < 60 ? `${m} min` : m === 240 ? "half a day" : m >= 480 ? "a day" : `${m / 60} hr`;
 
 function taskProps(t: any) {
@@ -144,6 +148,8 @@ function taskProps(t: any) {
     t.booked?.start ? `Booked: ${when(t.booked.start)}` : t.wantsSlot ? "Alfred to find a slot" : "",
     t.snoozeUntil && t.snoozeUntil > today() ? `Snoozed until ${t.snoozeUntil}` : "",
     t.size ? `About ${size(t.size)}` : "",
+    t.planFor ? `Planned for ${plan(t.planFor)}` : "",
+    t.repeats?.unit ? `Repeats every ${t.repeats.n > 1 ? t.repeats.n + " " + t.repeats.unit + "s" : t.repeats.unit}` : "",
     t.someday ? "Someday" : "",
     "(Copied from the Errand Book: edit it there.)",
   ].filter(Boolean).join("\n");

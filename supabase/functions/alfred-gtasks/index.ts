@@ -227,7 +227,8 @@ async function sync(c: Ctx) {
     const sunday = plusDays(t, (7 - weekday(t)) % 7);
     const wanted = (x: any) => x && !x.someday && !["done", "waiting"].includes(x.status)
       && !(x.snoozeUntil && x.snoozeUntil > t)
-      && ((x.due && x.due <= sunday) || (x.source === "watch" && !x.due));
+      && ((x.due && x.due <= sunday) || (x.source === "watch" && !x.due)
+        || (typeof x.planFor === "string" && x.planFor.length > 7 && x.planFor <= sunday)); // planned for this week
 
     const gtasks = await listTasks(call, errandsList);
     const byG = new Map(gtasks.map((g) => [g.id, g]));
