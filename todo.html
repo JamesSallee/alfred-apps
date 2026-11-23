@@ -248,7 +248,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 // Alfred adds tasks from chat and sets `booked` once a slot is on the calendar. A server function copies
 // every change one way to Notion Tasks (see supabase/functions/alfred-notion).
 const store = openStore("todo");
-const AREAS = ["Home", "Car", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
+const AREAS = ["Chores", "Home", "Car", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
 const PRI = { High: 0, Normal: 1, Low: 2 };
 const GROUPS = [["today", "Today"], ["week", "This week"], ["month", "This month"], ["later", "Later"], ["someday", "Someday"]];
 const WEEK_BUDGET = 660; // minutes of errands a normal week holds: about 6 h at the weekend + 5 h on weekdays (11–15 h)
@@ -350,6 +350,8 @@ function renderSide(all, shown, t) {
 // The month ahead: this month and the next two, week by week. A task sits in the week it's planned for,
 // booked in, or due in; a task planned only to a month waits under "Sometime in <month>".
 const weekOf = (x) => planWeek(x.planFor) || (x.booked?.start ? mondayOf(ymd(new Date(x.booked.start))) : null) || (x.due ? mondayOf(x.due) : null);
+// Household chores (area "Chores") count inside the budget but are shown apart from one-off errands.
+const isChore = (x) => (x.area || "").toLowerCase() === "chores";
 const minsTxt = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}`;
 function monthsView(list, t) {
   const open = list.filter((x) => !x.someday);
@@ -365,8 +367,9 @@ function monthsView(list, t) {
       const tasks = open.filter((x) => { const k = weekOf(x); return k && (k === w || (w === thisWeek && k < thisWeek)); }).sort(sorter);
       tasks.forEach((x) => placed.add(x.id));
       const mins = tasks.reduce((a, x) => a + (Number(x.size) || 0), 0);
+      const chores = tasks.filter(isChore).reduce((a, x) => a + (Number(x.size) || 0), 0);
       const label = (w === thisWeek ? "This week · " : "") + "w/c " + short(w).replace(/^\w+ /, "");
-      return `<div class="week"><div class="wh"><span>${label}</span><span class="${mins > WEEK_MAX ? "over" : ""}">${tasks.length ? minsTxt(mins) + " of about " + WEEK_BUDGET / 60 + " h" : "free"}</span></div>
+      return `<div class="week"><div class="wh"><span>${label}</span><span class="${mins > WEEK_MAX ? "over" : ""}">${tasks.length ? minsTxt(mins) + " of about " + WEEK_BUDGET / 60 + " h" + (chores ? ` · chores ${minsTxt(chores)}` : "") : "free"}</span></div>
         ${tasks.length ? `<ul>${tasks.map(item).join("")}</ul>` : ""}</div>`;
     }).join("");
     const loose = open.filter((x) => !placed.has(x.id) && !weekOf(x) && x.planFor && (x.planFor.slice(0, 7) === m || (i === 0 && x.planFor.slice(0, 7) < m))).sort(sorter);
