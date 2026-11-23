@@ -244,14 +244,46 @@ export function mirrorSoon(app) {
 
 /** Every task in the "todo" store, with its id. */
 export const todoTasks = (todo) => todo.list("tasks/").map((x) => ({ id: x.key.slice(6), ...x.value })).filter((x) => x.title);
-/** Which list an open task sits in today: today | week | later | someday. */
+/** Which list an open task sits in today: today | week | month | later | someday.
+ *  `planFor` is when Alfred means to do it: "YYYY-MM" (a month, set when he sizes it) or "YYYY-MM-DD"
+ *  (the Monday of a week, set at the month ahead). A slipped plan stays in its list until it's re-planned. */
 export function todoBucket(x, t = ymd(new Date())) {
   if (x.someday) return "someday";
   const booked = x.booked?.start ? ymd(new Date(x.booked.start)) : null;
   const when = [x.due, booked].filter(Boolean).sort()[0];
   if (x.status === "doing" || (when && when <= t)) return "today";
-  if (when && when <= addDays(t, 6)) return "week";
+  const week = planWeek(x.planFor);
+  if ((when && when <= addDays(t, 6)) || (week && week <= mondayOf(t))) return "week";
+  const month = t.slice(0, 7);
+  if ((when && when.slice(0, 7) <= month) || (x.planFor && x.planFor.slice(0, 7) <= month)) return "month";
   return "later";
+}
+/** The Monday a task is planned for, or null when it's planned only to a month (or not at all). */
+export const planWeek = (p) => (typeof p === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p) ? mondayOf(p) : null);
+/** "December" (this year), "April 2027" (another year) or "w/c 7 Dec". */
+export function planLabel(p, t = ymd(new Date())) {
+  if (!p) return "";
+  if (planWeek(p)) return "w/c " + parse(planWeek(p)).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const d = parse(p + "-01");
+  return d.toLocaleDateString("en-GB", p.slice(0, 4) === t.slice(0, 4) ? { month: "long" } : { month: "long", year: "numeric" });
+}
+const REPEAT_UNITS = { month: 1, year: 12 };
+/** "every month", "every 3 months", "every year". */
+export const repeatLabel = (r) => !r?.unit ? "" : `every ${r.n > 1 ? r.n + " " : ""}${r.unit}${r.n > 1 ? "s" : ""}`;
+const plusMonths = (s, m) => { const [y, mo, d] = s.split("-").map(Number); const total = y * 12 + mo - 1 + m;
+  const ny = Math.floor(total / 12), nm = total % 12 + 1; const last = new Date(ny, nm, 0).getDate();
+  return `${ny}-${pad(nm)}` + (d ? "-" + pad(Math.min(d, last)) : ""); };
+/** The next copy of a repeating task, ticked off on `doneDay`: the due date and planned month move on by the
+ *  interval (from the old due date when there was one, so a late tick doesn't drift the schedule). */
+export function nextRepeat(x, doneDay = ymd(new Date())) {
+  const r = x.repeats; if (!r?.unit || !REPEAT_UNITS[r.unit]) return null;
+  const months = REPEAT_UNITS[r.unit] * Math.max(1, r.n || 1);
+  const due = x.due ? plusMonths(x.due, months) : null;
+  const base = x.planFor ? x.planFor.slice(0, 7) : (x.due || doneDay).slice(0, 7);
+  const planFor = due ? due.slice(0, 7) : plusMonths(base, months);
+  const { id, doneAt, booked, snoozeUntil, snoozes, ...keep } = x;
+  return { ...keep, status: "todo", due, planFor, booked: null, wantsSlot: false, triage: false,
+    repeatOf: x.repeatOf || id, created: new Date().toISOString() };
 }
 /** Open tasks that are live today (not done, not snoozed). */
 export const openTasks = (todo, t = ymd(new Date())) => todoTasks(todo).filter((x) => x.status !== "done" && !(x.snoozeUntil > t));
