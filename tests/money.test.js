@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MONEY_DEFAULTS, settingsOf, scoreWeek, phoneTargets, wallet, targetFor, fmtUsd, phoneTargetAt, phoneVerdict, allWeeks } from "../js/money.js";
+import { MONEY_DEFAULTS, settingsOf, scoreWeek, phoneTargets, wallet, targetFor, fmtUsd, phoneTargetAt, phoneVerdict, allWeeks, hourPrice, gateOpen } from "../js/money.js";
 
 const cfg = settingsOf({});
 const wk = "2026-11-09";
@@ -98,4 +98,20 @@ test("phone: allWeeks carries each week's figure, frozen weeks included", () => 
   const { weeks } = allWeeks({ habits: [], days: {}, cfg: c, today: "2026-11-12",
     weekDocs: { "2026-11-02": { phone: 7, frozen: { points: 0, dollars: 0 } }, "2026-11-09": { phone: 9 } } });
   assert.deepEqual(weeks.map(w => w.phone), [7, 9]);
+});
+
+test("time treats: a free first hour, then the extra price once it's logged", () => {
+  const tv = { id: "tv", price: 0, extraPrice: 2, gateAny: 2 };
+  assert.equal(hourPrice(tv, [], "2026-11-23"), 0);
+  const spends = [{ itemId: "tv", day: "2026-11-23", dollars: 0 }];
+  assert.equal(hourPrice(tv, spends, "2026-11-23"), 2);
+  assert.equal(hourPrice(tv, spends, "2026-11-24"), 0);
+});
+
+test("time treats: locked until any two habits are ticked, a rest day opens it", () => {
+  const ps = { id: "playstation", price: 0, extraPrice: 8, gateAny: 2 };
+  assert.equal(gateOpen(ps, undefined), false);
+  assert.equal(gateOpen(ps, { done: { piano: true } }), false);
+  assert.equal(gateOpen(ps, { done: { piano: true, "walk-mara": true } }), true);
+  assert.equal(gateOpen(ps, { rest: true, done: {} }), true);
 });
