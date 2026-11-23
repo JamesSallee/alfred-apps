@@ -2,9 +2,10 @@
 //
 // The Pixel Watch's Google Calendar app shows Google Tasks and has a tile, and Gemini on the watch can add
 // to a named Tasks list. This function keeps two Google Tasks lists in step with the rooms:
-//   "Errands"  Errand Book tasks due today or this week (to Sunday), plus overdue ones.
+//   "Errands"  Errand Book tasks due today or this week (to Sunday), plus overdue ones (shown as due today).
 //              Tick one on the watch and it's ticked in the Errand Book. Anything added by voice
-//              ("add stamps to my Errands list") becomes an Errand Book triage task.
+//              ("add stamps to my Errands list") becomes an Errand Book triage task, and so does anything
+//              new in the default "My Tasks" list, where Gemini often files things.
 //   "Ideas"    Anything added here ("add ... to my Ideas list") moves to the Writing Desk idea shelf
 //              (ILKWIM, stage Idea) and is cleared from Tasks.
 //
@@ -25,6 +26,8 @@ const SELF = "https://llirhlpsfylhbvogjutj.supabase.co/functions/v1/alfred-gtask
 const SCOPE = "https://www.googleapis.com/auth/tasks";
 const API = "https://tasks.googleapis.com/tasks/v1";
 const LISTS = { errands: "Errands", ideas: "Ideas" };
+// Items in the default list ("My Tasks") changed after this are swept into the Errand Book.
+const DEFAULT_SINCE = "2026-11-22T18:00:00.000Z";
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -182,7 +185,7 @@ function api(token: string) {
   };
 }
 type Call = ReturnType<typeof api>;
-type GTask = { id: string; title?: string; notes?: string; due?: string; status?: string; deleted?: boolean };
+type GTask = { id: string; title?: string; notes?: string; due?: string; status?: string; deleted?: boolean; updated?: string };
 
 async function ensureList(call: Call, title: string, known?: string) {
   if (known) {
@@ -229,6 +232,9 @@ async function sync(c: Ctx) {
       && !(x.snoozeUntil && x.snoozeUntil > t)
       && ((x.due && x.due <= sunday) || (x.source === "watch" && !x.due)
         || (typeof x.planFor === "string" && x.planFor.length > 7 && x.planFor <= sunday)); // planned for this week
+    // The watch only shows today's and upcoming tasks, so overdue and undated errands show as due today
+    // there. Their real dates in the Errand Book are untouched.
+    const shown = (x: any) => (!x.due || x.due < t ? t : x.due);
 
     const gtasks = await listTasks(call, errandsList);
     const byG = new Map(gtasks.map((g) => [g.id, g]));
@@ -262,6 +268,36 @@ async function sync(c: Ctx) {
       }
     }
 
+    // Gemini often files spoken to-dos in the default list ("My Tasks") whatever list you name. New items
+    // there become Errand Book triage tasks and move to the Errands list; ones starting "Idea" go to the
+    // Writing Desk shelf. Older tasks are left alone.
+    const since = st.defaultSince || DEFAULT_SINCE;
+    const defaultList = await listTasks(call, "@default");
+    const seenDefault = defaultList.filter((g) => g.status !== "completed").map((g) => g.updated);
+    for (const g of defaultList) {
+      // Skip dated tasks too: repeating reminders (such as "Hydrate") carry a date and would come back daily.
+      if (g.status === "completed" || g.due || !g.updated || g.updated < since) continue;
+      const raw = clean(g.title);
+      if (!raw) continue;
+      const id = newId();
+      const idea = raw.match(/^ideas?\b[\s:,.\-]*(.+)$/i);
+      if (idea) {
+        // "Idea: ..." goes to the Writing Desk shelf instead.
+        await put(c, "desk", `pieces/${id}`, { id, title: cap(idea[1]), track: "ilkwim", stage: "Idea", source: "watch",
+          ...(g.notes ? { notes: g.notes } : {}), created: new Date().toISOString() });
+        n.ideas++;
+        await call("DELETE", `/lists/@default/tasks/${g.id}`);
+        continue;
+      }
+      const title = cap(raw);
+      const v = { id, title, area: "", priority: "Normal", status: "todo", triage: true, wantsSlot: true,
+        source: "watch", ...(g.notes ? { notes: g.notes } : {}), created: new Date().toISOString() };
+      await put(c, "todo", `tasks/${id}`, v); errands.set(id, v); n.captured++;
+      const made = await call("POST", `/lists/${errandsList}/tasks`, { title, due: `${t}T00:00:00.000Z` });
+      map[id] = made.id; byG.set(made.id, made);
+      await call("DELETE", `/lists/@default/tasks/${g.id}`);
+    }
+
     // Take off what's done, dropped or no longer this week; update titles and dates on the rest.
     for (const [eid, gid] of Object.entries(map)) {
       const x = errands.get(eid);
@@ -270,9 +306,9 @@ async function sync(c: Ctx) {
         continue;
       }
       const g = byG.get(gid);
-      const due = x.due ? `${x.due}T00:00:00.000Z` : undefined;
-      if (g && g.status !== "completed" && (g.title !== x.title || (g.due || undefined)?.slice(0, 10) !== x.due)) {
-        await call("PATCH", `/lists/${errandsList}/tasks/${gid}`, { title: x.title, ...(due ? { due } : { due: null }) });
+      const day = shown(x);
+      if (g && g.status !== "completed" && (g.title !== x.title || (g.due || "").slice(0, 10) !== day)) {
+        await call("PATCH", `/lists/${errandsList}/tasks/${gid}`, { title: x.title, due: `${day}T00:00:00.000Z` });
         n.updated++;
       }
     }
@@ -281,9 +317,7 @@ async function sync(c: Ctx) {
     const toAdd = [...errands.entries()].filter(([eid, x]) => wanted(x) && !map[eid])
       .sort((a, b) => String(b[1].due || "9").localeCompare(String(a[1].due || "9")));
     for (const [eid, x] of toAdd) {
-      const made = await call("POST", `/lists/${errandsList}/tasks`, {
-        title: x.title, ...(x.due ? { due: `${x.due}T00:00:00.000Z` } : {}),
-      });
+      const made = await call("POST", `/lists/${errandsList}/tasks`, { title: x.title, due: `${shown(x)}T00:00:00.000Z` });
       map[eid] = made.id; n.added++;
     }
 
@@ -299,8 +333,8 @@ async function sync(c: Ctx) {
       await call("DELETE", `/lists/${ideasList}/tasks/${g.id}`);
     }
 
-    await put(c, "alfred", "gtasks/state", { ...st, errandsList, ideasList, map, lastSync: new Date().toISOString(), lastError: null });
-    return { ok: true, ...n, onWatch: Object.keys(map).length };
+    await put(c, "alfred", "gtasks/state", { ...st, defaultSince: since, errandsList, ideasList, map, lastSync: new Date().toISOString(), lastError: null });
+    return { ok: true, ...n, onWatch: Object.keys(map).length, inMyTasks: seenDefault };
   } catch (e) {
     if (e instanceof HttpError && e.status === 409) return { ok: false, connected: false };
     const msg = e instanceof Error ? e.message : String(e);
