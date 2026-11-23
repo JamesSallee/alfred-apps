@@ -516,10 +516,10 @@ function renderStore(R){
       const lockMsg = need && have < need ? `Opens once any ${need} habits are ticked today (${have} so far)` : `Opens once ${gateNames} ${(it.gate||[]).length>1?"are":"is"} ticked today`;
       const why = !open ? lockMsg : price>Wl.available ? `${fmtUsd(round2(price-Wl.available))} more to unlock` : hrs ? `${hrs} hour${hrs===1?"":"s"} today · next hour ${fmtUsd(price)}` : (it.note ? esc(it.note) : "Ready when you are");
       if (S.editingItem===it.id){ html += itemForm(it); continue; }
-      html += `<div class="item"><div class="meta">${itemName(it)}<div class="small">${why}</div><div class="small">${fmtUsd(Number(it.price)||0)} the first hour${it.extraPrice!=null&&Number(it.extraPrice)!==Number(it.price)?`, ${fmtUsd(Number(it.extraPrice))} each after`:""}</div>
+      html += `<div class="item"><div class="meta">${itemName(it)}<div class="small">${why}</div><div class="small">${firstHourLine(it)}</div>
         ${S.confirm&&S.confirm.type==="delItem"&&S.confirm.id===it.id?`<div class="confirm" style="margin-top:6px"><span>Remove this?</span><button class="btn warn" data-delitem="${esc(it.id)}">Remove</button><button class="btn ghost" data-cancel>Keep</button></div>`:""}</div>
         <div class="cost num">${fmtUsd(price)}</div>
-        <div class="row" style="flex-direction:column;gap:6px"><button class="btn" data-hour="${esc(it.id)}" ${!open||price>Wl.available?"disabled":""}>Log an hour</button><button class="iconbtn" data-edititem="${esc(it.id)}">Edit</button><button class="iconbtn" data-askdel="${esc(it.id)}" aria-label="Remove ${esc(it.name)}">Remove</button></div></div>`;
+        <div class="row" style="flex-direction:column;gap:6px"><button class="btn" data-hour="${esc(it.id)}" ${!open||price>Wl.available?"disabled":""}>${price?"Log an hour":"Log free hour"}</button><button class="iconbtn" data-edititem="${esc(it.id)}">Edit</button><button class="iconbtn" data-askdel="${esc(it.id)}" aria-label="Remove ${esc(it.name)}">Remove</button></div></div>`;
     }
     html += `</div>`;
   }
@@ -583,12 +583,12 @@ function renderStore(R){
   const a=$("#addItem"); if (a) a.onclick=()=>{ S.addingItem=true; S.editingItem=null; render(); $("#itemName")?.focus(); };
   v.querySelectorAll("[data-edititem]").forEach(b=>b.onclick=()=>{ S.editingItem=b.dataset.edititem; S.addingItem=false; S.confirm=null; render(); $("#itemUrl")?.focus(); });
   const c=v.querySelector("[data-cancelitem]"); if (c) c.onclick=()=>{ S.addingItem=false; S.editingItem=null; render(); };
-  const ik=$("#itemKind"); if (ik) ik.onchange=()=>v.querySelectorAll("[data-time]").forEach(x=>x.hidden=ik.value!=="time");
-  const f=$("#itemForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#itemName").value.trim(); const price=round2(Math.max(0.5,Number($("#itemPrice").value)||0)); if(!name) return;
+  const ik=$("#itemKind"); if (ik) ik.onchange=()=>{ const t=ik.value==="time"; v.querySelectorAll("[data-time]").forEach(x=>x.hidden=!t); $("#itemPriceLbl").textContent=t?"First hour ($, 0 = free)":"Price ($)"; $("#itemPrice").min=t?"0":"0.5"; };
+  const f=$("#itemForm"); if (f) f.onsubmit=e=>{ e.preventDefault(); const name=$("#itemName").value.trim(); const kind=$("#itemKind").value; const price=round2(Math.max(kind==="time"?0:0.5,Number($("#itemPrice").value)||0)); if(!name) return;
     const rawUrl=$("#itemUrl").value.trim(), url=safeUrl(rawUrl);
     if (rawUrl && !url) return say("That link doesn't look right. It should start with https://");
-    const kind=$("#itemKind").value, body={name,price,kind,url,note:$("#itemNote").value.trim()};
-    if (kind==="time"){ const ex=Number($("#itemExtra").value); body.extraPrice = ex>0 ? round2(ex) : price; body.gateAny = $("#itemGate").checked ? 2 : 0; }
+    const body={name,price,kind,url,note:$("#itemNote").value.trim()};
+    if (kind==="time"){ const ex=Number($("#itemExtra").value); body.extraPrice = ex>0 ? round2(ex) : (price || 0.5); body.gateAny = $("#itemGate").checked ? 2 : 0; }
     const editId=f.dataset.id;
     if (editId){ const cur=S.store.find(x=>x.id===editId)||{}; const next={...cur,...body}; delete next.id; if (kind!=="time"){ delete next.extraPrice; delete next.gateAny; } delete next.gate;
       Object.keys(cur).forEach(k=>{ if (k!=="id") delete cur[k]; }); Object.assign(cur,next); S.editingItem=null; render(); say("Amended.");
@@ -599,13 +599,19 @@ function renderStore(R){
 // Only plain web links, so a stored value can never run script when tapped.
 function safeUrl(u){ try { const x = new URL(String(u||"").trim()); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch { return ""; } }
 const host = u => { try { return new URL(u).hostname.replace(/^www\./,""); } catch { return ""; } };
+// "First hour free, $8 each after" / "$2 the first hour, $3 each after" / "$2 an hour".
+function firstHourLine(it){
+  const first=Number(it.price)||0, extra=it.extraPrice!=null?Number(it.extraPrice):first;
+  if (!first) return extra ? `First hour free, ${fmtUsd(extra)} each after` : "Free";
+  return extra!==first ? `${fmtUsd(first)} the first hour, ${fmtUsd(extra)} each after` : `${fmtUsd(first)} an hour`;
+}
 function itemName(it){ const u = safeUrl(it.url); return u ? `<a class="name" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(it.name)} ↗</a>` : `<div class="name">${esc(it.name)}</div>`; }
 function itemForm(it){
   const kind = it ? (it.kind||"thing") : "thing", time = kind==="time";
   return `<form class="panel edit" id="itemForm" data-id="${it?esc(it.id):""}"><label class="f full">Treat<input id="itemName" required maxlength="60" placeholder="e.g. Afternoon at the bookshop" value="${it?esc(it.name):""}"></label>
       <label class="f full">Link (optional)<input id="itemUrl" type="url" inputmode="url" maxlength="500" placeholder="https://… the page to buy it" value="${it?esc(it.url||""):""}"></label>
       <label class="f">Kind<select id="itemKind"><option value="thing" ${time?"":"selected"}>A thing (one price)</option><option value="time" ${time?"selected":""}>Time, by the hour</option></select></label>
-      <label class="f">Price ($)<input id="itemPrice" type="number" min="0.5" step="0.01" required value="${it?Number(it.price)||"":20}"></label>
+      <label class="f"><span id="itemPriceLbl">${time?"First hour ($, 0 = free)":"Price ($)"}</span><input id="itemPrice" type="number" min="${time?0:0.5}" step="0.01" required value="${it?Number(it.price)||0:20}"></label>
       <label class="f" data-time ${time?"":"hidden"}>Each extra hour that day ($)<input id="itemExtra" type="number" min="0.5" step="0.5" value="${it&&it.extraPrice!=null?Number(it.extraPrice):""}"></label>
       <label class="f" data-time ${time?"":"hidden"}><span><input id="itemGate" type="checkbox" style="width:auto" ${it&&(it.gateAny||(it.gate&&it.gate.length))?"checked":""}> Only after any two habits today</span></label>
       <label class="f full">Note (optional)<input id="itemNote" maxlength="60" value="${it?esc(it.note||""):""}"></label>
@@ -626,7 +632,7 @@ function buy(id){
 }
 function buyHour(id){
   const it=S.store.find(x=>x.id===id); if(!it) return; const R=compute(), t=today();
-  if (!gateOpen(it, S.days[t])) return say("Two habits first. Then the controller.");
+  if (!gateOpen(it, S.days[t])) return say("Two habits first. Then the fun.");
   const price=hourPrice(it, S.spends, t); if (R.wallet.available < price) return;
   addSpend({itemId:id,name:it.name+", one hour",dollars:price,kind:"time"}); say(pick(it.gate||it.gateAny?LINES.play:LINES.spend));
 }

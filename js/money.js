@@ -156,7 +156,7 @@ export function wallet({ weeks, spends, bank }) {
   return { unlocked, spent, free, ceiling, available, thisWeek: thisWeek && thisWeek.current ? thisWeek.dollars : 0 };
 }
 
-/** Price of the next hour of a time treat (PlayStation, extra TV): the first hour is cheaper. */
+/** Price of the next hour of a time treat (PlayStation, TV): the first hour can be cheaper, or free (price 0). */
 export function hourPrice(item, spends, day) {
   const n = spends.filter(s => s.itemId === item.id && String(s.day || String(s.at).slice(0, 10)) === day).length;
   return n === 0 ? Number(item.price) || 0 : Number(item.extraPrice ?? item.price) || 0;
