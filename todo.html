@@ -251,8 +251,8 @@ const store = openStore("todo");
 const AREAS = ["Chores", "Home", "Car", "Errands", "Admin", "Family", "Finances", "Career", "Health"];
 const PRI = { High: 0, Normal: 1, Low: 2 };
 const GROUPS = [["today", "Today"], ["week", "This week"], ["month", "This month"], ["later", "Later"], ["someday", "Someday"]];
-const WEEK_BUDGET = 660; // minutes of errands a normal week holds: about 6 h at the weekend + 5 h on weekdays (11–15 h)
-const WEEK_MAX = 900;    // past 15 h the week is overfull
+const WEEK_BUDGET = 900; // minutes of errands a normal week holds, chores included: about 15 h (James, 23 Nov 2026)
+const WEEK_MAX = 1080;   // 15 h is flexible; past about 18 h the week is marked overfull
 let view = "lists";
 try { view = localStorage.getItem("todo-view") === "months" ? "months" : "lists"; } catch {}
 
