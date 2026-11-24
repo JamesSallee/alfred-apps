@@ -3,6 +3,7 @@
 // The Pixel Watch's Google Calendar app shows Google Tasks and has a tile, and Gemini on the watch can add
 // to a named Tasks list. This function keeps two Google Tasks lists in step with the rooms:
 //   "Errands"  Errand Book tasks due today or this week (to Sunday), plus overdue ones (shown as due today).
+//              Chores (area "Chores") only on the day they're booked.
 //              Tick one on the watch and it's ticked in the Errand Book. Anything added by voice
 //              ("add stamps to my Errands list") becomes an Errand Book triage task, and so does anything
 //              new in the default "My Tasks" list, where Gemini often files things.
@@ -228,9 +229,13 @@ async function sync(c: Ctx) {
     for (const r of data || []) if (!r.deleted) errands.set(r.key.slice(6), r.value);
     const t = today();
     const sunday = plusDays(t, (7 - weekday(t)) % 7);
+    // Household chores (area "Chores") reach the watch only on the day they're booked, so a week of
+    // planned chores doesn't sit there as "due today" every day.
+    const isChore = (x: any) => String(x?.area || "").toLowerCase() === "chores";
+    const bookedDay = (x: any) => (x?.booked?.start ? new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(x.booked.start)) : null);
     const wanted = (x: any) => x && !x.someday && !["done", "waiting"].includes(x.status)
       && !(x.snoozeUntil && x.snoozeUntil > t)
-      && ((x.due && x.due <= sunday) || (x.source === "watch" && !x.due)
+      && (isChore(x) ? bookedDay(x) === t : (x.due && x.due <= sunday) || (x.source === "watch" && !x.due)
         || (typeof x.planFor === "string" && x.planFor.length > 7 && x.planFor <= sunday)); // planned for this week
     // The watch only shows today's and upcoming tasks, so overdue and undated errands show as due today
     // there. Their real dates in the Errand Book are untouched.
