@@ -68,3 +68,24 @@ revoke all on function island.copy_year_to_app_data() from public, anon, authent
 
 create trigger chronicle_to_app_data after insert or update on island.chronicle
 for each row execute function island.copy_year_to_app_data();
+
+-- Added 25 Nov 2026: a copy of the island at the end of each year, for the island page's year slider.
+alter table island.chronicle add column if not exists world_state jsonb;
+
+create or replace function island.snapshot_world() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare snap jsonb;
+begin
+  select w.state into snap from island.world w where w.id = 1 and (w.state->>'year')::int = new.year;
+  if snap is not null then new.world_state := snap; end if;
+  return new;
+end $$;
+revoke all on function island.snapshot_world() from public, anon, authenticated;
+
+drop trigger if exists chronicle_snapshot_world on island.chronicle;
+create trigger chronicle_snapshot_world before insert or update on island.chronicle
+for each row execute function island.snapshot_world();
+
+update island.chronicle c set world_state = w.state
+from island.world w where w.id = 1 and (w.state->>'year')::int = c.year and c.world_state is null;
+
