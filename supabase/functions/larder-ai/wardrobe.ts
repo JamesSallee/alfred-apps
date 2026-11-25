@@ -11,13 +11,14 @@
 //   w_fit_photo  { image, piece, measures }                           -> does this piece fit him, judged from a photo of him in it
 //   w_look       { look, photos, level, weather, rail, liked }        -> does this combination work (judged from photos), and one swap
 //   w_selfie     { image, rail, judge, level, weather }               -> which rail pieces he's wearing in a selfie (+ optional verdict)
+//   w_find       { item, why, budget, where, when }                   -> real listings on the web for a buying-list item
 
 type Usage = { input: number; output: number; searches: number };
 type Result = { result: Record<string, unknown>; usage?: Usage };
 type Handler = (b: Record<string, unknown>, guard: () => void) => Promise<Result>;
 type Tools = {
   // deno-lint-ignore no-explicit-any
-  ask: (p: { content: any; schema?: Record<string, unknown>; effort?: "low" | "medium" | "high"; system?: string; maxTokens?: number }) =>
+  ask: (p: { content: any; schema?: Record<string, unknown>; tools?: any[]; effort?: "low" | "medium" | "high"; system?: string; maxTokens?: number }) =>
     Promise<{ text: string; usage: Usage }>;
   // deno-lint-ignore no-explicit-any
   parseJson: (t: string) => any;
@@ -134,6 +135,45 @@ his body.` : `Don't judge the outfit: verdict "", comment "" and fixes [].`}` },
         unseen: arr(obj({ kind: oneOf(...CATEGORIES), candidates: arr(str) })),
         verdict: oneOf("Works", "Nearly", "Rethink", ""), comment: str, fixes: arr(str),
       }), judge ? "medium" : "low");
+    },
+
+    async w_find(b, guard) {
+      guard();
+      // Real listings for one item on his buying list, found with web search. Only pages actually found are kept.
+      const budget = Number(b.budget) || 0;
+      const { text, usage } = await ask({
+        system: VALET,
+        effort: "medium",
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+        content: `${about(b)}
+
+He wants to buy: ${clip(b.item, 200)}
+Why: ${clip(b.why, 300) || "a gap in his wardrobe"}
+Budget: ${budget ? `about $${budget}` : "sensible"}${clip(b.when, 10) === "Wait" ? " (he means to wait, so only a real bargain is worth flagging)" : ""}
+Where Alfred suggested looking: ${clip(b.where, 120) || "anywhere sensible"}
+
+Find 3 to 5 real menswear listings he could buy now, shipping to the USA. Search for the item by its key words and
+his label size where it applies (use "Current sizes" above, and treat sizes marked as his own as fact). While he is
+still losing weight, put good second-hand or discounted listings first (eBay, Poshmark, Grailed, thredUP, brand
+outlets), then sensible new ones. Stay near the budget; one stretch pick is fine if it is clearly better. Respect his
+style brief and anything he said he didn't like. Search with a few different wordings rather than one long query.
+
+Only give a url for a product page you actually found in a search result. Never invent prices, sizes or links: say
+"" or 0 when a page didn't show them. Answer with only a JSON object, no other prose:
+{"note": "<one sentence from Alfred>", "results": [{"title": "<the listing's name>", "url": "", "shop": "",
+"price_usd": 0, "size": "<the size on the listing, or empty>", "condition": "<New, Used or Sale>",
+"why": "<one line: why this one, for him>"}]}`,
+      });
+      const out = parseJson(text);
+      out.results = (Array.isArray(out.results) ? out.results : [])
+        .filter((r: { url?: string }) => /^https:\/\//.test(String(r?.url || "")))
+        .slice(0, 5)
+        .map((r: Record<string, unknown>) => ({
+          title: clip(r.title, 160), url: clip(r.url, 600), shop: clip(r.shop, 60), price_usd: Number(r.price_usd) || 0,
+          size: clip(r.size, 40), condition: clip(r.condition, 20), why: clip(r.why, 240),
+        }));
+      out.note = clip(out.note, 300);
+      return { result: out, usage };
     },
 
     async w_look(b, guard) {
