@@ -10,13 +10,15 @@
 //   w_occasion   { kind, level, days, nights, weather, note, rail }   -> an outfit for an event, or a packing list for a trip
 //   w_fit_photo  { image, piece, measures }                           -> does this piece fit him, judged from a photo of him in it
 //   w_look       { look, photos, level, weather, rail, liked }        -> does this combination work (judged from photos), and one swap
+//   w_selfie     { image, rail, judge, level, weather }               -> which rail pieces he's wearing in a selfie (+ optional verdict)
+//   w_find       { item, why, budget, where, when }                   -> real listings on the web for a buying-list item
 
 type Usage = { input: number; output: number; searches: number };
 type Result = { result: Record<string, unknown>; usage?: Usage };
 type Handler = (b: Record<string, unknown>, guard: () => void) => Promise<Result>;
 type Tools = {
   // deno-lint-ignore no-explicit-any
-  ask: (p: { content: any; schema?: Record<string, unknown>; effort?: "low" | "medium" | "high"; system?: string; maxTokens?: number }) =>
+  ask: (p: { content: any; schema?: Record<string, unknown>; tools?: any[]; effort?: "low" | "medium" | "high"; system?: string; maxTokens?: number }) =>
     Promise<{ text: string; usage: Usage }>;
   // deno-lint-ignore no-explicit-any
   parseJson: (t: string) => any;
@@ -30,7 +32,9 @@ wasting money on clothes he will soon outgrow. He dresses for four levels: Casua
 and Formal (official occasions). Each piece may also carry style tags (Casual, Smart casual, Business casual, Formal,
 Active & outdoor, Lounge, Travel, Conference, Game day, Gig & record shop, Yard & DIY, Occasion). Use British spelling. Keep prose short and warm, with at most a dash of dry wit.
 Give concrete, practical advice (colours, fits, what goes with what, what a tailor can and cannot fix).
-Never ask about or mention his work beyond "formal" or "official" occasions. Only refer to pieces by the ids given.`;
+Never ask about or mention his work beyond "formal" or "official" occasions. Only refer to pieces by the ids given.
+Each piece's name starts with its number ("No. 47 Olive cotton chinos"), which is also written on the piece in his app.
+When you mention a piece in prose, include its number, e.g. "the olive chinos (No. 47)", so he knows which one you mean.`;
 
 const str = { type: "string" };
 const int = { type: "integer" };
@@ -89,6 +93,87 @@ and say what photo would help in "advice". Otherwise give a verdict. "notes" are
 cost in USD. Remember he is still losing weight: say when it is wiser to wait than to tailor now.
 Be kind but candid. Comment only on the fit of the clothes, never on his body.` },
       ], obj({ can_judge: bool, verdict: oneOf(...VERDICTS), notes: arr(str), advice: str, alteration: str, cost_usd: num }), "medium");
+    },
+
+    async w_selfie(b, guard) {
+      guard();
+      // A photo of him dressed for the day. Alfred finds each piece on the rail so the wear can be logged, and,
+      // if asked, judges the outfit as actually worn. The photo is not stored anywhere.
+      const { data, media } = photoOf(b);
+      const judge = b.judge === true;
+      return run([
+        { type: "image", source: { type: "base64", media_type: media, data } },
+        { type: "text", text: `${about(b)}
+${judge ? `Dress level today: ${clip(b.level, 40) || "unknown"}\nWeather: ${clip(b.weather, 300) || "unknown"}\n` : ""}
+${RAIL_HELP}
+${lines(b.rail)}
+
+The photo shows him wearing today's clothes, often as a mirror selfie (so left and right may be flipped, and the
+phone may hide part of him). Work out which pieces from the rail he is wearing.
+- "items": one entry per garment or accessory you can see, top to bottom. "what" is a short plain description of
+  what you see ("Grey quarter-zip jumper") and "kind" the rail category it belongs to. "x" and "y" give the centre of that garment in the photo, as
+  percentages of the photo's width and height (0 to 100). "candidates" are up to three rail ids that could be it,
+  best first, or [] if nothing on the rail matches. "sure" is Sure when only one rail piece could be it, Likely
+  when the first is clearly favoured, Unsure when two or more look alike from here (then list them all).
+- A piece that is partly hidden (a shirt under a jumper, showing at the collar and cuffs) still counts if you can
+  see enough of it to tell.
+- "unseen": kinds of piece he is almost certainly wearing that the photo doesn't show (usually Shoes, often Belt),
+  each with up to three rail ids that would most sensibly go with this outfit, best first. Don't include kinds he
+  may well not be wearing (a tie, a hat).
+- If the photo doesn't show his clothes well enough to tell, set can_see=false and say in "advice" what photo
+  would work; otherwise advice is "".
+${judge ? `Then judge the outfit as worn, as a fashion-conscious valet would at the door. Consider colour and contrast,
+pattern and texture, formality for the level and the weather, and proportion: sleeve and trouser length, the break
+over the shoes, layering lengths, how each piece sits on him. "verdict" is Works, Nearly or Rethink; be honest and
+don't call something Works out of politeness. "comment" is two sentences at most, in Alfred's voice, naming the
+specific thing that works or jars. "fixes" are up to three small, concrete changes, naming a rail piece by its
+number where one would help ([] if it's right as it is). Comment only on the clothes and how they fit, never on
+his body.` : `Don't judge the outfit: verdict "", comment "" and fixes [].`}` },
+      ], obj({
+        can_see: bool, advice: str,
+        items: arr(obj({ what: str, kind: oneOf(...CATEGORIES), x: num, y: num, candidates: arr(str), sure: oneOf("Sure", "Likely", "Unsure") })),
+        unseen: arr(obj({ kind: oneOf(...CATEGORIES), candidates: arr(str) })),
+        verdict: oneOf("Works", "Nearly", "Rethink", ""), comment: str, fixes: arr(str),
+      }), judge ? "medium" : "low");
+    },
+
+    async w_find(b, guard) {
+      guard();
+      // Real listings for one item on his buying list, found with web search. Only pages actually found are kept.
+      const budget = Number(b.budget) || 0;
+      const { text, usage } = await ask({
+        system: VALET,
+        effort: "medium",
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+        content: `${about(b)}
+
+He wants to buy: ${clip(b.item, 200)}
+Why: ${clip(b.why, 300) || "a gap in his wardrobe"}
+Budget: ${budget ? `about $${budget}` : "sensible"}${clip(b.when, 10) === "Wait" ? " (he means to wait, so only a real bargain is worth flagging)" : ""}
+Where Alfred suggested looking: ${clip(b.where, 120) || "anywhere sensible"}
+
+Find 3 to 5 real menswear listings he could buy now, shipping to the USA. Search for the item by its key words and
+his label size where it applies (use "Current sizes" above, and treat sizes marked as his own as fact). While he is
+still losing weight, put good second-hand or discounted listings first (eBay, Poshmark, Grailed, thredUP, brand
+outlets), then sensible new ones. Stay near the budget; one stretch pick is fine if it is clearly better. Respect his
+style brief and anything he said he didn't like. Search with a few different wordings rather than one long query.
+
+Only give a url for a product page you actually found in a search result. Never invent prices, sizes or links: say
+"" or 0 when a page didn't show them. Answer with only a JSON object, no other prose:
+{"note": "<one sentence from Alfred>", "results": [{"title": "<the listing's name>", "url": "", "shop": "",
+"price_usd": 0, "size": "<the size on the listing, or empty>", "condition": "<New, Used or Sale>",
+"why": "<one line: why this one, for him>"}]}`,
+      });
+      const out = parseJson(text);
+      out.results = (Array.isArray(out.results) ? out.results : [])
+        .filter((r: { url?: string }) => /^https:\/\//.test(String(r?.url || "")))
+        .slice(0, 5)
+        .map((r: Record<string, unknown>) => ({
+          title: clip(r.title, 160), url: clip(r.url, 600), shop: clip(r.shop, 60), price_usd: Number(r.price_usd) || 0,
+          size: clip(r.size, 40), condition: clip(r.condition, 20), why: clip(r.why, 240),
+        }));
+      out.note = clip(out.note, 300);
+      return { result: out, usage };
     },
 
     async w_look(b, guard) {
