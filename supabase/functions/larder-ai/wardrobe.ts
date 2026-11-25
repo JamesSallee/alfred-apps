@@ -56,7 +56,7 @@ export const STYLES = ["casual", "smart", "business", "formal", "active", "loung
 // Clip what the page sends, so a mistaken payload can't run up the bill.
 const clip = (x: unknown, n: number) => String(x ?? "").slice(0, n);
 const lines = (x: unknown, max = 260) =>
-  (Array.isArray(x) ? x.slice(0, max).map((l) => clip(l, 200)).join("\n") : "") || "none";
+  (Array.isArray(x) ? x.slice(0, max).map((l) => clip(l, 320)).join("\n") : "") || "none";
 
 function about(b: Record<string, unknown>) {
   return [
@@ -69,7 +69,7 @@ function about(b: Record<string, unknown>) {
     b.disliked ? `Combinations he didn't like:\n${lines(b.disliked, 10)}` : "",
   ].filter(Boolean).join("\n");
 }
-const RAIL_HELP = "Rail (one piece per line: id | name | category | colour | formality | labelled size | fit verdict | wears | last worn | styles):";
+const RAIL_HELP = "Rail (one piece per line: id | name | category | colour | formality | labelled size | fit verdict | wears | last worn | styles | condition, when he has noted any (his own dated notes, MM-DD, newest last)):";
 
 export function wardrobeHandlers({ ask, parseJson, photoOf, fail }: Tools): Record<string, Handler> {
   const run = async (content: unknown, schema: Record<string, unknown>, effort: "low" | "medium" = "low") => {
@@ -252,7 +252,8 @@ ${RAIL_HELP}
 ${lines(b.rail)}
 
 Choose two complete outfits for today from pieces that currently fit (verdict Fits or Tailor-but-wearable; never Too big,
-Too small, Retire or Donate). Each outfit lists piece_ids from the rail only. Dress for the weather and the level.
+Too small, Retire or Donate). Keep pieces whose condition notes show visible damage (a hole, stain, fraying, a worn
+sole) out of anything smarter than casual. Each outfit lists piece_ids from the rail only. Dress for the weather and the level.
 If a sensible outfit needs something he lacks, name it in "missing". "why" is one line of styling reasoning.
 "note" is one sentence from Alfred.`,
         obj({ note: str, outfits: arr(obj({ name: str, piece_ids: arr(str), why: str, missing: arr(str) })) }));
@@ -292,7 +293,9 @@ ${lines(b.rail)}
 
 Build a lean buying list: only real gaps, given what fits now. While he is still losing weight, favour cheap,
 second-hand, or easily altered pieces and say "Wait" for anything worth investing in at his target size.
-Make sure he could always dress for a formal occasion. "priority" 1 is most urgent. "budget_usd" is a sensible
+Make sure he could always dress for a formal occasion. Read his condition notes: a piece he relies on that is worn
+out or damaged is a gap too, so add its replacement and name the old piece (with its No.) in "why". Pilling or light
+fading alone is not a reason to replace. "priority" 1 is most urgent. "budget_usd" is a sensible
 price to pay. "where" is the kind of place to look (e.g. "second-hand / consignment", "high street", "made to measure").
 "note" is one or two sentences from Alfred.`,
         obj({ note: str, items: arr(obj({ item: str, why: str, priority: int, when: oneOf("Now", "Wait"), budget_usd: num, where: str })) }), "medium");

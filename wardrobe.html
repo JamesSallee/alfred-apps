@@ -104,6 +104,10 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .found .hit{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
 .found .hit a{color:var(--green);font-weight:600;text-decoration:none;overflow-wrap:anywhere}
 .found .hit a:hover{text-decoration:underline}
+.wearlog{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.wearlog li{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.wearlog li .d{color:var(--muted);font-size:.85em;flex:none;min-width:4.5em}
+.wearlog li .t{flex:1;min-width:0}
 .cand.none{display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted);border-style:dashed;min-height:60px}
 .piece .cap{padding:6px 8px 8px;display:flex;flex-direction:column;gap:1px}
 .piece .nm{font-size:12.5px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -112,6 +116,7 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .flag.tailor{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
 .flag.big,.flag.small{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
 .flag.go{background:var(--rule);color:var(--muted)}
+.flag.warn{background:var(--brass-soft);border-color:var(--brass);color:var(--brass-ink)}
 .strip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
 .strip .piece{flex:none;width:92px}
 
@@ -308,6 +313,8 @@ nav.tabs svg{width:22px;height:22px}
       <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 2¢</span></button>
       <button class="btn" type="button" id="board-save">Save look</button>
     </div>
+    <div class="row"><button class="btn" type="button" id="board-wear" style="flex:1">I'm wearing this</button>
+      <button class="linkbtn" type="button" id="board-wore">Wore it yesterday</button></div>
     <div id="board-verdict"></div>
     <div id="looks"></div>
   </section>
@@ -600,8 +607,17 @@ const wearable = (p) => WEARABLE.has(p.verdict || "Fits");
 
 /** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn | styles. */
 const lineOf = (p) => [p.id, (p.no ? `No. ${p.no} ` : "") + (p.name || ""), p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
-  (p.wears || []).length, lastWorn(p) || "never", stylesOf(p).map((id) => styleOf(id).name).join(", ") || "none"].join(" | ");
+  (p.wears || []).length, lastWorn(p) || "never", stylesOf(p).map((id) => styleOf(id).name).join(", ") || "none",
+  ...(wearNotes(p).length ? ["condition: " + wearLine(p)] : [])].join(" | ");
 function railLines(filter = () => true) { return pieces().filter(filter).map(lineOf); }
+// ---------- Wear and tear ----------
+// James's own dated notes on how a piece is holding up (pieces/<id>.wear_notes: [{day, text}], newest last).
+// Alfred reads them on every rail line, nudges on Today when something looks done for, and plans replacements.
+const WEAR_TAGS = ["Pilling", "Fading", "Stain", "Small hole", "Fraying", "Stretched out", "Collar or cuffs worn", "Sole worn", "Feels tired"];
+const WEAR_SERIOUS = /hole|stain|fray|sole|rip|tear|torn|split|done for|replace/i;
+const wearNotes = (p) => Array.isArray(p.wear_notes) ? p.wear_notes : [];
+const wearLine = (p) => wearNotes(p).slice(-4).map((n) => `${n.day.slice(5)} ${n.text}`).join("; ");
+const wearingOut = (p) => !["Retire", "Donate"].includes(p.verdict) && (wearNotes(p).some((n) => WEAR_SERIOUS.test(n.text)) || wearNotes(p).length >= 3);
 const looks = () => store.list("looks/").map(({ key, value }) => ({ id: key.slice(6), ...value })).sort((a, b) => (b.created || 0) - (a.created || 0));
 const lookIds = (l) => Object.values(l.slots || {}).filter(Boolean);
 const lookWords = (l) => lookIds(l).map(piece).filter(Boolean).map((p) => p.name).join(" + ");
@@ -1207,6 +1223,10 @@ function noteItems() {
   tailoring().filter((x) => x.status === "To drop off").length && out.push({ html: `${plural(tailoring().filter((x) => x.status === "To drop off").length, "piece", "pieces")} waiting to go to the tailor.`, go: "fit", act: "See" });
   const due = fitDue().length; if (due >= 3) out.push({ html: `You're 10 lb lighter than when ${due} pieces were last checked. Time for a fitting.`, go: "fit", act: "See" });
   const care = careDue(); if (care.length) out.push({ html: `${plural(care.length, "care job", "care jobs")} due: ${esc(care[0].text.toLowerCase())}${care.length > 1 ? " and more" : ""}.`, go: "occ", act: "See" });
+  const tired = pieces().filter(wearingOut).sort((a, b) => (b.wears || []).length - (a.wears || []).length);
+  if (tired.length) { const p = tired[0], last = wearNotes(p).at(-1);
+    out.push({ html: `Might be time to replace the ${esc(p.name.toLowerCase())}${p.no ? ` (No. ${p.no})` : ""}: ${esc(last.text.toLowerCase())}${tired.length > 1 ? `, and ${plural(tired.length - 1, "other piece", "other pieces")}` : ""}.`,
+      ...(tired.length > 1 ? { go: "rail", filter: "Showing wear" } : { open: p.id }), act: "See" }); }
   const unworn = pieces().filter(unwornLong).length;
   if (unworn >= 5 && new Date().getDay() === 0) out.push({ html: `${unworn} pieces haven't been worn in 90 days. Keep, or donate?`, go: "rail", act: "See", filter: "Unworn" });
   return out;
@@ -1215,7 +1235,7 @@ function renderNotes() {
   const items = noteItems();
   $("today-notes").hidden = !items.length;
   $("today-list").innerHTML = items.map((n, i) => `<li><span>${n.html}</span><button class="linkbtn" type="button" data-note="${i}">${esc(n.act)}</button></li>`).join("");
-  $("today-list").querySelectorAll("[data-note]").forEach((b) => (b.onclick = () => { const n = items[+b.dataset.note]; if (n.filter) railFilter = n.filter; go(n.go); }));
+  $("today-list").querySelectorAll("[data-note]").forEach((b) => (b.onclick = () => { const n = items[+b.dataset.note]; if (n.open) return pieceSheet(n.open); if (n.filter) railFilter = n.filter; go(n.go); }));
 }
 
 // ===================== RAIL =====================
@@ -1224,7 +1244,7 @@ const unwornLong = (p) => wearable(p) && daysBetween(lastWorn(p) || p.created_da
 const FILTERS = {
   All: () => true, Fits: (p) => (p.verdict || "Fits") === "Fits", Tailor: (p) => p.verdict === "Tailor",
   "Doesn't fit": (p) => p.verdict === "Too big" || p.verdict === "Too small", "On the way out": (p) => p.verdict === "Retire" || p.verdict === "Donate",
-  Unworn: unwornLong, Formal: (p) => p.formality === "Formal", Untagged: untagged,
+  Unworn: unwornLong, "Showing wear": wearingOut, Formal: (p) => p.formality === "Formal", Untagged: untagged,
 };
 /** The pieces the rail is showing right now, in rail order (filters, kind and search applied). */
 function railShown(all = pieces()) {
@@ -1233,7 +1253,7 @@ function railShown(all = pieces()) {
   if (byNo) return all.filter((p) => p.no === byNo);
   return all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
     .filter((p) => railStyle === "All" || (railStyle === "none" ? !stylesOf(p).length : hasStyle(p, railStyle)))
-    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes, ...stylesOf(p).map((id) => styleOf(id).name)].join(" ").toLowerCase().includes(q))
+    .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes, wearLine(p), ...stylesOf(p).map((id) => styleOf(id).name)].join(" ").toLowerCase().includes(q))
     .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || ""));
 }
 function renderRail() {
@@ -1257,7 +1277,7 @@ function renderRail() {
 }
 function tile(p) {
   const v = p.verdict || "Fits";
-  const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(vLabel(v))}</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
+  const flag = FLAG[v] ? `<span class="flag ${FLAG[v]}">${esc(vLabel(v))}</span>` : wearingOut(p) ? `<span class="flag warn">Showing wear</span>` : unwornLong(p) ? `<span class="flag go">Unworn</span>` : "";
   return `<button class="piece" type="button" data-open="${esc(p.id)}">${thumbHtml(p)}${flag}
     <span class="cap"><span class="nm">${esc(p.name || "Untitled")}</span><span class="sz">${esc([p.size, p.tagging ? "waiting to be tagged" : p.needsTag ? "needs tagging" : ""].filter(Boolean).join(" · ") || p.category || "")}</span></span></button>`;
 }
@@ -1445,6 +1465,12 @@ function pieceSheet(id) {
     <label class="field">Care<select id="ps-care"><option value="">Not sure</option>${opt(CARE, p.care)}</select></label>
     ${p.pairs_with ? `<p class="small"><b>Alfred:</b> ${esc(p.pairs_with)}</p>` : ""}
     <label class="field">Notes<textarea id="ps-notes" placeholder="Where it's from, what the tailor said…" style="min-height:64px">${esc(p.notes || "")}</textarea></label>
+    ${isNew ? "" : `<div class="card pad" style="background:transparent">
+      <div class="row"><b>How it's holding up</b><span class="small muted">Alfred reads these</span></div>
+      <ul class="wearlog" id="ps-wearlog"></ul>
+      <div class="chips">${WEAR_TAGS.map((t) => `<button class="chip dash" type="button" data-wt="${esc(t)}">+ ${esc(t)}</button>`).join("")}</div>
+      <div class="row" style="gap:8px"><input type="text" id="ps-wtext" placeholder="Or your own words, e.g. elbows thin" style="flex:1;min-width:0">
+        <button class="btn sm" type="button" id="ps-wadd">Add</button></div></div>`}
     ${isNew ? `<label class="btn"><span id="ps-photo-label">Add a photo</span><input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>` :
       `<div class="chips"><label class="chip dash" style="cursor:pointer">${p.photo ? "Replace photo" : "Add a photo"}<input type="file" accept="image/*" capture="environment" class="sr" id="ps-photo"></label>
        ${p.photo && !p.tagging ? `<button class="chip dash" type="button" id="ps-retag">Ask Alfred to tag this · 1¢</button>` : ""}
@@ -1459,6 +1485,19 @@ function pieceSheet(id) {
       <button class="btn primary" type="button" id="ps-save">Save</button></div>`, (panel) => {
     let newPhoto = null, newLarge = null;
     const picked = new Set(stylesOf(p));
+    let wn = [...wearNotes(p)];
+    const drawWear = () => {
+      const ul = panel.querySelector("#ps-wearlog"); if (!ul) return;
+      ul.innerHTML = wn.length ? wn.map((n, i) => `<li><span class="d">${esc(fmtDate(n.day))}</span><span class="t">${esc(n.text)}</span><button class="linkbtn" type="button" data-wx="${i}" aria-label="Remove this note">×</button></li>`).reverse().join("")
+        : `<li class="small muted">Nothing noted. Tap below when you spot pilling, a stain or a worn sole.</li>`;
+      ul.querySelectorAll("[data-wx]").forEach((b) => (b.onclick = () => { wn.splice(+b.dataset.wx, 1); keepWear(); }));
+    };
+    const keepWear = () => { const cur = piece(p.id); if (cur) savePiece({ ...cur, wear_notes: wn }); drawWear(); };
+    const addWear = (text) => { text = text.trim().slice(0, 120); if (!text) return; wn = [...wn, { day: today(), text }].slice(-12); keepWear(); };
+    drawWear();
+    panel.querySelectorAll("[data-wt]").forEach((b) => (b.onclick = () => addWear(b.dataset.wt)));
+    panel.querySelector("#ps-wadd")?.addEventListener("click", () => { const i = panel.querySelector("#ps-wtext"); addWear(i.value); i.value = ""; });
+    panel.querySelector("#ps-wtext")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addWear(e.target.value); e.target.value = ""; } });
     panel.querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => {
       const id = b.dataset.st; if (picked.has(id)) picked.delete(id); else picked.add(id);
       b.setAttribute("aria-pressed", picked.has(id));
@@ -1466,7 +1505,7 @@ function pieceSheet(id) {
     const read = () => ({ ...p, styles: STYLE_IDS.filter((id) => picked.has(id)), name: panel.querySelector("#ps-name").value.trim() || "Untitled", category: panel.querySelector("#ps-cat").value,
       formality: panel.querySelector("#ps-form").value, size: panel.querySelector("#ps-size").value.trim(), verdict: panel.querySelector("#ps-verdict").value,
       colour: panel.querySelector("#ps-colour").value.trim(), fabric: panel.querySelector("#ps-fabric").value.trim(), care: panel.querySelector("#ps-care").value,
-      notes: panel.querySelector("#ps-notes").value.trim() });
+      notes: panel.querySelector("#ps-notes").value.trim(), ...(wn.length || p.wear_notes ? { wear_notes: wn } : {}) });
     panel.querySelector("#ps-cancel")?.addEventListener("click", closeSheet);
     panel.querySelector("#ps-verdict").addEventListener("change", (e) => {
       panel.querySelector("#ps-alt-box").hidden = e.target.value !== "Tailor";
@@ -1735,6 +1774,13 @@ function renderLooks() {
   $("bs-clear")?.addEventListener("click", () => { board.style = null; saveBoard(); renderLooks(); });
   $("board-levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-blevel="${esc(l)}" aria-pressed="${l === board.level}">${esc(l)}</button>`).join("");
   $("board-levels").querySelectorAll("[data-blevel]").forEach((b) => (b.onclick = () => { board.level = b.dataset.blevel; saveBoard(); renderLooks(); }));
+  const onBoard = lookIds(board).map(piece).filter(Boolean);
+  const wornAll = onBoard.length && onBoard.every((p) => lastWorn(p) === today());
+  $("board-wear").textContent = wornAll ? "Wearing this today ✓" : "I'm wearing this";
+  $("board-wear").disabled = !!wornAll;
+  const yday = addDays(today(), -1), woreAll = onBoard.length && onBoard.every((p) => (p.wears || []).includes(yday));
+  $("board-wore").textContent = woreAll ? "Worn yesterday ✓" : "Wore it yesterday";
+  $("board-wore").disabled = !!woreAll;
   renderBoardVerdict(); renderSavedLooks(); hydratePhotos($("v-looks"));
 }
 function slotSheet(k) {
@@ -1789,6 +1835,16 @@ function renderBoardVerdict() {
   });
   hydratePhotos(box);
 }
+$("board-wear").onclick = () => {
+  const ids = lookIds(board).filter((id) => piece(id));
+  if (!ids.length) return toast("Nothing on the board yet.");
+  wearToday(ids);
+};
+$("board-wore").onclick = () => {
+  const ids = lookIds(board).filter((id) => piece(id));
+  if (!ids.length) return toast("Nothing on the board yet.");
+  wearOn(ids, addDays(today(), -1));
+};
 $("board-save").onclick = () => {
   if (!lookIds(board).length) return toast("Nothing on the board yet.");
   const existing = board.lookId && store.get("looks/" + board.lookId);
