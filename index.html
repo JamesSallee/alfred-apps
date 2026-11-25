@@ -69,6 +69,26 @@ header{display:flex;flex-direction:column;gap:4px}
 .week li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
 .week[hidden]{display:none}
 footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:14px}
+/* A cupboard in the footer, no label. Tap: the doors swing open on a ship in a bottle. Tap the bottle: somewhere else entirely. */
+.cup{position:relative;width:52px;height:60px;margin:16px auto 0;perspective:220px}
+.cup-back{position:absolute;inset:0;border-radius:4px;background:var(--rule);border:1.5px solid var(--muted);box-shadow:inset 0 6px 10px rgba(0,0,0,.18)}
+.cup-back::after{content:"";position:absolute;left:4px;right:4px;top:62%;height:1.5px;background:var(--muted);opacity:.6}
+.cup-bottle{position:absolute;left:5px;right:5px;top:14px;height:24px;display:block;z-index:1;border-radius:6px}
+.cup-bottle svg{width:100%;height:100%;display:block}
+.cup-doors{position:absolute;inset:0;z-index:2;padding:0;border:0;background:none;cursor:pointer;border-radius:4px;transform-style:preserve-3d}
+.cup-doors:focus-visible,.cup-bottle:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+.door{position:absolute;top:0;bottom:0;width:50%;background:var(--paper);border:1.5px solid var(--muted);transition:transform .55s cubic-bezier(.3,1.3,.5,1)}
+.door::before{content:"";position:absolute;inset:5px;border:1px solid var(--line);border-radius:2px}
+.door::after{content:"";position:absolute;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--brass)}
+.door.l{left:0;border-radius:4px 0 0 4px;transform-origin:left center}
+.door.r{right:0;border-radius:0 4px 4px 0;transform-origin:right center}
+.door.l::after{right:4px}.door.r::after{left:4px}
+.cup.open .door.l{transform:rotateY(-118deg)}
+.cup.open .door.r{transform:rotateY(118deg)}
+.cup.open .cup-doors{pointer-events:none}
+.cup.open .door{pointer-events:auto}
+.cup.open .cup-bottle{z-index:3}
+@media (prefers-reduced-motion: reduce){.door{transition:none}}
 /* Tablets in landscape and desktops: two columns of doors so all ten fit on one screen. */
 @media (min-width:900px){.wrap{max-width:var(--w-work)}.rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion: reduce){.room,.room .mark svg{transition:none}.room:hover{transform:none}.room:hover .mark svg,.room:active .mark svg,.room:focus-visible .mark svg{transform:none}}
@@ -104,7 +124,15 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
     <nav class="rooms" id="rooms"></nav>
   </section>
 
-  <footer id="foot">Pin this page or add it to your home screen. Everything else is one tap away.</footer>
+  <footer id="foot">Pin this page or add it to your home screen. Everything else is one tap away.
+    <div class="cup" id="cup">
+      <div class="cup-back" aria-hidden="true"></div>
+      <a class="cup-bottle" id="cup-bottle" href="https://claude.ai/artifact/A7MoGsXH8sRiSS6L5LwsPc" target="_blank" rel="noopener" aria-label="A ship in a bottle" tabindex="-1" aria-hidden="true">
+        <svg viewBox="0 0 42 24" aria-hidden="true"><path d="M3 6.5h24q4 0 6 3h4.5v5H33q-2 3-6 3H3q-2 0-2-2v-7q0-2 2-2z" fill="var(--green-soft)" fill-opacity=".55" stroke="var(--muted)" stroke-width="1"/><rect x="37.5" y="9.2" width="3.5" height="5.6" rx="1" fill="var(--brass)"/><path d="M3 15.5q3-1.4 6 0t6 0 6 0 6 0" fill="none" stroke="var(--green)" stroke-width=".9" stroke-opacity=".7"/><path d="M8 14.6h13l-2 2.6h-9z" fill="var(--rust)"/><path d="M14.5 14.6V7.6M14.5 8l-5 5.6h5zM15 8.6l4.4 5h-4.4z" fill="var(--paper)" stroke="var(--ink)" stroke-width=".5" stroke-linejoin="round"/><path d="M5 8.2q8-1 16 0" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".8"/></svg>
+      </a>
+      <button class="cup-doors" id="cup-doors" type="button" aria-label="A small cupboard" aria-expanded="false" aria-controls="cup-bottle"><span class="door l"></span><span class="door r"></span></button>
+    </div>
+  </footer>
 </div>
 
 <script type="module">
@@ -179,6 +207,20 @@ document.getElementById("rooms").innerHTML = ROOMS.map((r) => `
   [ledger, focus, shutdown].forEach(s => s.subscribe(renderWeek));
 }
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+// ---------- The cupboard in the footer ----------
+{
+  const cup = document.getElementById("cup"), doors = document.getElementById("cup-doors"), bottle = document.getElementById("cup-bottle");
+  const set = (open) => {
+    cup.classList.toggle("open", open);
+    doors.setAttribute("aria-expanded", String(open));
+    bottle.tabIndex = open ? 0 : -1;
+    bottle.setAttribute("aria-hidden", String(!open));
+  };
+  doors.addEventListener("click", () => { const open = !cup.classList.contains("open"); set(open); if (open) setTimeout(() => bottle.focus({ preventScroll: true }), 350); });
+  cup.querySelectorAll(".door").forEach((d) => d.addEventListener("click", (e) => { if (cup.classList.contains("open")) { e.stopPropagation(); set(false); doors.focus(); } }));
+  cup.addEventListener("keydown", (e) => { if (e.key === "Escape" && cup.classList.contains("open")) { set(false); doors.focus(); } });
+}
 
 (function(){
   const now = new Date();

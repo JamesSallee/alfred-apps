@@ -174,6 +174,28 @@ details.shelfbox summary b{font-family:var(--display);font-weight:400;font-size:
 .attic .web{position:absolute;right:0;top:0;opacity:.5;pointer-events:none}
 .attic .list .dot{filter:sepia(.7) saturate(.5);opacity:.7}
 .attic .list .lt{color:var(--attic-ink)}
+/* The manuscript: a dusty record of the Isle of Wend, one page per year, filed by the island's own historians. */
+.manu{background:var(--attic);border:1px dashed var(--label-line);color:var(--attic-ink);position:relative;overflow:hidden;
+  background-image:radial-gradient(circle at 12% 20%,rgba(120,100,60,.10) 0 2px,transparent 3px),radial-gradient(circle at 78% 64%,rgba(120,100,60,.08) 0 1.5px,transparent 2.5px),radial-gradient(circle at 46% 88%,rgba(120,100,60,.09) 0 2px,transparent 3px);background-size:90px 70px,120px 90px,70px 110px}
+.manu summary b{color:var(--attic-ink)}
+.manu>summary>span{font-size:var(--t-sm);opacity:.85}
+.manu .quill{position:absolute;right:10px;top:8px;opacity:.45;pointer-events:none}
+.manu .pages{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column}
+.manu .pages>li{border-top:1px solid var(--label-line)}
+.manu .pages>li:first-child{border-top:0}
+.manu .pages details summary{padding:10px 0;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.manu .yr{font-family:var(--display);white-space:nowrap;opacity:.8}
+.manu .pt{font-family:var(--display);font-size:var(--t-md)}
+.manu .pg{font-family:var(--body);font-size:var(--t-md);line-height:1.6;white-space:pre-line;max-width:62ch;padding:0 0 12px}
+.manu .pm{font-size:var(--t-xs);opacity:.75;font-style:italic;padding-bottom:12px}
+.manu .disp{font-style:italic;font-size:var(--t-sm);padding:0 0 10px;max-width:62ch}
+.manu h4{font-family:var(--body);font-size:var(--t-xs);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin:4px 0 6px;opacity:.8}
+.manu .facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;margin:0 0 12px;font-size:var(--t-sm)}
+.manu .facts dt{opacity:.75}.manu .facts dd{margin:0}
+.manu .ppl{margin:0 0 12px;padding:0;list-style:none;font-size:var(--t-sm);display:flex;flex-direction:column;gap:6px}
+.manu .ppl b{font-weight:600}
+.manu .gone{opacity:.65}
+.manu .visit{display:inline-block;margin-top:10px;font-size:var(--t-sm);color:var(--attic-ink);text-underline-offset:3px}
 .readpile{background:var(--paper);border:1px solid var(--line)}
 .readpile .note,.filed .note{font-size:var(--t-sm);color:var(--muted);font-style:italic}
 .readpile .acts,.filed .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -301,6 +323,13 @@ details.got .dl{opacity:.75}
     <summary><b>Filed away</b><span id="filedSub"></span></summary>
     <ul class="dl" id="filedList"></ul>
   </details>
+
+  <details class="shelfbox manu" id="manu" hidden>
+    <svg class="quill" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M8 34 C14 22 22 12 34 5 C30 16 22 25 12 30 M8 34 L12 30 M18 24 L24 22 M14 28 L19 27"/></svg>
+    <summary><b>A dusty manuscript</b><span id="manuSub"></span></summary>
+    <ol class="pages" id="manuPages"></ol>
+    <a class="visit" href="https://claude.ai/artifact/A7MoGsXH8sRiSS6L5LwsPc" target="_blank" rel="noopener">Visit the island</a>
+  </details>
 </div>
 
 <dialog id="drawerDlg"><div class="sheet">
@@ -384,6 +413,44 @@ const desk = openStore("desk"); // the Writing Desk: pieces/<id> { title, track,
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const nowIso = () => new Date().toISOString();
 const S = () => store.get("settings") || {};
+
+// ---------- The dusty manuscript (app "wend": years/NNNN, copied in by the database each morning) ----------
+{
+  const e = (v) => esc(String(v ?? ""));
+  const row = (k, v) => (v === undefined || v === null || v === "" ? "" : `<dt>${e(k)}</dt><dd>${e(v)}</dd>`);
+  const page = (y) => {
+    const s = y.state || {}, f = s.faith || {};
+    const omens = (y.omens || []).map((o) => o.kind === "sky" ? "An omen in the sky" : `Dropped: “${o.payload || ""}”`);
+    const facts = row("Population", s.population) + row("Mood", s.mood) + row("Era", s.era || y.era)
+      + row("Faith", f.name || f.believers != null ? `${f.name || "Unnamed"} · ${f.believers ?? "?"} believers` : "")
+      + row("Doctrine", f.doctrine)
+      + row("Factions", (s.factions || []).map((x) => `${x.name} (${x.size})`).join(", "))
+      + row("Resources", Object.entries(s.resources || {}).map(([k, v]) => `${k}: ${v}`).join(", "))
+      + row("Of you", s.god_reputation)
+      + row("Historian", s.historian && s.historian.name ? s.historian.name + (s.historian.bias ? ` (${s.historian.bias})` : "") : "")
+      + row("Places", (y.places || []).join(", "))
+      + row("Still unfolding", (s.pending_threads || []).join(" · "));
+    const people = (s.notables || []).map((n) => `<li class="${n.status && n.status !== "alive" ? "gone" : ""}"><b>${e(n.name)}</b> · ${e(n.role)}${n.status && n.status !== "alive" ? " · " + e(n.status) : ""}<br>${e(n.note)}</li>`).join("");
+    const arts = (s.artefacts || []).map((a) => `<li><b>${e(a.name)}</b> (Year ${e(a.year)})<br>${e(a.note)}</li>`).join("");
+    return `<li><details><summary><span class="yr">Year ${e(y.year)}</span><span class="pt">${e(y.title)}</span></summary>
+      ${y.dispatch ? `<div class="disp">${e(y.dispatch)}</div>` : ""}
+      <div class="pg">${e(y.body)}</div>
+      ${omens.length ? `<h4>What you sent</h4><ul class="ppl">${omens.map((o) => `<li>${e(o)}</li>`).join("")}</ul>` : ""}
+      ${facts ? `<h4>The island at year’s end</h4><dl class="facts">${facts}</dl>` : ""}
+      ${people ? `<h4>People</h4><ul class="ppl">${people}</ul>` : ""}
+      ${arts ? `<h4>Artefacts</h4><ul class="ppl">${arts}</ul>` : ""}
+      <div class="pm">Recorded by ${e(y.historian || "an unknown hand")}${y.date ? " · " + e(y.date) : ""}${y.weather ? " · Your weather that day: " + e(y.weather) : ""}</div></details></li>`;
+  };
+  const wend = openStore("wend");
+  wend.subscribe(() => {
+    const years = wend.list("years/").map((x) => x.value).filter((y) => y && y.year).sort((a, b) => a.year - b.year);
+    $("manu").hidden = !years.length;
+    if (!years.length) return;
+    const last = years[years.length - 1];
+    $("manuSub").textContent = `The Isle of Wend · ${years.length} year${years.length === 1 ? "" : "s"} recorded · latest: Year ${last.year}`;
+    $("manuPages").innerHTML = years.map(page).join("");
+  });
+}
 const drawers = () => (Array.isArray(S().drawers) && S().drawers.length ? S().drawers : DRAWERS);
 const atticDays = () => S().atticDays || ATTIC_DAYS;
 const clearDays = () => S().clearDays || CLEAR_DAYS;

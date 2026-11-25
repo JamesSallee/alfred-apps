@@ -19,7 +19,7 @@ export const ROOMS = [
 /** The console's room bar, busiest first. Rooms not listed here go on the end. */
 export const CONSOLE_ORDER = ["ledger", "focus", "todo", "desk", "training", "larder", "podcast", "reading", "wardrobe", "shutdown"];
 
-/** Every app whose rows the pages keep: the rooms plus the Study's own notes. Used for Export backup. */
-export const DATA_APPS = [...ROOMS.map((r) => r.store), "study"];
+/** Every app whose rows the pages keep: the rooms, the Study's own notes and the Isle of Wend's years (read-only copies). Used for Export backup. */
+export const DATA_APPS = [...ROOMS.map((r) => r.store), "study", "wend"];
 
 export const room = (id) => ROOMS.find((r) => r.id === id);
