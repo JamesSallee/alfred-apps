@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en-GB">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b2f45">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="js/vendor/supabase-2.45.4.js"></script>
+<title>The Isle of Wend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/base.css">
+<style>
+/* The Isle of Wend, inside the Study: the same island as the Claude page, read from the Study's own copy of each year.
+   Only James's signed-in account sees it or can send omens (supabase/wend.sql). It keeps the island's own sea-chart look. */
+
+/* VOICE: a nervous court historian's record of a tiny island that has just noticed the sky. Wry, then suddenly grand.
+   IDEA: an old sea chart pinned under a night sky — you are the sky.
+   PICTURE: a shaded relief map that grows as history happens, lit by the hour and your real weather, under a tappable band of sky and stars.
+   COLOUR and TYPE: deep sea teal, sage land, coral for anything you do. IM Fell English for the chronicle voice, Literata for reading.
+   LAYOUT: sky band, map with its year slider, "since you were last here", the scroll, then powers, people, factions, eras. One column on phones. */
+:root{color-scheme:light dark;
+ --bg:light-dark(#e9efe6,#0b1c24);--sea:light-dark(#2f5d6b,#12323f);--sea2:light-dark(#3d7282,#173d4b);
+ --land:light-dark(#d6dfbf,#b9c69c);--mink:#10232c;--land2:light-dark(#b9c79a,#93a578);--ink:light-dark(#10232c,#e6ede4);
+ --soft:light-dark(#4a5f66,#a8b8b4);--card:light-dark(#f7faf3,#10262f);--line:light-dark(#c9d4c6,#24414d);
+ --you:#e2553f;--sky:light-dark(#1b2f45,#060f18);--gold:light-dark(#8a6a1f,#e0c06a);
+ --chart:#16404e;--chartink:#e8dfc8;--chartsoft:#a9bcc0}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.6 Literata,Georgia,serif;overflow-x:clip}
+h1,h2,h3,.fell{font-family:"IM Fell English",Georgia,serif;font-weight:400}
+h1{font-size:clamp(34px,6vw,52px);line-height:1.05;margin:0;text-wrap:balance}
+h2{font-size:32px;line-height:1.1;margin:0 0 14px}
+h3{font-size:22px;margin:0 0 4px;line-height:1.2}
+.wrap{max-width:1100px;margin:0 auto;padding:0 max(4vw,16px)}
+.band{padding:clamp(28px,4vw,56px) 0}
+.sky{background:radial-gradient(ellipse at 50% 140%,#24485a 0,var(--sky) 60%);color:#e8eef0;position:relative;overflow:hidden;cursor:pointer;user-select:none;border:0;width:100%;text-align:left;font:inherit;display:block;padding:0}
+.sky:focus-visible{outline:3px solid var(--you);outline-offset:-3px}
+.sky svg.stars{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.skyin{position:relative;padding-top:22px;padding-bottom:18px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:#b9c9cf;font-size:15px;margin-top:8px}
+.meta b{color:#fff;font-weight:600}
+.hint{font-size:13.5px;color:#9fb4bb;margin-top:10px}
+.flash{position:absolute;inset:0;background:radial-gradient(circle at var(--fx,50%) var(--fy,50%),rgba(255,214,170,.55),transparent 45%);opacity:0;pointer-events:none}
+.flash.on{animation:fl 1.4s ease-out}
+@keyframes fl{0%{opacity:1}100%{opacity:0}}
+.mapbox{background:var(--chart);position:relative;color:var(--chartink)}
+.fig{position:relative;aspect-ratio:16/10;max-height:620px;max-width:100%;width:100%;margin:0 auto;overflow:hidden}
+.fig>canvas,.fig>svg,.fig>.tint{position:absolute;inset:0;width:100%;height:100%;display:block}
+.fig>.tint{mix-blend-mode:multiply;pointer-events:none;transition:background-color .6s}
+.fig>.fog{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(ellipse at 30% 40%,rgba(235,240,240,.55),transparent 55%),radial-gradient(ellipse at 75% 65%,rgba(235,240,240,.45),transparent 50%)}
+.fig>.fog.on{opacity:1}
+.fig>#wx{pointer-events:none}
+.wxline{display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:space-between;font-size:14px;color:var(--chartsoft);padding:8px 0 4px}
+.wxline b{color:var(--chartink);font-weight:600}
+.years{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 0 18px}
+.years button{min-height:44px;min-width:44px;border-radius:6px;border:1px solid rgba(232,223,200,.35);background:transparent;color:var(--chartink);font:600 15px Literata,serif;cursor:pointer;padding:0 12px}
+.years button:disabled{opacity:.35;cursor:default}
+.years button.play{background:var(--you);border-color:var(--you);color:#fff}
+.years input[type=range]{width:100%;accent-color:var(--you);min-height:44px}
+.yrlab{font-family:"IM Fell English",serif;font-size:18px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.yrtitle{grid-column:1/-1;font-family:"IM Fell English",serif;font-style:italic;font-size:17px;color:var(--chartsoft);margin-top:-4px}
+.yrtitle .chg{font-family:Literata,serif;font-style:normal;font-size:13.5px;color:#f3a596;margin-left:8px}
+@media(max-width:600px){.years{grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px}.years .yrlab{grid-column:1/-1}}
+.status{font-size:14px;color:var(--soft);padding:10px 0}
+.catch{background:var(--you);color:#fff;border-radius:6px;padding:14px 18px;margin:0 0 22px;font-size:17px}
+.catch b{font-weight:600}
+.entry{border-top:1px solid var(--line);padding:18px 0}
+.entry:first-of-type{border-top:0}
+.entry summary{cursor:pointer;list-style:none;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;min-height:44px}
+.entry summary::-webkit-details-marker{display:none}
+.yr{font-family:"IM Fell English",serif;font-size:19px;color:var(--gold);white-space:nowrap}
+.new{background:var(--you);color:#fff;font-size:12px;border-radius:3px;padding:1px 7px;font-family:Literata,serif}
+.entry .body{white-space:pre-line;max-width:68ch;margin-top:10px}
+.entry .foot{font-size:13.5px;color:var(--soft);margin-top:10px;font-style:italic}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px}
+.card p{margin:6px 0 0}
+.role{color:var(--soft);font-size:14.5px}
+.dead{opacity:.6}
+.dead h3::after{content:" †";color:var(--soft)}
+.powers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
+button.act,.drop button{min-height:44px;border-radius:6px;border:0;background:var(--you);color:#fff;font:600 16px Literata,serif;padding:0 18px;cursor:pointer}
+button.act:disabled,.drop button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--you);outline-offset:2px}
+.drop{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.drop input{flex:1 1 180px;min-height:44px;font:16px Literata,serif;padding:0 12px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.pending{margin:12px 0 0;padding:0;list-style:none;font-size:14.5px;color:var(--soft)}
+.pending li::before{content:"✶ ";color:var(--you)}
+.note{font-size:14px;color:var(--soft);margin-top:8px}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0 2px}
+.bar i{display:block;height:100%;background:var(--sea2)}
+.eras{list-style:none;margin:0;padding:0;border-left:2px solid var(--line)}
+.eras li{padding:4px 0 14px 18px;position:relative}
+.eras li::before{content:"";position:absolute;left:-7px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--gold)}
+.foot2{font-size:13.5px;color:var(--soft);padding:28px 0 40px}
+.newring{animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.9}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.flash.on,.newring{animation:none}}
+@media(max-width:600px){h2{font-size:27px}.fig{aspect-ratio:1/1}}
+
+/* Study page additions: the way back, and the island out of sight when nobody is signed in. */
+.topbar{background:var(--sky);padding-block:10px 0}
+.topbar .back{color:#b9c9cf;font:500 14px var(--body,system-ui);text-decoration:none}
+.topbar .back:hover{color:#fff}
+.away{padding-block:64px}
+.away h2{margin-bottom:8px}
+.away p{color:var(--soft);max-width:52ch}
+</style>
+
+
+<nav class="topbar"><div class="wrap"><a class="back" href="./">← Alfred's Study</a></div></nav>
+<div class="away" id="away" hidden><div class="wrap"><h2>The island is out of sight</h2><p id="awayTxt">Sign in to visit the Isle of Wend. Tap the sign-in button in the bottom corner.</p></div></div>
+<div id="isle">
+<button class="sky" id="sky" aria-label="Tap the sky to send an omen">
+ <svg class="stars" id="stars" aria-hidden="true"></svg>
+ <div class="flash" id="flash"></div>
+ <div class="wrap skyin">
+  <h1 id="iname">The Isle of Wend</h1>
+  <div class="meta" id="meta"><span>Consulting the historian…</span></div>
+  <div class="hint" id="skyhint">You are the sky. Tap it to send an omen.</div>
+ </div>
+</button>
+
+<div class="mapbox"><div class="wrap">
+ <div class="fig" id="fig">
+  <canvas id="land" aria-hidden="true"></canvas>
+  <svg id="map" role="img" aria-label="Map of the island"></svg>
+  <div class="tint" id="tint"></div>
+  <div class="fog" id="fog"></div>
+  <canvas id="wx" aria-hidden="true"></canvas>
+  <svg id="top" aria-hidden="true"></svg>
+ </div>
+ <div class="wxline" id="wxline"></div>
+ <div class="years" id="years" hidden>
+  <span class="yrlab" id="yrlab">Year 1</span>
+  <button type="button" id="yprev" aria-label="Previous year">◀</button>
+  <input type="range" id="yslide" min="1" max="1" value="1" aria-label="Choose a year to see the island as it was">
+  <button type="button" id="ynext" aria-label="Next year">▶</button>
+  <button type="button" class="play last" id="yplay">Play</button>
+  <div class="yrtitle" id="yrtitle"></div>
+ </div>
+</div></div>
+
+<main class="wrap">
+ <div class="status" id="status"></div>
+
+ <section class="band" id="chronicle">
+  <div id="catch"></div>
+  <h2>The chronicle</h2>
+  <div id="entries"></div>
+ </section>
+
+ <section class="band" id="powers-sec">
+  <h2>Your powers</h2>
+  <div class="powers">
+   <div class="card">
+    <h3>Tap the sky</h3>
+    <p>Send an omen. You don't get to choose what it is, and they decide what it means.</p>
+    <div style="margin-top:12px"><button class="act" id="tapbtn">Tap the sky</button></div>
+   </div>
+   <div class="card">
+    <h3>Drop an object</h3>
+    <p>A word, a colour, something from your day. It lands on the island at dawn.</p>
+    <form class="drop" id="dropform"><label for="dropin" class="sr" style="position:absolute;left:-9999px">Object to drop</label><input id="dropin" maxlength="40" placeholder="e.g. a single blue mitten" autocomplete="off"><button type="submit" id="dropbtn">Drop it</button></form>
+   </div>
+   <div class="card">
+    <h3>Do nothing</h3>
+    <p>Silence is also a message. They will argue about what it means.</p>
+    <p class="note">Already in effect whenever you're not doing anything else.</p>
+   </div>
+  </div>
+  <p id="pstatus" role="status" style="margin:14px 0 0;font-size:15px"></p>
+  <ul class="pending" id="pending"></ul>
+ </section>
+
+ <section class="band">
+  <h2>People to watch</h2>
+  <div class="grid" id="people"></div>
+ </section>
+
+ <section class="band">
+  <div class="grid">
+   <div class="card"><h3>Faith and factions</h3><div id="faith"></div></div>
+   <div class="card"><h3>The state of things</h3><div id="things"></div></div>
+   <div class="card"><h3>Eras</h3><ul class="eras" id="eras"></ul><h3 style="margin-top:14px">Artefacts</h3><div id="arts"></div></div>
+  </div>
+ </section>
+
+ <div class="foot2" id="foot2">A new year passes on Wend each morning, shaped by the real weather at home. Each dawn the historian seals the year's news in a bottle and gives it to the sea.</div>
+</main>
+</div>
+
+
+<script type="module">
+import { openStore, supabase, currentUser, onAuthChange } from "./js/sync.js";
+import { mountShell } from "./js/shell.js";
+mountShell("wend");
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let DATA=null,busy=false,SHOW=null,omens=[],signedIn=false; // SHOW = year number on the map, null = latest
+/* ---------- seeded random and noise ---------- */
+function rng(seed){let s=seed>>>0||1;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
+let NOISE=null;
+function noiseFor(seed){if(NOISE&&NOISE.seed===seed)return NOISE;const r=rng(seed),perm=[...Array(256).keys()];for(let i=255;i>0;i--){const j=Math.floor(r()*(i+1));[perm[i],perm[j]]=[perm[j],perm[i]]}const P=new Uint8Array(512);for(let i=0;i<512;i++)P[i]=perm[i&255];const G=new Float32Array(256);for(let i=0;i<256;i++)G[i]=r();NOISE={seed,P,G};return NOISE}
+function vn(N,x,y){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,P=N.P,G=N.G,X=xi&255,Y=yi&255;const a=G[P[X+P[Y]]],b=G[P[((X+1)&255)+P[Y]]],c=G[P[X+P[(Y+1)&255]]],d=G[P[((X+1)&255)+P[(Y+1)&255]]];const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),ab=a+(b-a)*u;return ab+((c+(d-c)*u)-ab)*v}
+function fbm(N,x,y,o){let s=0,a=.5,f=1;for(let i=0;i<o;i++){s+=a*vn(N,x*f,y*f);a*=.5;f*=2.03}return s}
+
+/* ---------- terrain: the shape comes from the island's seed; hills and mountains in the story raise the land ---------- */
+function terrain(w){const N=noiseFor(w.seed||4417);
+ const bumps=(w.features||[]).filter(f=>/^(hill|mountain|forest)$/.test(f.kind)).map(f=>({x:+f.x||50,y:+f.y||50,a:f.kind==="mountain"?.8:f.kind==="hill"?.38:.06,s:f.kind==="forest"?11:f.kind==="mountain"?8:9}));
+ const h=(u,v)=>{ // island units, 0-100
+  const x=u+30,y=v;
+  const wx=x+(fbm(N,x*.04+11,y*.04,4)-.5)*30,wy=y+(fbm(N,x*.04,y*.04+7,4)-.5)*30;
+  const dx=(wx-80)/38,dy=(wy-54)/33,base=1-Math.sqrt(dx*dx+dy*dy);
+  const sea=.36*Math.tanh(base*2.6)-.02;
+  let z=sea+(fbm(N,x*.11,y*.11,5)-.5)*.3*Math.min(1,Math.max(.25,base*3));
+  for(const b of bumps){const d2=((u-b.x)**2+(v-b.y)**2)/(b.s*b.s);if(d2<9)z+=b.a*Math.exp(-d2)}
+  return [z,sea]};
+ return h}
+
+/* ---------- weather and time of day ---------- */
+function readWeather(t){t=String(t||"").toLowerCase();const m=t.match(/(-?\d+)\s*°?\s*f/);const temp=m?+m[1]:null;
+ return {text:t,rain:/rain|drizzle|shower/.test(t),snow:/snow|sleet|flurr/.test(t),storm:/storm|thunder|gale|squall/.test(t),wind:/wind|gust|breez|gale/.test(t),fog:/fog|mist|haze|overcast|grey|gray|cloud/.test(t),frost:/frost|freez|ice|icy/.test(t)||(temp!=null&&temp<=36),hot:temp!=null&&temp>=85,clear:/clear|sun|fair/.test(t),unknown:!t||/unrecorded/.test(t)}}
+function dayPhase(){const h=new Date().getHours()+new Date().getMinutes()/60;
+ if(h<5||h>=21)return {name:"Night",tint:"#64749f",lights:1};
+ if(h<7)return {name:"Dawn",tint:"#d9b8a8",lights:.5};
+ if(h<16)return {name:"Day",tint:"#ffffff",lights:0};
+ if(h<18)return {name:"Dusk",tint:"#e8b48e",lights:.4};
+ return {name:"Evening",tint:"#7d7ba3",lights:.85}}
+
+/* ---------- stars ---------- */
+function drawStars(){const s=$("stars"),W=s.clientWidth,H=s.clientHeight;if(!W)return;const r=rng(99);let o="";for(let i=0;i<Math.round(W*H/2600);i++){const x=r()*W,y=r()*H,z=r();o+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(z*1.3+.3).toFixed(2)}" fill="#fff" opacity="${(z*.7+.2).toFixed(2)}"/>`}s.innerHTML=o}
+new ResizeObserver(drawStars).observe($("stars"));
+
+/* ---------- map ---------- */
+const lerp=(a,b,t)=>{t=t<0?0:t>1?1:t;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]};
+function colour(z){
+ if(z<0)return lerp([96,170,170],[22,62,78],Math.pow(Math.min(1,-z/.45),.6));
+ if(z<.03)return [232,219,172];
+ if(z<.32)return lerp([170,190,122],[120,150,88],(z-.03)/.29);
+ if(z<.55)return lerp([120,150,88],[140,132,104],(z-.32)/.23);
+ return lerp([150,142,120],[236,232,222],(z-.55)/.3)}
+function paintLand(w,wx,VW,VH,ox){
+ const cv=$("land"),box=$("fig"),cw=box.clientWidth,ch=box.clientHeight;if(!cw)return null;
+ const px=Math.min(1100,Math.round(cw*Math.min(devicePixelRatio||1,1.5))),py=Math.round(px*ch/cw);
+ cv.width=px;cv.height=py;const ctx=cv.getContext("2d"),img=ctx.createImageData(px,py),d=img.data;
+ const H=terrain(w),sx=VW/px,sy=VH/py,hm=new Float32Array(px*py),sm=new Float32Array(px*py);
+ for(let j=0;j<py;j++)for(let i=0;i<px;i++){const r=H(i*sx-ox,j*sy);hm[j*px+i]=r[0];sm[j*px+i]=r[1]}
+ const gr=rng(7),k6=6/sx;
+ for(let j=0;j<py;j++)for(let i=0;i<px;i++){const k=j*px+i,z=hm[k];let c;
+  if(z>=0){c=colour(z);
+   const gx=(hm[i<px-1?k+1:k]-hm[i>0?k-1:k])*k6*.5,gy=(hm[j<py-1?k+px:k]-hm[j>0?k-px:k])*k6*.5;const l=Math.hypot(gx,gy,1),dot=(gx*.6+gy*.6+.55)/l;const shade=.72+.42*dot;c=[c[0]*shade,c[1]*shade,c[2]*shade];
+   if(wx.frost&&z>.03)c=lerp(c,[238,242,246],.18+Math.min(.5,z*.9));
+   if(wx.snow&&z>.03)c=lerp(c,[246,248,250],.55);
+   if(wx.hot&&z>.03&&z<.4)c=lerp(c,[200,186,120],.35);
+  }else{const sd=Math.min(sm[k],0);c=colour(Math.min(z,sd*1.1-.01));const ring=Math.abs(((-sd)*12)%1-.5);if(ring<.03&&sd<-.05)c=[c[0]+12,c[1]+12,c[2]+12];
+   if(z>-.018)c=lerp(c,[240,248,244],.75);
+   if((wx.storm||wx.wind)&&z<-.06&&gr()<(wx.storm?.012:.005))c=[230,240,240];
+   if(wx.storm)c=[c[0]*.85,c[1]*.88,c[2]*.9]}
+  const g=(gr()-.5)*10;d[k*4]=c[0]+g;d[k*4+1]=c[1]+g;d[k*4+2]=c[2]+g;d[k*4+3]=255}
+ ctx.putImageData(img,0,0);return H}
+
+function house(x,y,w,h,lit){return `<rect x="${(x+.25).toFixed(2)}" y="${(y+.3).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="rgba(0,0,0,.3)"/><rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="#f2e9d6" stroke="#6b4a2b" stroke-width=".12"/><rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${(h*.5).toFixed(2)}" fill="#b5583a"/>`}
+function glyph(f,X,Y,H,ox,lights){const k=f.kind,r=rng((f.name||"").length*131+Math.round(X*7+Y*3));let g="",L="";
+ const onLand=(x,y)=>H(x-ox,y)[0]>.04;
+ if(k==="village"||k==="town"){const n=k==="town"?22:11,R=k==="town"?5:3.4;
+  for(let i=0;i<n;i++){const a=r()*6.28,dd=Math.sqrt(r())*R,x=X+Math.cos(a)*dd*1.3,y=Y+Math.sin(a)*dd;if(!onLand(x,y))continue;const w=1.2+r()*.6,h=.8+r()*.3;g+=house(x,y,w,h);if(lights&&r()<.7)L+=`<circle cx="${(x+w/2).toFixed(2)}" cy="${(y+h*.7).toFixed(2)}" r=".32" fill="#ffd27a" opacity="${lights}"/><circle cx="${(x+w/2).toFixed(2)}" cy="${(y+h*.7).toFixed(2)}" r="1.1" fill="#ffc76a" opacity="${(lights*.25).toFixed(2)}"/>`}
+  if(k==="town")g+=`<rect x="${X-1.4}" y="${Y-1.4}" width="2.8" height="2.8" fill="#d9ccb0" stroke="#6b4a2b" stroke-width=".12"/>`;
+  g+=`<circle cx="${X+.6}" cy="${Y-1.6}" r=".6" fill="rgba(240,240,240,.5)"/><circle cx="${X+1.2}" cy="${Y-2.8}" r=".9" fill="rgba(240,240,240,.3)"/>`;
+  return [g,L]}
+ if(k==="boats"){g+=`<path d="M${X-5} ${Y-1}h5v1.2h-5z" fill="#7a5a3a"/>`;for(const [dx,dy] of [[-3,1.5],[1,2.8],[4,1]])g+=`<path d="M${X+dx-1.3} ${Y+dy}q1.3 .9 2.6 0z" fill="#6b4a2b"/><path d="M${X+dx} ${Y+dy-.1}v-2.2l1.2 2z" fill="#f4efe2" stroke="#3a2a1a" stroke-width=".1"/><path d="M${X+dx-2} ${Y+dy+.7}q1 .4 2 0" stroke="rgba(255,255,255,.6)" stroke-width=".15" fill="none"/>`;if(lights)L+=`<circle cx="${X-4.5}" cy="${Y-1.4}" r=".35" fill="#ffd27a" opacity="${lights}"/>`;return [g,L]}
+ if(k==="forest"){for(let n=0;n<70;n++){const a=r()*6.28,dd=Math.sqrt(r())*7,x=X+Math.cos(a)*dd*1.2,y=Y+Math.sin(a)*dd*.85;if(!onLand(x,y))continue;const rr=.9+r()*.6;g+=`<circle cx="${(x+.35).toFixed(2)}" cy="${(y+.45).toFixed(2)}" r="${rr.toFixed(2)}" fill="rgba(20,40,20,.35)"/><circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${rr.toFixed(2)}" fill="${["#4d6e3b","#587a42","#435f34"][n%3]}"/><circle cx="${(x-.3).toFixed(2)}" cy="${(y-.3).toFixed(2)}" r="${(rr*.45).toFixed(2)}" fill="rgba(255,255,220,.18)"/>`}return [g,L]}
+ if(k==="pasture"){const cs=["#b9c98a","#a6bd78","#c7cf93","#9fb873"];for(let a=0;a<3;a++)for(let b=0;b<2;b++){const x=X-5.5+a*3.8+(r()-.5),y=Y-3+b*3.2;g+=`<path d="M${x.toFixed(2)} ${y}l3.6 -.3l.2 3l-3.6 .2z" fill="${cs[(a+b)%4]}" stroke="#5f6b3f" stroke-width=".22" opacity=".9"/>`}for(let n=0;n<7;n++)g+=`<circle cx="${(X-4+r()*9).toFixed(2)}" cy="${(Y-2+r()*4.5).toFixed(2)}" r=".28" fill="#f7f3e8"/>`;return [g,L]}
+ if(k==="field"){const cs=["#d8c46a","#c9b45a","#e0cf82"];for(let a=0;a<5;a++){const x=X-5+a*2.1;g+=`<path d="M${x.toFixed(2)} ${Y-3}h1.9l.3 6h-1.9z" fill="${cs[a%3]}" stroke="#7a6a30" stroke-width=".15"/>`}return [g,L]}
+ if(k==="hill"||k==="mountain")return [g,L]; // the land itself rises
+ if(k==="stone")return [`<ellipse cx="${X+.6}" cy="${Y+.5}" rx="1.4" ry=".5" fill="rgba(0,0,0,.3)"/><path d="M${X-.8} ${Y+.4}l.2-2.6q.6-.6 1.2 0l.2 2.6z" fill="#9aa0a0" stroke="#4a4f4f" stroke-width=".15"/><circle cx="${X}" cy="${Y-1.2}" r="3.2" fill="none" stroke="rgba(255,240,200,.45)" stroke-width=".2" stroke-dasharray=".4 .5"/>`,L];
+ if(k==="statue")return [`<ellipse cx="${X+.7}" cy="${Y+.6}" rx="1.6" ry=".5" fill="rgba(0,0,0,.3)"/><rect x="${X-1.2}" y="${Y-.4}" width="2.4" height="1" fill="#a8a59a" stroke="#4a4f4f" stroke-width=".12"/><path d="M${X-.4} ${Y-.4}v-2.2h.8v2.2zM${X} ${Y-3.3}a.55 .55 0 1 0 .01 0z" fill="#b8b5aa" stroke="#4a4f4f" stroke-width=".12"/>`,L];
+ if(k==="temple"||k==="shrine"){const s=k==="temple"?1:.7;g+=`<ellipse cx="${X+.8}" cy="${Y+1.2}" rx="${3*s}" ry=".6" fill="rgba(0,0,0,.3)"/><rect x="${X-2.6*s}" y="${Y-1.4*s}" width="${5.2*s}" height="${2.4*s}" fill="#efe6d2" stroke="#5a4a3a" stroke-width=".15"/><path d="M${X-3.2*s} ${Y-1.4*s}h${6.4*s}L${X} ${Y-3.6*s}z" fill="#9a6b4a" stroke="#5a4a3a" stroke-width=".15"/>`;for(let i=-1;i<=1;i++)g+=`<rect x="${X+i*1.6*s-.2}" y="${Y-1.2*s}" width=".4" height="${2*s}" fill="#cfc4ad"/>`;if(lights)L+=`<circle cx="${X}" cy="${Y}" r=".5" fill="#ffd27a" opacity="${lights}"/>`;return [g,L]}
+ if(k==="lighthouse"||k==="tower"){g+=`<ellipse cx="${X+.8}" cy="${Y+1.3}" rx="1.6" ry=".5" fill="rgba(0,0,0,.3)"/><path d="M${X-1} ${Y+1.2}l.4-4.4h1.2l.4 4.4z" fill="#f4efe2" stroke="#3a3a3a" stroke-width=".15"/>${k==="lighthouse"?`<path d="M${X-.6} ${Y-.4}h1.2v.6h-1.2zM${X-.8} ${Y-2}h1.6v.6h-1.6z" fill="#b5583a"/>`:""}`;
+  if(k==="lighthouse")L+=`<circle cx="${X}" cy="${Y-3.6}" r="1" fill="#ffd27a"/>${lights?`<path d="M${X} ${Y-3.6}L${X+16} ${Y-8}L${X+16} ${Y+.8}z" fill="#ffe2a0" opacity="${(lights*.22).toFixed(2)}"/><circle cx="${X}" cy="${Y-3.6}" r="3" fill="#ffd27a" opacity="${(lights*.3).toFixed(2)}"/>`:""}`;
+  return [g,L]}
+ if(k==="ruin")return [`<ellipse cx="${X+.6}" cy="${Y+1.2}" rx="2.6" ry=".5" fill="rgba(0,0,0,.25)"/><path d="M${X-2.4} ${Y+1}v-2.2h1v1.2h1v-2h1v3zM${X+1} ${Y+1}v-1.4h.7v.6h.7v.8z" fill="#8d9294" stroke="#4a4f4f" stroke-width=".15"/><circle cx="${X-1.6}" cy="${Y+1.6}" r=".3" fill="#8d9294"/><circle cx="${X+2.4}" cy="${Y+1.4}" r=".25" fill="#8d9294"/>`,L];
+ if(k==="omen")return [`<circle cx="${X}" cy="${Y}" r="2.6" fill="rgba(80,50,30,.35)"/><circle cx="${X}" cy="${Y}" r="1.2" fill="var(--you)"/>`,`<circle cx="${X}" cy="${Y}" r="3.4" fill="none" stroke="var(--you)" stroke-width=".3" class="newring"/>`];
+ return [`<circle cx="${X}" cy="${Y}" r="1.1" fill="#10232c"/>`,L]}
+
+let wxAnim=0;
+function runWeather(wx){cancelAnimationFrame(wxAnim);const cv=$("wx"),box=$("fig"),W=box.clientWidth,H=box.clientHeight;cv.width=W;cv.height=H;const ctx=cv.getContext("2d");ctx.clearRect(0,0,W,H);
+ if(!(wx.rain||wx.snow||wx.storm))return;
+ const r=rng(3),n=wx.snow?Math.round(W*H/5000):Math.round(W*H/(wx.storm?1800:3000)),drops=[...Array(n)].map(()=>({x:r()*W,y:r()*H,s:.6+r()*.8}));
+ const draw=()=>{ctx.clearRect(0,0,W,H);
+  if(wx.snow){ctx.fillStyle="rgba(255,255,255,.85)";for(const p of drops){ctx.beginPath();ctx.arc(p.x,p.y,1.2*p.s+.4,0,6.3);ctx.fill();p.y+=.6*p.s;p.x+=Math.sin(p.y/30)*.4;if(p.y>H){p.y=-4;p.x=r()*W}}}
+  else{ctx.strokeStyle=wx.storm?"rgba(220,232,240,.5)":"rgba(210,226,236,.4)";ctx.lineWidth=1;ctx.beginPath();const sl=wx.storm||wx.wind?5:2;for(const p of drops){ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-sl*p.s,p.y+12*p.s);p.y+=(wx.storm?11:8)*p.s;p.x-=sl*.5*p.s;if(p.y>H){p.y=-12;p.x=r()*(W+40)}}ctx.stroke()}
+  if(!REDUCED&&!document.hidden)wxAnim=requestAnimationFrame(draw)};
+ draw()}
+
+function yearView(){const ch=DATA.chron||[],w=DATA.world,latest=+w.year||1;
+ if(SHOW==null||SHOW>=latest){const c=ch.find(x=>+x.year===latest);return {world:w,year:latest,entry:c,prev:prevWorld(latest)}}
+ const c=ch.find(x=>+x.year===SHOW);let snap=c&&c.world_state;if(typeof snap==="string")try{snap=JSON.parse(snap)}catch(e){snap=null}
+ return {world:snap||null,year:SHOW,entry:c,prev:prevWorld(SHOW)}}
+function prevWorld(y){const c=(DATA.chron||[]).find(x=>+x.year===y-1);let s=c&&c.world_state;if(typeof s==="string")try{s=JSON.parse(s)}catch(e){s=null}return s||null}
+
+function drawMap(){const s=$("map"),box=$("fig"),W=box.clientWidth;if(!W||!DATA)return;
+ const V=yearView(),w=V.world||DATA.world,VW=W<520?100:160,VH=100,ox=(VW-100)/2;
+ [$("map"),$("top")].forEach(e=>e.setAttribute("viewBox",`0 0 ${VW} ${VH}`));
+ const wtext=V.entry&&V.entry.real_weather,wx=readWeather(wtext),ph=dayPhase();
+ const H=paintLand(w,wx,VW,VH,ox);if(!H)return;
+ const feats=(w.features||[]),prevNames=new Set(((V.prev||{}).features||[]).map(f=>f.name));
+ let o="",top="";
+ for(const f of feats){const [g,L]=glyph(f,ox+(+f.x||50),+f.y||50,H,ox,ph.lights);o+=g;top+=L}
+ const fs=W<520?2.9:2.5;
+ for(const f of feats){const X=ox+(+f.x||50),Y=(+f.y||50)+(f.kind==="boats"?6.5:f.kind==="hill"||f.kind==="mountain"?2:5.2);
+  if(V.prev&&!prevNames.has(f.name))top+=`<circle cx="${X}" cy="${+f.y||50}" r="6" fill="none" stroke="#f08a76" stroke-width=".4" stroke-dasharray="1 .8" class="newring"/>`;
+  top+=`<text x="${X}" y="${Y}" text-anchor="middle" font-family="IM Fell English,serif" font-size="${fs}" fill="#1d2a22" stroke="rgba(245,240,225,.85)" stroke-width=".7" paint-order="stroke"${f.kind==="ruin"?' font-style="italic"':""}>${esc(f.name)}</text>`}
+ const cs=VW<120?.7:1,cx=VW<120?9:16,cy=VW<120?10:18;
+ top+=`<g transform="translate(${cx} ${cy}) scale(${cs})" opacity=".85"><circle r="7" fill="none" stroke="#e8dfc8" stroke-width=".2"/><circle r="5.6" fill="none" stroke="#e8dfc8" stroke-width=".12" stroke-dasharray=".5 .5"/><path d="M0 -7.5L1.2 0L0 7.5L-1.2 0z" fill="#e8dfc8"/><path d="M-7.5 0L0 1.2L7.5 0L0 -1.2z" fill="#e8dfc8" opacity=".6"/><path d="M0 -7.5L1.2 0H-1.2z" fill="#e2553f"/><text y="-8.6" text-anchor="middle" font-family="IM Fell English,serif" font-size="2.4" fill="#e8dfc8">N</text></g>`;
+ top+=`<text x="${VW-3}" y="${VH-3}" text-anchor="end" font-family="IM Fell English,serif" font-style="italic" font-size="${fs+.7}" fill="rgba(240,235,220,.9)">${esc((w.island||"the Isle of Wend").replace(/^the /,"The "))}, Year ${esc(V.year)}</text>`;
+ if(VW>120)top+=`<g transform="translate(${VW-42} ${VH-10})" fill="#e8dfc8" font-family="IM Fell English,serif" font-size="1.8"><rect width="5" height=".7"/><rect x="5" width="5" height=".7" fill="none" stroke="#e8dfc8" stroke-width=".15"/><text y="2.8">0</text><text x="9" y="2.8">1 league</text></g>`;
+ s.innerHTML=o;$("top").innerHTML=top;
+ $("tint").style.backgroundColor=wx.storm?mix(ph.tint,"#9aa4ad"):wx.fog||wx.rain?mix(ph.tint,"#c9d0d4"):ph.tint;
+ $("fog").classList.toggle("on",wx.fog&&!wx.clear);
+ runWeather(wx);
+ $("wxline").innerHTML=`<span>Weather on Wend that year: <b>${esc(wtext||"unrecorded")}</b></span><span>${V.year===(+DATA.world.year||1)?`On Wend it is <b>${esc(ph.name.toLowerCase())}</b>, as it is with you`:`Year ${esc(V.year)}, as the historian left it`}</span>`}
+function mix(a,b){const p=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16));const A=p(a),B=p(b);return "#"+A.map((v,i)=>Math.round(v*B[i]/255).toString(16).padStart(2,"0")).join("")}
+let mapQueued=false;function queueMap(){if(mapQueued)return;mapQueued=true;requestAnimationFrame(()=>{mapQueued=false;drawMap()})}
+new ResizeObserver(queueMap).observe($("fig"));
+
+/* ---------- the year slider ---------- */
+let playT=0;
+function renderYears(){const ch=DATA.chron||[],latest=+DATA.world.year||1,el=$("years");el.hidden=ch.length<1;if(el.hidden)return;
+ const sl=$("yslide"),y=SHOW==null?latest:SHOW;sl.min=Math.min(...ch.map(c=>+c.year));sl.max=latest;sl.value=y;
+ $("yrlab").textContent=`Year ${y}${y===latest?" · now":""}`;
+ $("yprev").disabled=y<=+sl.min;$("ynext").disabled=y>=latest;$("yplay").disabled=latest<=+sl.min;$("yplay").textContent=playT?"Pause":"Play";
+ const V=yearView(),c=V.entry;let chg="";
+ if(V.world&&V.prev){const a=new Set((V.prev.features||[]).map(f=>f.name)),b=new Set((V.world.features||[]).map(f=>f.name));const added=[...b].filter(n=>!a.has(n)).length,gone=[...a].filter(n=>!b.has(n)).length;if(added||gone)chg=[added?`${added} new on the map`:"",gone?`${gone} gone`:""].filter(Boolean).join(", ")}
+ $("yrtitle").innerHTML=(c?esc(c.title):"")+(!V.world?`<span class="chg">No map was kept for this year, so this shows the island now.</span>`:chg?`<span class="chg">${esc(chg)}</span>`:"")}
+function setYear(y){const latest=+DATA.world.year||1;SHOW=y>=latest?null:y;renderYears();queueMap()}
+$("yslide").addEventListener("input",e=>setYear(+e.target.value));
+$("yprev").addEventListener("click",()=>setYear(+$("yslide").value-1));
+$("ynext").addEventListener("click",()=>setYear(+$("yslide").value+1));
+$("yplay").addEventListener("click",()=>{if(playT){clearInterval(playT);playT=0;renderYears();return}
+ const sl=$("yslide");if(+sl.value>=+sl.max)setYear(+sl.min);playT=setInterval(()=>{const v=+$("yslide").value;if(v>=+$("yslide").max){clearInterval(playT);playT=0;renderYears();return}setYear(v+1)},REDUCED?2200:1400);renderYears()});
+
+/* ---------- render ---------- */
+function seenId(){try{return +localStorage.getItem("wend_seen")||0}catch(e){return 0}}
+function setSeen(id){try{localStorage.setItem("wend_seen",String(id))}catch(e){}}
+function render(){const w=DATA.world,ch=DATA.chron||[];
+ $("iname").textContent=(w.island||"the Isle of Wend").replace(/^the /,"The ");
+ $("meta").innerHTML=`<span>Year <b>${esc(w.year)}</b></span><span><b>${esc(w.era)}</b></span><span>Population <b>${esc(w.population)}</b></span><span>Mood: <b>${esc(w.mood)}</b></span>`;
+ const seen=seenId(),newer=ch.filter(c=>c.id>seen);
+ $("catch").innerHTML=ch.length&&seen&&newer.length?`<div class="catch"><b>${newer.length} ${newer.length===1?"year has":"years have"} passed</b> since you last looked. ${esc(newer[newer.length-1].dispatch)}</div>`:"";
+ const list=[...ch].reverse();
+ $("entries").innerHTML=list.length?list.map((c,i)=>`<details class="entry" ${i===0||(seen&&c.id>seen)?"open":""}><summary><span class="yr">Year ${esc(c.year)}</span><h3 style="margin:0">${esc(c.title)}</h3>${seen&&c.id>seen?'<span class="new">new</span>':""}</summary><div class="body">${esc(c.body)}</div><div class="foot">Recorded by ${esc(c.historian)} · ${esc(c.era)} · Your weather that day: ${esc(c.real_weather||"unrecorded")}</div></details>`).join(""):`<p class="note">The historian has not yet written anything down.</p>`;
+ if(ch.length)setSeen(ch[ch.length-1].id);
+ $("people").innerHTML=(w.notables||[]).map(n=>`<div class="card ${n.status&&n.status!=="alive"?"dead":""}"><h3>${esc(n.name)}</h3><div class="role">${esc(n.role)}${n.status&&n.status!=="alive"?" · "+esc(n.status):""}</div><p>${esc(n.note)}</p></div>`).join("")||`<p class="note">Nobody notable yet.</p>`;
+ const f=w.faith||{},tot=(w.factions||[]).reduce((a,x)=>a+(+x.size||0),0)||1;
+ $("faith").innerHTML=`<p><b>${esc(f.name||"No name for it yet")}</b> · ${esc(f.believers)} believers</p><p class="note">Doctrine: ${esc(f.doctrine)}</p>`+(w.factions||[]).map(x=>`<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(x.name)}</span><span style="white-space:nowrap">${esc(x.size)}</span></div><div class="bar"><i style="width:${Math.max(2,Math.min(100,(+x.size||0)/tot*100)).toFixed(1)}%"></i></div><div class="note" style="margin:0">${esc(x.view)}</div></div>`).join("")+`<p class="note" style="margin-top:14px">What they think of you: ${esc(w.god_reputation)}</p>`;
+ const res=w.resources||{};
+ $("things").innerHTML=Object.keys(res).map(k=>`<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:7px 0"><span style="text-transform:capitalize">${esc(k)}</span><span style="text-align:right">${esc(res[k])}</span></div>`).join("")+`<p class="note">Current historian: ${esc((w.historian||{}).name)}${(w.historian||{}).bias?" — "+esc(w.historian.bias):""}</p>`;
+ $("eras").innerHTML=(w.eras||[]).map(e=>`<li><b class="fell" style="font-size:18px">${esc(e.name)}</b><div class="note" style="margin:0">From Year ${esc(e.from)}${e.to?" to "+esc(e.to):""}</div></li>`).join("");
+ $("arts").innerHTML=(w.artefacts||[]).length?(w.artefacts).map(a=>`<p><b>${esc(a.name)}</b> <span class="note">(Year ${esc(a.year)})</span><br>${esc(a.note)}</p>`).join(""):`<p class="note">Nothing yet has survived long enough to be called an artefact.</p>`;
+ const om=DATA.omens||[];
+ $("pending").innerHTML=om.map(o=>`<li>${o.kind==="sky"?"An omen in the sky":"Dropped: “"+esc(o.payload)+"”"} — the islanders will find out at dawn.</li>`).join("");
+ const skyPending=om.some(o=>o.kind==="sky");
+ $("tapbtn").disabled=skyPending;$("tapbtn").textContent=skyPending?"Omen sent — wait for dawn":"Tap the sky";
+ $("skyhint").textContent=skyPending?"An omen is already on its way. One per day.":"You are the sky. Tap it to send an omen.";
+ $("dropbtn").disabled=om.filter(o=>o.kind==="object").length>=3;
+ renderYears();queueMap()}
+
+/* ---------- data: the yearly copies in the Study's own store (app "wend"), and two sign-in-only doors for omens ---------- */
+const wend=openStore("wend");
+function fromStore(){
+ const ys=wend.list("years/").map(x=>x.value).filter(y=>y&&y.year).sort((a,b)=>a.year-b.year);
+ if(!ys.length)return null;
+ const last=ys[ys.length-1],st=last.state||{};
+ return {world:{island:"the Isle of Wend",...st,year:st.year??last.year,era:st.era||last.era},
+  chron:ys.map(y=>({id:y.year,year:y.year,era:y.era,title:y.title,body:y.body,dispatch:y.dispatch,historian:y.historian,real_weather:y.weather,world_state:y.state&&Array.isArray(y.state.features)?y.state:null})),
+  omens}}
+function say(t,bad){$("status").textContent=t;$("pstatus").textContent=t;$("pstatus").style.color=bad?"var(--you)":"var(--soft)"}
+function show(){DATA=fromStore();const has=!!DATA;$("isle").hidden=!has;$("away").hidden=has;
+ if(!has){$("awayTxt").textContent=signedIn?"The historian hasn't written anything down yet. The first year arrives at dawn.":"Sign in to visit the Isle of Wend. Tap the sign-in button in the bottom corner.";return}
+ render()}
+async function loadOmens(){if(!signedIn){omens=[];return}
+ const {data,error}=await supabase.rpc("wend_pending_omens");
+ if(!error){omens=data||[];if(DATA){DATA.omens=omens;render()}}}
+const WHY={already:"An omen is already on its way. One per day.",full:"Three objects are already falling. Let them land first.",empty:"Name something to drop."};
+async function addOmen(kind,payload){if(busy)return;
+ if(!signedIn){say("Sign in first: the sky only answers to you.",true);return}
+ busy=true;say(kind==="sky"?"Sending your omen…":"Dropping it…");
+ try{const {data,error}=await supabase.rpc("wend_send_omen",{p_kind:kind,p_payload:payload});
+  if(error){say(/could not find|does not exist/i.test(error.message||"")?"The island's door isn't set up yet. Open the island page in Claude once and it sets itself up.":"The sky couldn't reach the island: "+String(error.message||"").slice(0,120),true)}
+  else if(data!=="ok")say(WHY[data]||String(data),true);
+  else{await loadOmens();say(kind==="sky"?"Omen sent. They'll see it at dawn.":"Dropped. It lands at dawn.")}}
+ catch(e){say("The sky couldn't reach the island. Check the signal and try again.",true)}
+ busy=false}
+function flash(x,y){const f=$("flash");f.style.setProperty("--fx",x+"px");f.style.setProperty("--fy",y+"px");f.classList.remove("on");void f.offsetWidth;f.classList.add("on")}
+$("sky").addEventListener("click",e=>{const b=$("sky").getBoundingClientRect();flash(e.clientX-b.left,e.clientY-b.top);if(!$("tapbtn").disabled)addOmen("sky",null)});
+$("tapbtn").addEventListener("click",()=>{flash($("sky").clientWidth/2,60);addOmen("sky",null)});
+$("dropform").addEventListener("submit",e=>{e.preventDefault();const v=$("dropin").value.trim();if(!v)return;$("dropin").value="";addOmen("object",v)});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)queueMap()});
+setInterval(()=>{if(SHOW==null)queueMap()},10*60*1000); // the light changes through the day
+
+wend.subscribe(show);
+async function who(){try{signedIn=!!(await currentUser())}catch(e){signedIn=false}show();await loadOmens()}
+onAuthChange(()=>who());
+who();
+
+</script>

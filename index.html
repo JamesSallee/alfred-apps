@@ -69,7 +69,7 @@ header{display:flex;flex-direction:column;gap:4px}
 .week li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
 .week[hidden]{display:none}
 footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px solid var(--line);padding-top:14px}
-/* A cupboard in the footer, no label. Tap: the doors swing open on a ship in a bottle. Tap the bottle: somewhere else entirely. */
+/* A cupboard in the footer, no label. Tap: the doors swing open on a ship in a bottle. Tap the bottle: the Isle of Wend (wend.html). */
 .cup{position:relative;width:52px;height:60px;margin:16px auto 0;perspective:220px}
 .cup-back{position:absolute;inset:0;border-radius:4px;background:var(--rule);border:1.5px solid var(--muted);box-shadow:inset 0 6px 10px rgba(0,0,0,.18)}
 .cup-back::after{content:"";position:absolute;left:4px;right:4px;top:62%;height:1.5px;background:var(--muted);opacity:.6}
@@ -127,7 +127,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center;border-top:1px soli
   <footer id="foot">Pin this page or add it to your home screen. Everything else is one tap away.
     <div class="cup" id="cup">
       <div class="cup-back" aria-hidden="true"></div>
-      <a class="cup-bottle" id="cup-bottle" href="https://claude.ai/artifact/A7MoGsXH8sRiSS6L5LwsPc" target="_blank" rel="noopener" aria-label="A ship in a bottle" tabindex="-1" aria-hidden="true">
+      <a class="cup-bottle" id="cup-bottle" href="wend.html" aria-label="A ship in a bottle" tabindex="-1" aria-hidden="true">
         <svg viewBox="0 0 42 24" aria-hidden="true"><path d="M3 6.5h24q4 0 6 3h4.5v5H33q-2 3-6 3H3q-2 0-2-2v-7q0-2 2-2z" fill="var(--green-soft)" fill-opacity=".55" stroke="var(--muted)" stroke-width="1"/><rect x="37.5" y="9.2" width="3.5" height="5.6" rx="1" fill="var(--brass)"/><path d="M3 15.5q3-1.4 6 0t6 0 6 0 6 0" fill="none" stroke="var(--green)" stroke-width=".9" stroke-opacity=".7"/><path d="M8 14.6h13l-2 2.6h-9z" fill="var(--rust)"/><path d="M14.5 14.6V7.6M14.5 8l-5 5.6h5zM15 8.6l4.4 5h-4.4z" fill="var(--paper)" stroke="var(--ink)" stroke-width=".5" stroke-linejoin="round"/><path d="M5 8.2q8-1 16 0" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".8"/></svg>
       </a>
       <button class="cup-doors" id="cup-doors" type="button" aria-label="A small cupboard" aria-expanded="false" aria-controls="cup-bottle"><span class="door l"></span><span class="door r"></span></button>
