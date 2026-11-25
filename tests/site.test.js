@@ -20,6 +20,7 @@ test("every room in the registry has a page, an icon and a row in the README", (
   }
   for (const id of CONSOLE_ORDER) assert.ok(ROOMS.some((r) => r.id === id), `console lists unknown room ${id}`);
   assert.ok(DATA_APPS.includes("study"));
+  assert.ok(DATA_APPS.includes("wend"));
 });
 
 test("the offline cache (sw.js SHELL) lists every page, script, stylesheet and manifest", () => {
