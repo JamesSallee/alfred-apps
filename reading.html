@@ -889,17 +889,32 @@ async function lookCopy(url) {
   } catch { return null; }
 }
 let packing = null, copyT = 0;
+// Pieces the link reader couldn't measure get a reading time from this device's copy (same 230 words a minute).
+// Only a missing time is filled; a time James typed or the reader found is never touched.
+const WPM = 230;
+async function fillMinutes() {
+  let changed = false;
+  for (const it of itemsOf(store)) {
+    if (it.minutes != null || it.kind !== "read" || !isSaved(it)) continue;
+    const words = await offline.wordsOf(it.id);
+    const now = get(it.id);
+    if (!words || words < 200 || !now || now.minutes != null) continue;
+    save({ ...now, minutes: Math.max(1, Math.round(words / WPM)) });
+    changed = true;
+  }
+  if (changed) render();
+}
 // Quietly, a few seconds after things settle: new pieces get their copy, read or binned ones lose it.
 function copySoon() {
   clearTimeout(copyT);
-  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { atticDays: atticDays(), onStep: () => render() }).then(render), 4000);
+  copyT = setTimeout(() => offline.syncCopies(itemsOf(store), lookCopy, { atticDays: atticDays(), onStep: () => render() }).then(render).then(fillMinutes), 4000);
 }
 async function pack() {
   if (!navigator.onLine) { toast("No signal. Pack before you leave."); return; }
   try { await navigator.storage?.persist?.(); } catch { /* the browser decides */ }
   packing = { done: 0, total: 0 }; render();
   const r = await offline.syncCopies(itemsOf(store), lookCopy, { force: true, atticDays: atticDays(), onStep: (p) => { packing = p; render(); } });
-  packing = null; render();
+  packing = null; render(); fillMinutes();
   const t = offline.tally(itemsOf(store).filter((it) => placeOf(it) === "shelf" && it.url));
   toast(r.done < r.total ? `Stopped at ${r.done} of ${r.total}: the link reader didn't answer. Try again in a bit.`
     : `Packed: ${t.ready} ready offline${t.online ? `, ${t.online} online only` : ""}.`);
