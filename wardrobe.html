@@ -603,7 +603,7 @@ const lookIds = (l) => Object.values(l.slots || {}).filter(Boolean);
 const lookWords = (l) => lookIds(l).map(piece).filter(Boolean).map((p) => p.name).join(" + ");
 function tasteLines() {
   return { liked: looks().filter((l) => l.rating > 0).slice(0, 15).map(lookWords).filter(Boolean),
-    disliked: looks().filter((l) => l.rating < 0).slice(0, 10).map(lookWords).filter(Boolean) };
+    disliked: looks().filter((l) => l.rating < 0).slice(0, 10).map((l) => { const w = lookWords(l); return w && l.why ? `${w} (why not: ${l.why})` : w; }).filter(Boolean) };
 }
 function measureLines() {
   return measures().slice(0, 4).map((m) => `${m.date}: ` + MEASURES.filter(([k]) => m[k]).map(([k, l, u]) => `${l} ${m[k]}${u === "US" ? "" : " " + u}`).join(", "));
@@ -629,6 +629,38 @@ function undoable(text, keys, change) {
   const before = keys.map((k) => [k, store.get(k)]);
   change();
   toast(text, () => before.forEach(([k, v]) => v === undefined ? store.remove(k) : store.set(k, v)));
+}
+
+// ---------- why not? ----------
+// A 👎 on its own leaves Alfred guessing, so he asks what was wrong. The answer is kept on the look (looks/<id>.why)
+// and goes to Claude with the disliked combinations, so he learns the reason, not just the verdict.
+const WHY_NOT = ["Colours clash", "Too formal", "Too casual", "Wrong for the weather", "Fit's off", "Just not me"];
+function whyHtml(l) {
+  const have = new Set(String(l?.why || "").split("; ").filter((x) => WHY_NOT.includes(x)));
+  const free = String(l?.why || "").split("; ").filter((x) => x && !WHY_NOT.includes(x)).join("; ");
+  return `<div class="whybox" style="display:flex;flex-direction:column;gap:8px">
+    <span class="label">What was wrong with it?</span>
+    <div class="chips">${WHY_NOT.map((w) => `<button class="chip" type="button" data-why="${esc(w)}" aria-pressed="${have.has(w)}">${esc(w)}</button>`).join("")}</div>
+    <label class="sr" for="why-text">In your own words</label>
+    <input type="text" id="why-text" maxlength="140" value="${esc(free)}" placeholder="In your own words (optional), e.g. too much plaid">
+    <div class="two"><button class="btn" type="button" data-why-skip>Skip</button><button class="btn primary" type="button" data-why-save>Tell Alfred</button></div></div>`;
+}
+function wireWhy(root, lookId, done) {
+  root.querySelectorAll("[data-why]").forEach((b) => (b.onclick = () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"))));
+  root.querySelector("[data-why-skip]").onclick = () => done(false);
+  root.querySelector("[data-why-save]").onclick = () => {
+    const picked = [...root.querySelectorAll("[data-why][aria-pressed=true]")].map((b) => b.dataset.why);
+    const own = root.querySelector("#why-text").value.trim();
+    const why = [...picked, own].filter(Boolean).join("; ");
+    const l = store.get("looks/" + lookId);
+    if (l) store.set("looks/" + lookId, { ...l, why });
+    done(true);
+  };
+}
+function askWhy(lookId) {
+  const l = store.get("looks/" + lookId); if (!l) return;
+  openSheet(`<h2>Not for you</h2><p class="small muted">${esc(lookWords(l))}</p>${whyHtml(l)}`, (panel) =>
+    wireWhy(panel, lookId, (saved) => { closeSheet(); if (saved) toast("Noted. Alfred will remember why."); }));
 }
 
 // ---------- sheet ----------
@@ -984,7 +1016,7 @@ function renderOutfits() {
     cur.outfits[n] = { ...x, rated, lookId: rated ? id : null };
     store.set("outfits/" + today(), cur);
     if (rated === 1) toast("Saved to your looks. Alfred will remember you liked it.");
-    if (rated === -1) toast("Noted. Alfred will steer clear of that one.");
+    if (rated === -1) askWhy(id);
   }));
   hydratePhotos(box);
 }
@@ -1073,7 +1105,8 @@ function drawSelfie(sf) {
   const foot = sf.logged ? `<div class="card pad"><b>Logged ${plural(ids.length, "piece", "pieces")} as worn ${sf.day === today() ? "today" : "yesterday"}.</b>
       <span class="small muted">Rate it and Alfred learns your taste; it's saved to your looks.</span>
       <div class="row"><button class="btn sm" type="button" id="sf-save">${sf.lookId && sf.rating === 0 ? "Saved ✓" : "Save as a look"}</button>
-        <div class="rate"><button type="button" data-sfrate="1" aria-pressed="${sf.rating === 1}" aria-label="I like this">👍</button><button type="button" data-sfrate="-1" aria-pressed="${sf.rating === -1}" aria-label="Not for me">👎</button></div></div></div>
+        <div class="rate"><button type="button" data-sfrate="1" aria-pressed="${sf.rating === 1}" aria-label="I like this">👍</button><button type="button" data-sfrate="-1" aria-pressed="${sf.rating === -1}" aria-label="Not for me">👎</button></div></div>
+      ${sf.rating === -1 && sf.askWhy ? whyHtml(store.get("looks/" + sf.lookId)) : sf.rating === -1 && store.get("looks/" + sf.lookId)?.why ? `<span class="small muted">Why not: ${esc(store.get("looks/" + sf.lookId).why)}</span>` : ""}</div>
       <button class="btn" type="button" id="sf-close">Done</button>`
     : `<div class="chips"><span class="small muted">Worn</span>
         <button class="chip" type="button" data-sfday="${today()}" aria-pressed="${sf.day === today()}">Today</button>
@@ -1087,12 +1120,13 @@ function drawSelfie(sf) {
   hydratePhotos(box);
   if (sf.logged) {
     const keep = (rating) => {
-      sf.lookId ||= uid(); sf.rating = rating;
+      sf.lookId ||= uid(); sf.askWhy = rating === -1 && sf.rating !== -1; sf.rating = rating;
       store.set("looks/" + sf.lookId, { name: `Worn ${fmtDate(sf.day)}`, level: dayLevel || defaultLevel(), style: dayStyle || sharedStyles(ids)[0] || null,
         slots: assignSlots(ids), rating, from: "Selfie", verdict: r.verdict || "", created: Date.now() });
       drawSelfie(sf);
     };
     box.querySelector("#sf-save").onclick = () => keep(sf.rating ?? 0);
+    if (box.querySelector(".whybox")) wireWhy(box, sf.lookId, () => { sf.askWhy = false; drawSelfie(sf); });
     box.querySelectorAll("[data-sfrate]").forEach((b) => (b.onclick = () => keep(+b.dataset.sfrate)));
   } else {
     box.querySelectorAll("[data-sfi]").forEach((b) => (b.onclick = () => { sf.pick[+b.dataset.sfi] = b.dataset.id || null; drawSelfie(sf); }));
@@ -1779,6 +1813,7 @@ function renderSavedLooks() {
       <div class="row"><div><h3>${esc(l.name)}</h3><span class="small muted">${esc([styleOf(l.style)?.name, l.level].filter(Boolean).join(" · "))}${l.from === "Alfred" ? " · Alfred's pick" : ""}${l.verdict ? ` · Alfred: ${esc(l.verdict)}` : ""}</span></div>
         <div class="rate"><button type="button" data-lrate="1" data-l="${esc(l.id)}" aria-pressed="${l.rating > 0}" aria-label="I like this">👍</button><button type="button" data-lrate="-1" data-l="${esc(l.id)}" aria-pressed="${l.rating < 0}" aria-label="Not for me">👎</button></div></div>
       <div class="mini">${ps.map((p) => thumbHtml(p)).join("")}</div>
+      ${l.rating < 0 && l.why ? `<span class="small muted">Why not: ${esc(l.why)}</span>` : ""}
       ${unfit || gone ? `<span class="small err">${[unfit ? `${unfit} no longer ${unfit === 1 ? "fits" : "fit"}` : "", gone ? `${gone} removed from the rail` : ""].filter(Boolean).join(", ")}.</span>` : ""}
       <div class="chips"><button class="btn sm" type="button" data-lboard="${esc(l.id)}">On the board</button>
         ${ps.length && !ps.every((p) => lastWorn(p) === today()) ? `<button class="btn sm ghost" type="button" data-lwear="${esc(l.id)}">Wearing it today</button>` : ""}
@@ -1790,7 +1825,11 @@ function renderSavedLooks() {
       ${showDisliked ? `<div style="display:flex;flex-direction:column;gap:10px">${bad.map(card).join("")}</div>` : ""}` : ""}`;
   const box = $("looks");
   box.querySelector("#looks-bad")?.addEventListener("click", () => { showDisliked = !showDisliked; renderSavedLooks(); hydratePhotos(box); });
-  box.querySelectorAll("[data-lrate]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.l); const r = +b.dataset.lrate; store.set("looks/" + b.dataset.l, { ...l, rating: l.rating === r ? 0 : r }); }));
+  box.querySelectorAll("[data-lrate]").forEach((b) => (b.onclick = () => {
+    const l = store.get("looks/" + b.dataset.l); const r = +b.dataset.lrate; const rating = l.rating === r ? 0 : r;
+    store.set("looks/" + b.dataset.l, { ...l, rating, why: rating < 0 ? l.why || "" : "" });
+    if (rating < 0) askWhy(b.dataset.l);
+  }));
   box.querySelectorAll("[data-lboard]").forEach((b) => (b.onclick = () => { const l = store.get("looks/" + b.dataset.lboard); board = { slots: { ...l.slots }, level: l.level, style: l.style || null, lookId: b.dataset.lboard }; saveBoard(); renderLooks(); window.scrollTo(0, 0); }));
   box.querySelectorAll("[data-lwear]").forEach((b) => (b.onclick = () => wearToday(lookIds(store.get("looks/" + b.dataset.lwear)).filter((id) => piece(id)))));
   box.querySelectorAll("[data-ldel]").forEach((b) => (b.onclick = () => undoable("Look removed.", ["looks/" + b.dataset.ldel], () => store.remove("looks/" + b.dataset.ldel))));
