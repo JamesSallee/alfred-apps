@@ -174,6 +174,21 @@ details.shelfbox summary b{font-family:var(--display);font-weight:400;font-size:
 .attic .web{position:absolute;right:0;top:0;opacity:.5;pointer-events:none}
 .attic .list .dot{filter:sepia(.7) saturate(.5);opacity:.7}
 .attic .list .lt{color:var(--attic-ink)}
+/* The manuscript: a dusty record of the Isle of Wend, one page per year, filed by the island's own historians. */
+.manu{background:var(--attic);border:1px dashed var(--label-line);color:var(--attic-ink);position:relative;overflow:hidden;
+  background-image:radial-gradient(circle at 12% 20%,rgba(120,100,60,.10) 0 2px,transparent 3px),radial-gradient(circle at 78% 64%,rgba(120,100,60,.08) 0 1.5px,transparent 2.5px),radial-gradient(circle at 46% 88%,rgba(120,100,60,.09) 0 2px,transparent 3px);background-size:90px 70px,120px 90px,70px 110px}
+.manu summary b{color:var(--attic-ink)}
+.manu>summary>span{font-size:var(--t-sm);opacity:.85}
+.manu .quill{position:absolute;right:10px;top:8px;opacity:.45;pointer-events:none}
+.manu .pages{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column}
+.manu .pages>li{border-top:1px solid var(--label-line)}
+.manu .pages>li:first-child{border-top:0}
+.manu .pages details summary{padding:10px 0;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.manu .yr{font-family:var(--display);white-space:nowrap;opacity:.8}
+.manu .pt{font-family:var(--display);font-size:var(--t-md)}
+.manu .pg{font-family:var(--display);font-size:var(--t-sm);line-height:1.65;white-space:pre-line;max-width:62ch;padding:0 0 12px}
+.manu .pm{font-size:var(--t-xs);opacity:.75;font-style:italic;padding-bottom:12px}
+.manu .visit{display:inline-block;margin-top:10px;font-size:var(--t-sm);color:var(--attic-ink);text-underline-offset:3px}
 .readpile{background:var(--paper);border:1px solid var(--line)}
 .readpile .note,.filed .note{font-size:var(--t-sm);color:var(--muted);font-style:italic}
 .readpile .acts,.filed .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -301,6 +316,13 @@ details.got .dl{opacity:.75}
     <summary><b>Filed away</b><span id="filedSub"></span></summary>
     <ul class="dl" id="filedList"></ul>
   </details>
+
+  <details class="shelfbox manu" id="manu" hidden>
+    <svg class="quill" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M8 34 C14 22 22 12 34 5 C30 16 22 25 12 30 M8 34 L12 30 M18 24 L24 22 M14 28 L19 27"/></svg>
+    <summary><b>A dusty manuscript</b><span id="manuSub"></span></summary>
+    <ol class="pages" id="manuPages"></ol>
+    <a class="visit" href="https://claude.ai/artifact/A7MoGsXH8sRiSS6L5LwsPc" target="_blank" rel="noopener">Visit the island</a>
+  </details>
 </div>
 
 <dialog id="drawerDlg"><div class="sheet">
@@ -384,6 +406,21 @@ const desk = openStore("desk"); // the Writing Desk: pieces/<id> { title, track,
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const nowIso = () => new Date().toISOString();
 const S = () => store.get("settings") || {};
+
+// ---------- The dusty manuscript (app "wend": years/NNNN, copied in by the database each morning) ----------
+{
+  const wend = openStore("wend");
+  wend.subscribe(() => {
+    const years = wend.list("years/").map((x) => x.value).filter((y) => y && y.year).sort((a, b) => a.year - b.year);
+    $("manu").hidden = !years.length;
+    if (!years.length) return;
+    const last = years[years.length - 1];
+    $("manuSub").textContent = `The Isle of Wend · ${years.length} year${years.length === 1 ? "" : "s"} recorded · latest: Year ${last.year}`;
+    $("manuPages").innerHTML = years.map((y) => `<li><details><summary><span class="yr">Year ${esc(String(y.year))}</span><span class="pt">${esc(y.title || "")}</span></summary>
+      <div class="pg">${esc(y.body || "")}</div>
+      <div class="pm">Recorded by ${esc(y.historian || "an unknown hand")} · ${esc(y.era || "")}${y.weather ? " · Your weather that day: " + esc(y.weather) : ""}</div></details></li>`).join("");
+  });
+}
 const drawers = () => (Array.isArray(S().drawers) && S().drawers.length ? S().drawers : DRAWERS);
 const atticDays = () => S().atticDays || ATTIC_DAYS;
 const clearDays = () => S().clearDays || CLEAR_DAYS;
