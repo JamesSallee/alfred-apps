@@ -308,6 +308,7 @@ nav.tabs svg{width:22px;height:22px}
       <button class="btn primary stack" type="button" id="board-ask">Does this work? <span class="cost">about 2¢</span></button>
       <button class="btn" type="button" id="board-save">Save look</button>
     </div>
+    <button class="btn" type="button" id="board-wear">I'm wearing this</button>
     <div id="board-verdict"></div>
     <div id="looks"></div>
   </section>
@@ -1735,6 +1736,10 @@ function renderLooks() {
   $("bs-clear")?.addEventListener("click", () => { board.style = null; saveBoard(); renderLooks(); });
   $("board-levels").innerHTML = LEVELS.map((l) => `<button class="chip" type="button" data-blevel="${esc(l)}" aria-pressed="${l === board.level}">${esc(l)}</button>`).join("");
   $("board-levels").querySelectorAll("[data-blevel]").forEach((b) => (b.onclick = () => { board.level = b.dataset.blevel; saveBoard(); renderLooks(); }));
+  const onBoard = lookIds(board).map(piece).filter(Boolean);
+  const wornAll = onBoard.length && onBoard.every((p) => lastWorn(p) === today());
+  $("board-wear").textContent = wornAll ? "Wearing this today ✓" : "I'm wearing this";
+  $("board-wear").disabled = !!wornAll;
   renderBoardVerdict(); renderSavedLooks(); hydratePhotos($("v-looks"));
 }
 function slotSheet(k) {
@@ -1789,6 +1794,11 @@ function renderBoardVerdict() {
   });
   hydratePhotos(box);
 }
+$("board-wear").onclick = () => {
+  const ids = lookIds(board).filter((id) => piece(id));
+  if (!ids.length) return toast("Nothing on the board yet.");
+  wearToday(ids);
+};
 $("board-save").onclick = () => {
   if (!lookIds(board).length) return toast("Nothing on the board yet.");
   const existing = board.lookId && store.get("looks/" + board.lookId);
