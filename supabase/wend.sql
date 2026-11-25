@@ -40,7 +40,7 @@ revoke all on all tables in schema island from anon, authenticated;
 
 -- Copy the whole day into the Reading Room: the entry, the dispatch, the omens James sent,
 -- the places on the map and a snapshot of the island at the end of that year.
--- The user id is James's (the owner of the app_data rows).
+-- <james-user-id> is James's auth user id (the owner of the app_data rows); the live function has the real one.
 create or replace function island.copy_year_to_app_data() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -51,7 +51,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('kind', o.kind, 'payload', o.payload, 'sent', o.created_at) order by o.id), '[]'::jsonb)
     into oms from island.omens o where o.consumed_year = new.year;
   insert into public.app_data (user_id, app, key, value, deleted, updated_at)
-  values ('da1b2990-452c-4a9d-9650-0a391decd188'::uuid, 'wend', 'years/' || lpad(new.year::text, 4, '0'),
+  values ('<james-user-id>'::uuid, 'wend', 'years/' || lpad(new.year::text, 4, '0'),
     jsonb_build_object('year', new.year, 'era', new.era, 'date', new.real_date, 'weather', new.real_weather,
       'title', new.title, 'body', new.body, 'dispatch', new.dispatch, 'historian', new.historian,
       'omens', oms,
