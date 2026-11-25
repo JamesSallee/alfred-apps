@@ -3,7 +3,7 @@
 // { copy: true }), cleaned here with an allow-list, and kept in the browser's Cache Storage. The service worker
 // (sw.js) hands the cached pictures back when there's no signal. Which pieces to keep is offlinePlan in js/reading.js.
 //
-// localStorage "alfred:reading:offline"      { <item id>: { ok, at, url, pics: [..], picsTried, chars } }
+// localStorage "alfred:reading:offline"      { <item id>: { ok, at, url, pics: [..], picsTried, chars, words } }
 // localStorage "alfred:reading:offlinePics"  "on" | "off"   (per device: pictures take far more room than words)
 
 import { offlinePlan } from "./reading.js";
@@ -88,6 +88,19 @@ export async function readCopy(id) {
   try { const r = await (await caches.open(TEXT_CACHE)).match(textKey(id)); return r ? await r.json() : null; } catch { return null; }
 }
 
+/** How many words this device's copy holds (counted once, then remembered), or null without a copy. */
+export async function wordsOf(id) {
+  const s = saved[id];
+  if (!s?.ok) return null;
+  if (s.words) return s.words;
+  const copy = await readCopy(id);
+  if (!copy?.html) return null;
+  const doc = new DOMParser().parseFromString(copy.html, "text/html");
+  const words = (doc.body.textContent || "").split(/\s+/).filter((w) => /[a-z]/i.test(w)).length;
+  if (saved[id]) { saved[id].words = words; store(saved); }
+  return words;
+}
+
 async function keepPics(srcs) {
   const cache = await caches.open(PICS_CACHE), got = [];
   const queue = [...srcs];
@@ -128,7 +141,7 @@ async function saveCopy(it, look) {
     title: it.title, site: it.site, url: it.url, html: clean.html, at,
   }), { headers: { "Content-Type": "application/json" } }));
   const pics = picsOn() ? await keepPics(clean.pics) : [];
-  saved[it.id] = { ok: true, at, url: it.url, pics, picsTried: picsOn(), chars: clean.html.length };
+  saved[it.id] = { ok: true, at, url: it.url, pics, picsTried: picsOn(), chars: clean.html.length, words: clean.words };
   store(saved);
   return true;
 }
