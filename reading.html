@@ -67,11 +67,12 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .shelfname{font-family:var(--display);font-size:var(--t-md);display:flex;gap:8px;align-items:baseline}
 .shelfname span{font-family:var(--body);font-size:var(--t-xs);color:var(--muted)}
 .shelf{display:flex;align-items:flex-end;gap:3px;height:160px;padding:0 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
-  scrollbar-width:thin;overscroll-behavior-x:contain;margin-bottom:14px;
+  scrollbar-width:none;overscroll-behavior-x:contain;margin-bottom:14px;
   /* the inside of the case: darker towards the back and the top, a soft contact shadow where the books stand */
   background:linear-gradient(to bottom,rgba(50,32,18,.20),rgba(50,32,18,.06) 60%,rgba(50,32,18,.14));
   box-shadow:inset 0 -7px 8px -6px rgba(0,0,0,.45);
   border-bottom:12px solid var(--wood);border-image:linear-gradient(to bottom,#a2723f,#8a5a32 40%,#5e3a1f) 1}
+.shelf::-webkit-scrollbar{display:none} /* swipe or trackpad to browse; a scrollbar sat over the spines' feet */
 .shelf.more{-webkit-mask-image:linear-gradient(90deg,#000 86%,transparent);mask-image:linear-gradient(90deg,#000 86%,transparent)}
 .shelf.empty{align-items:center;justify-content:flex-start;color:var(--muted);font-size:var(--t-sm)}
 /* A spine: cloth or leather over a rounded back, so it's shaded like a cylinder, with a fine weave on top. */
@@ -148,8 +149,8 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .loose .lbl{font-family:var(--display);color:var(--drawer-ink);margin-right:2px}
 .loose button{font-size:13px;background:var(--label);border:1px solid var(--drawer-line);border-radius:4px;padding:2px 8px;color:var(--drawer-ink);transform:rotate(-1deg)}
 .loose button:nth-child(odd){transform:rotate(1.2deg)}
-.cabinet{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--wood-dk);padding:10px;border-radius:10px}
-.drawer{all:unset;box-sizing:border-box;cursor:pointer;background:var(--drawer);border-radius:6px;padding:12px 12px 26px;position:relative;min-height:96px;
+.cabinet{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:var(--wood-dk);padding:10px;border-radius:10px}
+.drawer{all:unset;box-sizing:border-box;min-width:0;cursor:pointer;background:var(--drawer);border-radius:6px;padding:12px 12px 26px;position:relative;min-height:96px;
   box-shadow:inset 0 -3px 0 rgba(0,0,0,.08);color:var(--drawer-ink);display:flex;flex-direction:column;gap:6px;transition:transform .18s}
 .drawer:hover{transform:translateY(-2px)}
 .drawer:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
@@ -162,6 +163,7 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .drawer li:last-child{border:0}
 .drawer em{font-style:normal;color:var(--ox);font-size:var(--t-xs)}
 .drawer .none{color:var(--drawer-soft)}
+.drawer:last-child:nth-child(odd){grid-column:1/-1} /* an odd drawer out spans the cabinet rather than leaving a hole */
 @media (max-width:420px){.cabinet{grid-template-columns:1fr}}
 
 /* The attic and the read pile */
