@@ -79,6 +79,28 @@ textarea{height:auto;min-height:90px;padding:10px 12px;resize:vertical}
 .piece{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:0;overflow:hidden;text-align:left;display:flex;flex-direction:column;position:relative}
 .thumb{aspect-ratio:4/5;width:100%;background:var(--rule);display:grid;place-items:center;color:var(--muted);font-size:26px;font-family:var(--display);overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* Each piece's number, so "the olive chinos (No. 47)" can't be mistaken for the other olive chinos. */
+.thumb{position:relative}
+.thumb .no{position:absolute;top:4px;right:4px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:color-mix(in srgb, var(--ink) 78%, transparent);
+  color:var(--paper);font:700 12px/20px var(--body);text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
+.look .mini .thumb .no{top:2px;right:2px}
+.pno{font-family:var(--body);font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;margin-right:6px;vertical-align:middle}
+/* The selfie: what Alfred saw, with numbered markers on each piece he found. */
+.selfie{position:relative;border-radius:14px;overflow:hidden;background:var(--rule);max-height:52vh;display:flex;justify-content:center}
+.selfie img{max-width:100%;max-height:52vh;display:block}
+.selfie .mk{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:var(--green);color:var(--green-ink);
+  font:700 13px/26px var(--body);text-align:center;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.4)}
+.selfie .mk.q{background:var(--brass);color:var(--on-brass)}
+.sfi{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-top:1px solid var(--rule)}
+.sfi:first-child{border-top:0}
+.sfi .mk{position:static;transform:none;flex:none;width:24px;height:24px;border-radius:50%;background:var(--green);color:var(--green-ink);font:700 12px/24px var(--body);text-align:center;margin-top:2px}
+.sfi .mk.q{background:var(--brass);color:var(--on-brass)}
+.sfi .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.cands{display:flex;gap:8px;flex-wrap:wrap}
+.cand{width:78px;border:2px solid var(--line);border-radius:12px;background:var(--paper);padding:0;overflow:hidden;text-align:left;display:flex;flex-direction:column}
+.cand[aria-pressed="true"]{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft)}
+.cand .nm{font-size:12px;font-weight:600;line-height:1.2;margin:4px 6px 6px;max-height:2.4em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cand.none{display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted);border-style:dashed;min-height:60px}
 .piece .cap{padding:6px 8px 8px;display:flex;flex-direction:column;gap:1px}
 .piece .nm{font-size:12.5px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .piece .sz{font-size:12px;color:var(--muted)}
@@ -229,6 +251,16 @@ nav.tabs svg{width:22px;height:22px}
     <input type="text" id="today-note" placeholder="Anything else? (e.g. lots of walking, dinner out)">
     <button class="btn primary big stack" type="button" id="dress-go">Dress me, Alfred <span class="cost">about 3¢, with a second look at the photos</span></button>
     <div id="today-body" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="card pad" id="selfie-card">
+      <div class="row"><h2>Already dressed?</h2><span class="small muted" id="selfie-worn"></span></div>
+      <span class="small muted">Take a mirror selfie and Alfred logs what you're wearing. The photo is read, then thrown away.</span>
+      <label class="btn big stack">
+        <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Log what I'm wearing</span>
+        <span class="cost" id="selfie-cost">about 2¢</span>
+        <input type="file" accept="image/*" class="sr" id="selfie-photo">
+      </label>
+      <button class="chip" type="button" id="selfie-judge" aria-pressed="false" style="align-self:flex-start">Also tell me how it looks</button>
+    </div>
     <div class="note" id="today-notes" hidden><span class="label">Alfred's notes</span><ul id="today-list"></ul></div>
     <div class="small muted" id="spend"></div>
   </section>
@@ -250,7 +282,7 @@ nav.tabs svg{width:22px;height:22px}
     <span class="small muted">Pick several photos at once to catalogue a drawer in one go. Alfred tags each one for about 1¢.</span>
     <div id="tag-progress"></div>
     <label class="sr" for="rail-search">Search the rail</label>
-    <input type="search" id="rail-search" placeholder="Search: navy, linen, wool…">
+    <input type="search" id="rail-search" placeholder="Search: navy, linen, wool, or a number like 47">
     <div class="chips scroller" id="rail-filters"></div>
     <div class="chips scroller" id="rail-styles" aria-label="Styles"></div>
     <div class="chips scroller" id="rail-cats"></div>
@@ -563,7 +595,7 @@ const lastWorn = (p) => (p.wears || []).at(-1) || null;
 const wearable = (p) => WEARABLE.has(p.verdict || "Fits");
 
 /** The rail as compact lines for Claude: id | name | category | colour | formality | size | verdict | wears | last worn | styles. */
-const lineOf = (p) => [p.id, p.name, p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
+const lineOf = (p) => [p.id, (p.no ? `No. ${p.no} ` : "") + (p.name || ""), p.category, p.colour, p.formality, p.size || "?", p.verdict || "Fits",
   (p.wears || []).length, lastWorn(p) || "never", stylesOf(p).map((id) => styleOf(id).name).join(", ") || "none"].join(" | ");
 function railLines(filter = () => true) { return pieces().filter(filter).map(lineOf); }
 const looks = () => store.list("looks/").map(({ key, value }) => ({ id: key.slice(6), ...value })).sort((a, b) => (b.created || 0) - (a.created || 0));
@@ -674,16 +706,17 @@ async function largeUrl(p) {
   if (bigUrls.size >= 8) { const [old, u] = bigUrls.entries().next().value; URL.revokeObjectURL(u); bigUrls.delete(old); }
   const u = URL.createObjectURL(blob); bigUrls.set(k, u); return u;
 }
+const noHtml = (p) => p?.no ? `<span class="no" aria-label="No. ${p.no}">${p.no}</span>` : "";
 function thumbHtml(p) {
   const init = esc((p.name || p.category || "?").trim()[0] || "?");
-  return p.photo ? `<span class="thumb" data-photo="${esc(p.id)}">${init}</span>` : `<span class="thumb">${init}</span>`;
+  return p.photo ? `<span class="thumb" data-photo="${esc(p.id)}">${init}${noHtml(p)}</span>` : `<span class="thumb">${init}${noHtml(p)}</span>`;
 }
 async function hydratePhotos(root = document) {
   const els = [...root.querySelectorAll("[data-photo]:not([data-done])")];
   for (const el of els) {
     el.dataset.done = "1";
     const p = piece(el.dataset.photo);
-    photoUrl(p).then((u) => { if (u) el.innerHTML = `<img src="${u}" alt="" loading="lazy">`; else delete el.dataset.done; });
+    photoUrl(p).then((u) => { if (u) el.innerHTML = `<img src="${u}" alt="" loading="lazy">${noHtml(p)}`; else delete el.dataset.done; });
   }
 }
 async function shrink(file, max, quality = 0.82) {
@@ -798,6 +831,8 @@ function renderToday() {
   renderWeather();
   renderOutfits();
   renderNotes();
+  const worn = pieces().filter((p) => lastWorn(p) === today()).length;
+  $("selfie-worn").textContent = worn ? `${plural(worn, "piece", "pieces")} logged today` : "";
 }
 $("levels").addEventListener("click", (e) => { const b = e.target.closest("[data-level]"); if (b) { dayLevel = b.dataset.level; renderToday(); } });
 $("day-styles").addEventListener("click", (e) => { const b = e.target.closest("[data-dstyle]"); if (b) { dayStyle = b.dataset.dstyle || null; renderToday(); } });
@@ -953,11 +988,135 @@ function renderOutfits() {
   }));
   hydratePhotos(box);
 }
-function wearToday(ids) {
+function wearOn(ids, day = today()) {
+  ids = [...new Set(ids)];
   const keys = ids.map((id) => "pieces/" + id);
-  undoable(`Logged ${plural(ids.length, "piece", "pieces")} as worn today.`, keys, () => {
-    ids.forEach((id) => { const p = piece(id); if (!p) return; const w = (p.wears || []).filter((d) => d !== today()); w.push(today()); savePiece({ ...p, wears: w.slice(-120) }); });
+  undoable(`Logged ${plural(ids.length, "piece", "pieces")} as worn ${day === today() ? "today" : fmtDate(day)}.`, keys, () => {
+    ids.forEach((id) => { const p = piece(id); if (!p) return; const w = (p.wears || []).filter((d) => d !== day); w.push(day); w.sort(); savePiece({ ...p, wears: w.slice(-120) }); });
   });
+}
+const wearToday = (ids) => wearOn(ids, today());
+
+// ===================== SELFIE =====================
+// A photo of him dressed. Alfred finds each piece on the rail (numbered markers on the photo, numbered rows below),
+// asks when two pieces look alike, offers likely shoes and belt that the photo can't show, then logs the wear.
+// The photo only lives in this page while the sheet is open: it is sent to Claude once and never stored.
+let sfJudge = false, sfUrl = null;
+$("selfie-judge").onclick = () => {
+  sfJudge = !sfJudge; $("selfie-judge").setAttribute("aria-pressed", String(sfJudge));
+  $("selfie-cost").textContent = sfJudge ? "about 3¢, with Alfred's verdict" : "about 2¢";
+};
+$("selfie-photo").onchange = async (e) => {
+  const file = e.target.files?.[0]; e.target.value = "";
+  if (!file) return;
+  if (pieces().filter(wearable).length < 3) return toast("Catalogue a few pieces on the rail first.");
+  if (sfUrl) URL.revokeObjectURL(sfUrl);
+  sfUrl = URL.createObjectURL(file);
+  const sf = { url: sfUrl, busy: true, err: null, res: null, pick: {}, seen: {}, more: {}, day: today(), logged: false, lookId: null, rating: null, judge: sfJudge };
+  openSheet(`<div id="sf" style="display:flex;flex-direction:column;gap:12px"></div>`);
+  drawSelfie(sf);
+  try {
+    const { b64 } = await shrink(file, 1280, 0.8);
+    await loadWeather();
+    const rail = pieces().filter((p) => !["Retire", "Donate"].includes(p.verdict)).map(lineOf);
+    const res = await ai("w_selfie", { ...aboutMe(), image: b64, media_type: "image/jpeg", rail, judge: sf.judge,
+      level: dayLevel || defaultLevel(), weather: wxText(wxFor(today())) });
+    // Only pieces that are really on the rail; the sure ones come ticked, look-alikes wait for him to choose.
+    (res.items || []).forEach((it, i) => { it.candidates = (it.candidates || []).filter((id) => piece(id)); sf.pick[i] = it.sure !== "Unsure" ? it.candidates[0] || null : null; });
+    (res.unseen || []).forEach((u, i) => { u.candidates = (u.candidates || []).filter((id) => piece(id)); sf.seen[i] = null; });
+    res.unseen = (res.unseen || []).filter((u) => u.candidates.length || pieces().some((p) => wearable(p) && p.category === u.kind));
+    sf.res = res;
+  } catch (er) { sf.err = er; }
+  sf.busy = false; drawSelfie(sf);
+};
+const pct = (n) => Math.max(3, Math.min(97, Number(n) || 50));
+const sfCand = (p, on, attr) => `<button class="cand" type="button" ${attr} aria-pressed="${on}">${thumbHtml(p)}<span class="nm">${esc(p.name)}</span></button>`;
+function sfIds(sf) {
+  const r = sf.res || {};
+  return [...Object.values(sf.pick), ...Object.values(sf.seen)].filter(Boolean).filter((id, i, a) => a.indexOf(id) === i && piece(id));
+}
+function drawSelfie(sf) {
+  const box = $("sf"); if (!box) return;
+  const r = sf.res, items = r?.items || [], unseen = r?.unseen || [];
+  const q = (it, i) => !sf.pick[i] && it.candidates.length > 0;
+  const photo = `<div class="selfie"><span style="position:relative;display:inline-block">
+    <img src="${sf.url}" alt="Your selfie">
+    ${items.map((it, i) => `<span class="mk${q(it, i) ? " q" : ""}" style="left:${pct(it.x)}%;top:${pct(it.y)}%">${i + 1}</span>`).join("")}</span></div>`;
+  if (sf.busy) { box.innerHTML = `<h2>Let me have a look…</h2>${photo}${spinner("Alfred is comparing you with the rail…")}`; return; }
+  if (sf.err) { box.innerHTML = `<h2>That didn't work</h2>${photo}${errBox(sf.err)}<button class="btn" type="button" id="sf-close">Close</button>`; box.querySelector("#sf-close").onclick = closeSheet; return; }
+  if (!r.can_see) {
+    box.innerHTML = `<h2>I can't quite tell</h2>${photo}<div class="card pad"><span class="small">${esc(r.advice || "Try a photo that shows you from the shoulders to the knees, in good light.")}</span></div><button class="btn" type="button" id="sf-close">Close</button>`;
+    box.querySelector("#sf-close").onclick = closeSheet; return;
+  }
+  const kindPieces = (kind, not) => pieces().filter(wearable).filter((p) => p.category === kind && !not.includes(p.id)).slice(0, 24);
+  const label = (it, i) => !it.candidates.length ? "Not on the rail, as far as I can tell." :
+    q(it, i) ? "Which one? They look alike from here." : it.sure === "Sure" ? "Sure" : it.sure === "Likely" ? "Fairly sure" : "Your pick";
+  const rows = items.map((it, i) => {
+    const extra = sf.more["i" + i] ? kindPieces(it.kind, it.candidates) : [];
+    return `<div class="sfi"><span class="mk${q(it, i) ? " q" : ""}">${i + 1}</span><div class="grow">
+      <div><b>${esc(it.what)}</b><br><span class="small muted">${esc(label(it, i))}</span></div>
+      <div class="cands">${[...it.candidates, ...extra.map((p) => p.id)].map(piece).map((p) => sfCand(p, sf.pick[i] === p.id, `data-sfi="${i}" data-id="${esc(p.id)}"`)).join("")}
+        <button class="cand none" type="button" data-sfi="${i}" data-id="" aria-pressed="${!sf.pick[i]}">${it.candidates.length ? "None of these" : "Leave it"}</button></div>
+      ${sf.more["i" + i] ? "" : `<button class="linkbtn" type="button" data-sfmore="i${i}" style="align-self:flex-start">Something else from the rail</button>`}</div></div>`;
+  }).join("");
+  const unseenRows = unseen.map((u, i) => {
+    const extra = sf.more["u" + i] ? kindPieces(u.kind, u.candidates) : [];
+    return `<div class="sfi"><span class="mk" style="background:var(--rule);color:var(--muted)">?</span><div class="grow">
+      <div><b>${esc(u.kind)}</b><br><span class="small muted">Not in the shot. Any of these?</span></div>
+      <div class="cands">${[...u.candidates, ...extra.map((p) => p.id)].map(piece).map((p) => sfCand(p, sf.seen[i] === p.id, `data-sfu="${i}" data-id="${esc(p.id)}"`)).join("")}
+        <button class="cand none" type="button" data-sfu="${i}" data-id="" aria-pressed="${!sf.seen[i]}">Skip</button></div>
+      ${sf.more["u" + i] ? "" : `<button class="linkbtn" type="button" data-sfmore="u${i}" style="align-self:flex-start">Something else</button>`}</div></div>`;
+  }).join("");
+  const verdict = r.verdict ? `<div class="note" style="padding:10px 12px"><span class="small"><b>${r.verdict === "Works" ? "That works." : r.verdict === "Nearly" ? "Nearly there." : "Let's rethink that."}</b> ${esc(r.comment || "")}</span>
+    ${r.fixes?.length ? `<ul class="small" style="margin:0;padding-left:18px">${r.fixes.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}</div>` : "";
+  const ids = sfIds(sf), yday = addDays(today(), -1);
+  const foot = sf.logged ? `<div class="card pad"><b>Logged ${plural(ids.length, "piece", "pieces")} as worn ${sf.day === today() ? "today" : "yesterday"}.</b>
+      <span class="small muted">Rate it and Alfred learns your taste; it's saved to your looks.</span>
+      <div class="row"><button class="btn sm" type="button" id="sf-save">${sf.lookId && sf.rating === 0 ? "Saved ✓" : "Save as a look"}</button>
+        <div class="rate"><button type="button" data-sfrate="1" aria-pressed="${sf.rating === 1}" aria-label="I like this">👍</button><button type="button" data-sfrate="-1" aria-pressed="${sf.rating === -1}" aria-label="Not for me">👎</button></div></div></div>
+      <button class="btn" type="button" id="sf-close">Done</button>`
+    : `<div class="chips"><span class="small muted">Worn</span>
+        <button class="chip" type="button" data-sfday="${today()}" aria-pressed="${sf.day === today()}">Today</button>
+        <button class="chip" type="button" data-sfday="${yday}" aria-pressed="${sf.day === yday}">Yesterday</button></div>
+      <div class="two"><button class="btn" type="button" id="sf-close">Cancel</button>
+        <button class="btn primary" type="button" id="sf-log"${ids.length ? "" : " disabled"}>Log ${plural(ids.length, "piece", "pieces")}</button></div>`;
+  const loggedStrip = `<div class="strip">${ids.map(piece).map((p) => `<span class="piece">${thumbHtml(p)}<span class="cap"><span class="nm">${esc(p.name)}</span></span></span>`).join("")}</div>`;
+  box.innerHTML = `<h2>${sf.logged ? "Logged." : "Here's what I see"}</h2>${photo}${verdict}
+    ${sf.logged ? loggedStrip : items.length ? `<div class="card">${rows}</div>` : `<div class="card empty">Nothing from the rail that I can see.</div>`}
+    ${unseen.length && !sf.logged ? `<div class="card">${unseenRows}</div>` : ""}${foot}`;
+  hydratePhotos(box);
+  if (sf.logged) {
+    const keep = (rating) => {
+      sf.lookId ||= uid(); sf.rating = rating;
+      store.set("looks/" + sf.lookId, { name: `Worn ${fmtDate(sf.day)}`, level: dayLevel || defaultLevel(), style: dayStyle || sharedStyles(ids)[0] || null,
+        slots: assignSlots(ids), rating, from: "Selfie", verdict: r.verdict || "", created: Date.now() });
+      drawSelfie(sf);
+    };
+    box.querySelector("#sf-save").onclick = () => keep(sf.rating ?? 0);
+    box.querySelectorAll("[data-sfrate]").forEach((b) => (b.onclick = () => keep(+b.dataset.sfrate)));
+  } else {
+    box.querySelectorAll("[data-sfi]").forEach((b) => (b.onclick = () => { sf.pick[+b.dataset.sfi] = b.dataset.id || null; drawSelfie(sf); }));
+    box.querySelectorAll("[data-sfu]").forEach((b) => (b.onclick = () => { sf.seen[+b.dataset.sfu] = b.dataset.id || null; drawSelfie(sf); }));
+    box.querySelectorAll("[data-sfmore]").forEach((b) => (b.onclick = () => { sf.more[b.dataset.sfmore] = true; drawSelfie(sf); }));
+    box.querySelectorAll("[data-sfday]").forEach((b) => (b.onclick = () => { sf.day = b.dataset.sfday; drawSelfie(sf); }));
+    box.querySelector("#sf-log").onclick = () => { if (!ids.length) return; wearOn(ids, sf.day); sf.logged = true; drawSelfie(sf); };
+  }
+  box.querySelector("#sf-close").onclick = closeSheet;
+}
+
+// ---------- piece numbers ----------
+// Every piece carries a number (pieces/<id>.no), shown on its photo and in Alfred's words, so two olive chinos
+// can't be confused. The first numbering follows the rail's order; new pieces take the next number. A number
+// never changes once given, even if the piece leaves the rail.
+function numberPieces() {
+  const all = pieces();
+  const todo = all.filter((p) => !p.no && !p.tagging && !p.photoPending);
+  if (!todo.length) return;
+  let next = Math.max(0, ...all.map((p) => Number(p.no) || 0)) + 1;
+  const first = next === 1;
+  todo.sort(first ? (a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.name || "").localeCompare(b.name || "") || a.id.localeCompare(b.id)
+    : (a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id));
+  todo.forEach((p) => savePiece({ ...p, no: next++ }));
 }
 
 // Alfred's notes: care, tailoring, re-measuring and what's coming up.
@@ -1032,6 +1191,8 @@ const FILTERS = {
 /** The pieces the rail is showing right now, in rail order (filters, kind and search applied). */
 function railShown(all = pieces()) {
   const q = railQ.toLowerCase();
+  const byNo = /^(no\.?\s*|#)?\d+$/.test(q.trim()) ? +q.replace(/\D/g, "") : null;
+  if (byNo) return all.filter((p) => p.no === byNo);
   return all.filter(FILTERS[railFilter] || FILTERS.All).filter((p) => railCat === "All" || p.category === railCat)
     .filter((p) => railStyle === "All" || (railStyle === "none" ? !stylesOf(p).length : hasStyle(p, railStyle)))
     .filter((p) => !q || [p.name, p.colour, p.pattern, p.fabric, p.category, p.notes, ...stylesOf(p).map((id) => styleOf(id).name)].join(" ").toLowerCase().includes(q))
@@ -1220,7 +1381,7 @@ function pieceSheet(id) {
   const tl = tailoring().find((x) => x.pieceId === p.id && x.status !== "Collected");
   openSheet(`${p.photo ? `<button type="button" class="hero" id="ps-hero" aria-label="See ${esc(p.name || "this piece")} full screen"><span class="init">${esc((p.name || "?").trim()[0] || "?")}</span>
       <span class="expand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button>` : ""}
-    <h2>${isNew ? "A new piece" : esc(p.name)}</h2>
+    <h2>${isNew ? "A new piece" : `${p.no ? `<span class="pno">No. ${p.no}</span>` : ""}${esc(p.name)}`}</h2>
     ${isNew ? "" : `<div class="chips"><span class="badge">${worn ? `Worn ${plural(worn, "time", "times")}, last ${esc(fmtDate(lastWorn(p)))}` : "Not worn yet"}</span>${tl ? `<span class="badge brass">At the tailor's list</span>` : ""}</div>`}
     ${!isNew && lastWorn(p) !== today() ? `<button class="btn primary" type="button" id="ps-wear">Wore it today</button>` : ""}
     <label class="field">Name<input type="text" id="ps-name" value="${esc(p.name)}" placeholder="e.g. Navy wool suit"></label>
@@ -1384,7 +1545,7 @@ function zoomAt(s, px, py, anim = false) {
 async function showViewer(dir = 0) {
   const p = piece(lb.ids[lb.i]); if (!p) return closeViewer();
   const token = ++lb.token;
-  $("lb-name").textContent = p.name || "Untitled";
+  $("lb-name").textContent = (p.no ? `No. ${p.no} · ` : "") + (p.name || "Untitled");
   $("lb-meta").textContent = [p.size, p.colour, p.fabric, lb.ids.length > 1 ? `${lb.i + 1} of ${lb.ids.length}` : ""].filter(Boolean).join(" · ");
   $("lb-prev").disabled = lb.i === 0; $("lb-next").disabled = lb.i === lb.ids.length - 1;
   $("lb-prev").hidden = $("lb-next").hidden = lb.ids.length < 2;
@@ -2120,6 +2281,8 @@ todo.subscribe(syncErrandsSoon);
 todo.onStatus(syncErrandsSoon);
 store.onStatus(async (st) => {
   syncErrandsSoon();
+  // Number pieces only once the server's copy has arrived, so two devices can't hand out the same number.
+  if (st === "saved") numberPieces();
   if (st === "signed-out") { myId = null; return; }
   if (!myId) { const u = await currentUser().catch(() => null); if (u) { myId = u.id; hydratePhotos(); uploadPending(); runTagging({ onlyHere: true }); } }
 });

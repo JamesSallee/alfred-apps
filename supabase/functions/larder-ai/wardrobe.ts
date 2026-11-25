@@ -10,6 +10,7 @@
 //   w_occasion   { kind, level, days, nights, weather, note, rail }   -> an outfit for an event, or a packing list for a trip
 //   w_fit_photo  { image, piece, measures }                           -> does this piece fit him, judged from a photo of him in it
 //   w_look       { look, photos, level, weather, rail, liked }        -> does this combination work (judged from photos), and one swap
+//   w_selfie     { image, rail, judge, level, weather }               -> which rail pieces he's wearing in a selfie (+ optional verdict)
 
 type Usage = { input: number; output: number; searches: number };
 type Result = { result: Record<string, unknown>; usage?: Usage };
@@ -30,7 +31,9 @@ wasting money on clothes he will soon outgrow. He dresses for four levels: Casua
 and Formal (official occasions). Each piece may also carry style tags (Casual, Smart casual, Business casual, Formal,
 Active & outdoor, Lounge, Travel, Conference, Game day, Gig & record shop, Yard & DIY, Occasion). Use British spelling. Keep prose short and warm, with at most a dash of dry wit.
 Give concrete, practical advice (colours, fits, what goes with what, what a tailor can and cannot fix).
-Never ask about or mention his work beyond "formal" or "official" occasions. Only refer to pieces by the ids given.`;
+Never ask about or mention his work beyond "formal" or "official" occasions. Only refer to pieces by the ids given.
+Each piece's name starts with its number ("No. 47 Olive cotton chinos"), which is also written on the piece in his app.
+When you mention a piece in prose, include its number, e.g. "the olive chinos (No. 47)", so he knows which one you mean.`;
 
 const str = { type: "string" };
 const int = { type: "integer" };
@@ -89,6 +92,48 @@ and say what photo would help in "advice". Otherwise give a verdict. "notes" are
 cost in USD. Remember he is still losing weight: say when it is wiser to wait than to tailor now.
 Be kind but candid. Comment only on the fit of the clothes, never on his body.` },
       ], obj({ can_judge: bool, verdict: oneOf(...VERDICTS), notes: arr(str), advice: str, alteration: str, cost_usd: num }), "medium");
+    },
+
+    async w_selfie(b, guard) {
+      guard();
+      // A photo of him dressed for the day. Alfred finds each piece on the rail so the wear can be logged, and,
+      // if asked, judges the outfit as actually worn. The photo is not stored anywhere.
+      const { data, media } = photoOf(b);
+      const judge = b.judge === true;
+      return run([
+        { type: "image", source: { type: "base64", media_type: media, data } },
+        { type: "text", text: `${about(b)}
+${judge ? `Dress level today: ${clip(b.level, 40) || "unknown"}\nWeather: ${clip(b.weather, 300) || "unknown"}\n` : ""}
+${RAIL_HELP}
+${lines(b.rail)}
+
+The photo shows him wearing today's clothes, often as a mirror selfie (so left and right may be flipped, and the
+phone may hide part of him). Work out which pieces from the rail he is wearing.
+- "items": one entry per garment or accessory you can see, top to bottom. "what" is a short plain description of
+  what you see ("Grey quarter-zip jumper") and "kind" the rail category it belongs to. "x" and "y" give the centre of that garment in the photo, as
+  percentages of the photo's width and height (0 to 100). "candidates" are up to three rail ids that could be it,
+  best first, or [] if nothing on the rail matches. "sure" is Sure when only one rail piece could be it, Likely
+  when the first is clearly favoured, Unsure when two or more look alike from here (then list them all).
+- A piece that is partly hidden (a shirt under a jumper, showing at the collar and cuffs) still counts if you can
+  see enough of it to tell.
+- "unseen": kinds of piece he is almost certainly wearing that the photo doesn't show (usually Shoes, often Belt),
+  each with up to three rail ids that would most sensibly go with this outfit, best first. Don't include kinds he
+  may well not be wearing (a tie, a hat).
+- If the photo doesn't show his clothes well enough to tell, set can_see=false and say in "advice" what photo
+  would work; otherwise advice is "".
+${judge ? `Then judge the outfit as worn, as a fashion-conscious valet would at the door. Consider colour and contrast,
+pattern and texture, formality for the level and the weather, and proportion: sleeve and trouser length, the break
+over the shoes, layering lengths, how each piece sits on him. "verdict" is Works, Nearly or Rethink; be honest and
+don't call something Works out of politeness. "comment" is two sentences at most, in Alfred's voice, naming the
+specific thing that works or jars. "fixes" are up to three small, concrete changes, naming a rail piece by its
+number where one would help ([] if it's right as it is). Comment only on the clothes and how they fit, never on
+his body.` : `Don't judge the outfit: verdict "", comment "" and fixes [].`}` },
+      ], obj({
+        can_see: bool, advice: str,
+        items: arr(obj({ what: str, kind: oneOf(...CATEGORIES), x: num, y: num, candidates: arr(str), sure: oneOf("Sure", "Likely", "Unsure") })),
+        unseen: arr(obj({ kind: oneOf(...CATEGORIES), candidates: arr(str) })),
+        verdict: oneOf("Works", "Nearly", "Rethink", ""), comment: str, fixes: arr(str),
+      }), judge ? "medium" : "low");
     },
 
     async w_look(b, guard) {
