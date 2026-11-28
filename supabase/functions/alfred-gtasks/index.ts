@@ -9,8 +9,9 @@
 //              new in the default "My Tasks" list, where Gemini often files things.
 //   "Ideas"    Anything added here ("add ... to my Ideas list") moves to the Writing Desk idea shelf
 //              (ILKWIM, stage Idea) and is cleared from Tasks.
-// It also reads the primary Google Calendar (read-only) for yesterday, today and tomorrow, so the Daily Ledger can
-// treat a calendar block and its habit or errand as one item (js/calendar.js). Only events James created himself are
+// It also reads the primary Google Calendar (read-only) from yesterday to two weeks ahead, so the Daily Ledger can
+// treat a calendar block and its habit or errand as one item (js/calendar.js), and the console can show what's coming
+// up (a trip, tomorrow's first block). Only events James created himself are
 // kept (Alfred's ◆ blocks are made under his account); invitations and events anyone else created are dropped.
 // They're written to app "alfred", key "calendar/<YYYY-MM-DD>": { day, events: [{ id, rid, title, start, end,
 // allDay, alfred }], at }. Days older than 14 are cleared. Calendar access was added on 28 Nov 2026: until the owner
@@ -33,6 +34,7 @@ const SELF = "https://llirhlpsfylhbvogjutj.supabase.co/functions/v1/alfred-gtask
 const SCOPE = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.events.readonly";
 const CAL_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const CAL_KEEP_DAYS = 14;
+const CAL_AHEAD_DAYS = 14; // days ahead copied, for the console's Coming up
 const API = "https://tasks.googleapis.com/tasks/v1";
 const LISTS = { errands: "Errands", ideas: "Ideas" };
 // Items in the default list ("My Tasks") changed after this are swept into the Errand Book.
@@ -373,23 +375,31 @@ type GEvent = {
 const dayOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
 
 async function syncCalendar(c: Ctx, token: string) {
-  const t = today(), days = [plusDays(t, -1), t, plusDays(t, 1)];
-  const p = new URLSearchParams({
-    singleEvents: "true", orderBy: "startTime", maxResults: "250",
-    // A day either side, so every New York day is whole whatever the offset; events are bucketed by their local day.
-    timeMin: `${plusDays(t, -2)}T12:00:00Z`, timeMax: `${plusDays(t, 3)}T12:00:00Z`,
-    fields: "items(id,status,summary,description,recurringEventId,start,end,creator(self),organizer(self),attendees(self,responseStatus),eventType)",
-  });
-  const res = await fetch(`${CAL_API}?${p}`, { headers: { Authorization: `Bearer ${token}` } });
-  const out = await res.json().catch(() => ({}));
-  if (res.status === 403 || res.status === 401) {
-    return { ok: false, needsPermission: true, at: new Date().toISOString(),
-      error: "The Google connection doesn't include the calendar yet. Reconnect once (the watch guide's start link) to allow it." };
+  const t = today(), days = Array.from({ length: CAL_AHEAD_DAYS + 2 }, (_, i) => plusDays(t, i - 1)); // yesterday .. two weeks ahead
+  const items: GEvent[] = [];
+  let pageToken = "";
+  for (let page = 0; page < 6; page++) { // two weeks of blocks can run past one page
+    const p = new URLSearchParams({
+      singleEvents: "true", orderBy: "startTime", maxResults: "250",
+      // A day either side, so every New York day is whole whatever the offset; events are bucketed by their local day.
+      timeMin: `${plusDays(t, -2)}T12:00:00Z`, timeMax: `${plusDays(t, CAL_AHEAD_DAYS + 1)}T12:00:00Z`,
+      fields: "nextPageToken,items(id,status,summary,description,recurringEventId,start,end,creator(self),organizer(self),attendees(self,responseStatus),eventType)",
+    });
+    if (pageToken) p.set("pageToken", pageToken);
+    const res = await fetch(`${CAL_API}?${p}`, { headers: { Authorization: `Bearer ${token}` } });
+    const out = await res.json().catch(() => ({}));
+    if (res.status === 403 || res.status === 401) {
+      return { ok: false, needsPermission: true, at: new Date().toISOString(),
+        error: "The Google connection doesn't include the calendar yet. Reconnect once (the watch guide's start link) to allow it." };
+    }
+    if (!res.ok) throw new Error(`Google Calendar: ${res.status} ${out.error?.message || ""}`);
+    items.push(...((out.items || []) as GEvent[]));
+    pageToken = out.nextPageToken || "";
+    if (!pageToken) break;
   }
-  if (!res.ok) throw new Error(`Google Calendar: ${res.status} ${out.error?.message || ""}`);
 
   const byDay: Record<string, unknown[]> = Object.fromEntries(days.map((d) => [d, []]));
-  for (const e of (out.items || []) as GEvent[]) {
+  for (const e of items) {
     if (e.status === "cancelled" || !e.start) continue;
     if (e.eventType && !["default", "fromGmail"].includes(e.eventType)) continue; // no out-of-office or working-location blocks
     const mine = !!(e.creator?.self || e.organizer?.self);

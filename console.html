@@ -12,9 +12,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/base.css">
 <style>
-/* The Study's always-on tablet console: a 10-inch tablet in landscape (1280×800 CSS px).
-   Left: the clock, today's note and the next blocks on the Focus Plan. Centre: the Focus Room's timer.
-   Right: today's Ledger, errands due today and the week's figures. Bottom: every room, one tap away.
+/* The Study's always-on tablet console: a 10-inch tablet in landscape (1280×800 CSS px). Redesigned 28 Nov 2026:
+   the calendar and the ticks are used more than the timer, so the day takes the centre.
+   Left: the clock, today's note, a one-row Focus timer and what's coming up (a trip, tomorrow, the Desk, errands due).
+   Centre: Today, the calendar with every tick on it, then habits and errands with no slot ("Any time").
+   Right: Outside, today's weather by the hour with outdoor blocks marked, and what to wear.
+   While a session runs the Focus Room's dial takes the centre. Bottom: every room, one tap away.
    The theme follows the clock, not the system: light from 7:00 to the day's hard stop, dark after,
    and a dim clock-only night from 22:30 to 6:30. */
 /* The console is dark unless the clock sets data-theme="light", so it starts from the dark palette
@@ -22,11 +25,11 @@
 :root:not([data-theme="light"]){
   --bg:#111a16; --paper:#18241f; --ink:#e6ece7; --muted:#9aa9a0; --line:#2b3a33;
   --green:#7fbf9d; --green-soft:#21352c; --on-green:#10261c;
-  --brass:#d9ad55; --brass-ink:#d9ad55; --brass-soft:#3a3020; --on-brass:#2a2110;
+  --brass:#d9ad55; --brass-ink:#d9ad55; --brass-soft:#3a3020; --on-brass:#2a2110; --now:#e58f75;
   color-scheme:dark;
 }
 :root[data-theme="light"]{
-  --brass-ink:#7a5814;
+  --brass-ink:#7a5814; --now:#c4553b;
   color-scheme:light;
 }
 
@@ -38,29 +41,44 @@ a{color:inherit}
 .clock,.dial .time,.week .big{font-variant-numeric:lining-nums tabular-nums}
 .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 
-.console{height:100vh;height:100dvh;padding:28px 32px;display:flex;flex-direction:column;gap:20px;transition:transform 2s ease}
-.cols{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr) 360px;gap:20px}
-.col{display:flex;flex-direction:column;gap:16px;min-height:0}
+.console{height:100vh;height:100dvh;padding:22px 28px;display:flex;flex-direction:column;gap:16px;transition:transform 2s ease}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr) 316px;gap:18px}
+.col{display:flex;flex-direction:column;gap:14px;min-height:0}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
 
 /* ----- left ----- */
 .clockbox{display:flex;flex-direction:column;gap:2px}
-.clock{font-family:var(--display);font-size:84px;line-height:1;font-variant-numeric:tabular-nums}
+.clock{font-family:var(--display);font-size:72px;line-height:1;font-variant-numeric:tabular-nums}
 .greet{font-size:15px;color:var(--muted)}
-.note{background:var(--brass-soft);border-color:var(--brass);display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
+.note{background:var(--brass-soft);border-color:var(--brass);display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden;flex:0 1 auto;max-height:190px}
 .note h2{color:var(--brass-ink)}
-.note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;overflow:auto}
+.note ul{margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:6px;font-size:14.5px;overflow:auto}
 .note li::marker{color:var(--brass-ink)}
 .note a{font-weight:700;text-decoration-color:var(--brass);text-underline-offset:3px}
-.sky{flex:1 1 0;min-height:0;border-radius:16px;border:1px solid var(--line);background:var(--paper)}
-.plan{margin-top:auto;display:flex;flex-direction:column;gap:10px}
-.plan .rows{display:flex;flex-direction:column;gap:8px}
-.plan .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:18px}
-.plan .row .t{color:var(--muted);font-size:17px}
-.plan .row.now .id{font-weight:700}
-.plan .row.now .t{color:var(--green)}
-.plan .row .ov{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-ink);margin-left:6px;vertical-align:2px}
-.plan .empty{color:var(--muted);font-size:15px}
+.tcard{display:flex;flex-direction:column;gap:10px;padding:12px 14px;flex:none}
+.trow{display:flex;align-items:center;gap:12px}
+.tring{width:44px;height:44px;flex:none;transform:rotate(-90deg)}
+.tinfo{display:flex;flex-direction:column;align-items:flex-start;background:none;border:0;padding:0;color:inherit;text-align:left;min-width:0;flex:1}
+.tinfo .t{font-family:var(--display);font-size:32px;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.tinfo .lab{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.go{flex:none;height:44px;padding:0 20px;border-radius:999px;border:0;background:var(--green);color:var(--on-green);font-size:16px;font-weight:600}
+.tcard .chips{justify-content:flex-start}
+.tcard .chip{height:34px;padding:0 10px;font-size:14px}
+.upnext-list{display:none;flex-direction:column;gap:4px;flex:none}
+.erow{display:flex;justify-content:space-between;gap:12px;font-size:16px;min-height:30px;align-items:center}
+.erow span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erow span:last-child{color:var(--muted);white-space:nowrap}
+.soon{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.soon .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.soon .head span{color:var(--muted);font-size:13px}
+.trip{display:flex;align-items:center;gap:12px;background:var(--brass-soft);border-radius:12px;padding:9px 12px;flex:none}
+.trip .big{font-family:var(--display);font-size:22px;line-height:1;color:var(--brass-ink);white-space:nowrap}
+.trip b{display:block;font-size:15px}
+.trip span{font-size:12.5px;color:var(--muted)}
+.srow{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;font-size:14.5px;align-items:baseline;padding:6px 0 2px;border-top:1px solid var(--line);flex:none}
+.srow .w{font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.srow small{display:block;color:var(--muted);font-size:12.5px}
+.soon .empty,.today .empty,.outside .empty{color:var(--muted);font-size:14px;margin:4px 0}
 
 /* ----- centre: the Focus Room ----- */
 .focus{display:flex;flex-direction:column;gap:14px;padding:22px 24px;min-height:0;position:relative;transition:background-color .6s,border-color .6s}
@@ -111,43 +129,96 @@ a{color:inherit}
 .upnext{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid color-mix(in srgb,var(--brass) 35%,transparent);padding-top:16px;font-size:18px}
 .pill.brass{background:var(--brass-ink);border-color:var(--brass-ink);color:var(--on-brass)}
 
-/* ----- right ----- */
-.ledger{display:flex;flex-direction:column;gap:8px;min-height:0;transition:box-shadow .3s}
-.ledger.flash{box-shadow:0 0 0 2px var(--brass)}
-.ledger .head,.errands .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.ledger .head span{color:var(--muted);font-size:14px}
-.habits{display:flex;flex-direction:column;overflow:auto;min-height:0}
-.habit{display:flex;align-items:center;gap:16px;min-height:50px;background:none;border:0;padding:4px 4px;text-align:left;font-size:18px;width:100%}
-.box{flex:none;width:30px;height:30px;border-radius:6px;border:2px solid var(--muted);display:grid;place-items:center;background:var(--paper)}
-.habit.on .box{background:var(--green);border-color:var(--green);color:var(--on-green)}
-.box svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
-.habit.on .box svg{opacity:1}
-.habit .hint{margin-left:auto;font-size:13px;color:var(--muted)}
-.variants{display:flex;flex-wrap:wrap;gap:8px;padding:0 0 8px 50px}
-.errands{display:flex;flex-direction:column;gap:6px}
-.erow{display:flex;justify-content:space-between;gap:12px;font-size:16px}
-.erow span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.erow span:last-child{color:var(--muted);white-space:nowrap}
-.erow .wait{color:var(--brass-ink)!important}
-.erow .late{color:var(--brass-ink)!important;font-weight:600}
-.errands .more{font-size:14px;color:var(--muted);text-decoration:none}
-.jrow{display:flex;align-items:center;gap:12px;min-height:40px;background:none;border:0;padding:2px 0;text-align:left;font-size:16px;width:100%;color:inherit}
-.jrow .box{width:24px;height:24px;border-radius:5px}
-.jrow .box svg{width:16px;height:16px}
-.jrow.on .box{background:var(--green);border-color:var(--green);color:var(--on-green)}
-.jrow.on .box svg{opacity:1}
-.jrow.on .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
-.jrow .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.jrow .w{color:var(--muted);white-space:nowrap;font-size:14px}
-.jrow .w b{color:var(--green);font-weight:600;margin-right:6px}
-.errands .note{font-size:13px;color:var(--brass-ink)}
-.week{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.week .big{font-family:var(--display);font-size:30px;color:var(--green);line-height:1.15;font-variant-numeric:tabular-nums}
-.week .sm{font-size:13.5px;color:var(--muted)}
+/* ----- centre: Today, the calendar with every tick on it ----- */
+.today{display:flex;flex-direction:column;gap:10px;min-height:0;padding:16px 20px 12px;transition:box-shadow .3s}
+.today.flash{box-shadow:0 0 0 2px var(--brass)}
+.dhead{display:flex;align-items:center;gap:16px}
+.dhead h2{font-size:22px}
+.dhead .fx-aquarium{flex:1;min-width:0}
+.dhead .n{color:var(--muted);font-size:14px;white-space:nowrap}
+.back{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--green);background:var(--green-soft);color:var(--green);font-size:14px;font-weight:600;white-space:nowrap}
+.next{display:flex;align-items:center;gap:14px;background:var(--green-soft);border-radius:12px;padding:8px 14px;flex:none}
+.next .in{font-family:var(--display);font-size:26px;color:var(--green);line-height:1;white-space:nowrap;font-variant-numeric:lining-nums tabular-nums}
+.next .what{font-weight:600;font-size:17px}
+.next .when{color:var(--muted);font-size:13.5px}
+.tl{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;scrollbar-width:none;-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 14px),transparent)}
+.tl::-webkit-scrollbar{display:none}
+.tl>*{flex:none}
+.ev{display:grid;grid-template-columns:50px 30px minmax(0,1fr) auto;align-items:center;gap:0 10px;min-height:40px;border-top:1px solid var(--line);padding:2px 4px 2px 0;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;color:inherit;text-align:left;font:inherit}
+.tl>.ev:first-child,.earlier+.ev{border-top:0}
+.ev .tm{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.ev .nm{font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev .meta{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap}
+.ev.plain{min-height:32px}
+.ev.plain .nm{color:var(--muted);font-size:15px}
+.ev.plain .dot{width:8px;height:8px;border-radius:50%;background:var(--line);justify-self:center}
+.ev.cur{background:color-mix(in srgb,var(--green-soft) 60%,transparent);border-radius:10px}
+.ev .sub{grid-column:3 / -1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);padding-bottom:4px}
+.ev .sub .chip{height:30px;font-size:13px;padding:0 10px}
+.ev .sub .undo{background:none;border:0;color:var(--green);font-weight:600;font-size:12.5px;padding:4px}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--green-soft);color:var(--green)}
+.tag.job{background:var(--brass-soft);color:var(--brass-ink)}
+.tag.out{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.pts{font-weight:700;color:var(--green);font-size:13px}
+.box{flex:none;width:28px;height:28px;border-radius:6px;border:2px solid var(--muted);display:grid;place-items:center;background:var(--paper);padding:0}
+.box svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.on .box{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.on .box svg{opacity:1}
+.on .nm{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.earlier{font-size:13px;color:var(--muted);padding:0 0 6px 60px}
+.later{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding:8px 0 2px 60px}
+.nowline{display:flex;align-items:center;gap:8px;color:var(--now,#c4553b);font-size:12px;font-weight:700;letter-spacing:.06em;margin:2px 0}
+.nowline::after{content:"";flex:1;height:2px;background:currentColor;border-radius:2px}
+.anyw{border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:2px;flex:none;max-height:46%;min-height:0;overflow:auto;scrollbar-width:none}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.anyg{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.hab{display:flex;align-items:center;gap:10px;min-height:40px;font-size:15.5px;background:none;border:0;padding:0;color:inherit;text-align:left;width:100%;min-width:0}
+.hab .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hab .hint{margin-left:auto;font-size:12.5px;white-space:nowrap;color:var(--muted)}
+.hab .hint.late{color:var(--brass-ink);font-weight:600}
+.hab.wait{cursor:default}
+.hab.wait .box{border-style:dashed;opacity:.6}
+.variants{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 8px 40px}
+.variants .chip{height:34px}
+.tnote{font-size:13px;color:var(--brass-ink)}
+.more{font-size:13px;color:var(--muted);text-decoration:none}
+
+/* ----- right: Outside ----- */
+.outside{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden}
+.outside .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.outside .head span{color:var(--muted);font-size:13px}
+.wnow{display:flex;align-items:center;gap:12px}
+.wnow .deg{font-family:var(--display);font-size:44px;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.wnow .cond{font-size:14.5px;line-height:1.35}
+.wnow .cond span{color:var(--muted);font-size:13px;display:block}
+.wx svg{width:100%;height:auto;display:block;overflow:visible}
+.wx text{font-family:var(--body);font-size:10px;fill:var(--muted)}
+.wx .tline{fill:none;stroke:var(--brass);stroke-width:2}
+.wx .rain{fill:color-mix(in srgb,#4f86b8 60%,transparent)}
+.wx .pin{stroke:var(--green);stroke-width:1.5;stroke-dasharray:3 2}
+.wx .pinl{fill:var(--green);font-weight:700}
+.wx .nowl{stroke:var(--now,#c4553b);stroke-width:1.5}
+.wx .darkr{fill:color-mix(in srgb,var(--ink) 8%,transparent)}
+.wkey{display:flex;gap:12px;font-size:11px;color:var(--muted)}
+.wkey i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.blk{border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:2px;flex:none}
+.blk .t{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:15px}
+.blk .t span{font-weight:500;font-size:13px;color:var(--muted);white-space:nowrap}
+.blk p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.4}
+.blk p.warn{color:var(--brass-ink)}
+.wear{margin-top:auto;background:var(--green-soft);border-radius:12px;padding:10px 12px;font-size:13.5px;line-height:1.45;flex:none}
+.wear b{display:block;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin-bottom:2px}
+
+/* ----- a session running: the dial takes the centre ----- */
+.cols>.focus{display:none}
+.console.running .cols>.focus{display:flex}
+.console.running .today{display:none}
+.console.timing .tcard{display:none}
+.console.timing .upnext-list{display:flex}
 
 /* ----- the rooms ----- */
 .rooms{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}
-.room{height:64px;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:14px;color:var(--ink);text-decoration:none;font-size:15px;font-weight:500}
+.room{height:58px;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:14px;color:var(--ink);text-decoration:none;font-size:15px;font-weight:500}
 .room svg{flex:none;width:22px;height:22px;color:var(--green)}
 .room.active{background:var(--green-soft);border-color:var(--green)}
 .room:active{transform:scale(.98)}
@@ -162,27 +233,22 @@ a{color:inherit}
 .al-pill{top:5px!important;bottom:auto!important;right:32px!important;padding:3px 9px!important;font-size:12px!important;box-shadow:none!important;opacity:.85}
 .al-pill.quiet .al-txt{display:none}
 @media (prefers-reduced-motion: reduce){.dial .arc,.dial .orb,.console{transition:none}}
-/* ----- portrait: the tablet turned on its side ----- 
-   Clock and note top left, Ledger and errands top right, the Focus Room full width, then the plan, then the rooms in a 3×3 grid. */
+/* ----- portrait: the tablet turned on its side -----
+   Today full width on top; the clock, note, timer and Coming up on the left below it, Outside on the right. */
 @media (orientation: portrait){
   .console{padding:24px;gap:16px}
-  .cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;
-    grid-template-areas:"clock right" "note right" "focus focus" "plan plan";gap:16px}
-  .cols>.col:first-of-type{display:contents}
-  .clockbox{grid-area:clock}
-  .note{grid-area:note;align-self:start}
-  .plan{grid-area:plan;margin-top:0}
-  .focus{grid-area:focus}
-  .cols>.col:last-of-type{grid-area:right}
-  .cols>.col:last-of-type .week{display:none}
-  .sky{display:none}
-  .rooms{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);grid-template-areas:"mid mid" "left right";gap:16px}
+  .cols>.col:first-of-type{grid-area:left}
+  .cols>.today,.cols>.focus{grid-area:mid}
+  .cols>.outside{grid-area:right}
+  .rooms{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+  .room{height:52px}
 }
 </style>
 
 <div class="console" id="console">
   <div class="cols">
-    <section class="col" aria-label="Today">
+    <section class="col" aria-label="The clock and what's coming">
       <div class="clockbox">
         <span class="eyebrow" id="date"></span>
         <span class="clock" id="clock">--:--</span>
@@ -192,11 +258,17 @@ a{color:inherit}
         <h2 id="noteh">Today's note</h2>
         <ul id="notes"></ul>
       </div>
-      <div class="sky" id="sky"></div>
-      <div class="card plan" aria-labelledby="planh">
-        <span class="eyebrow" id="planh">Next on the plan</span>
-        <div class="rows" id="plan"></div>
-      </div>
+      <div class="card tcard" id="timer" aria-label="The Focus Room"></div>
+      <div class="card upnext-list" id="upnext" aria-labelledby="unh"><h2 id="unh">Next today</h2><div id="unrows"></div></div>
+      <div class="card soon" id="soon" aria-labelledby="soonh"></div>
+    </section>
+
+    <section class="card today" id="today" aria-labelledby="todayh">
+      <div class="dhead" id="dhead"><h2 id="todayh">Today</h2><span class="n" id="todayN"></span></div>
+      <div class="next" id="next" hidden></div>
+      <div class="tnote" id="tnote" hidden></div>
+      <div class="tl" id="tl"></div>
+      <div class="anyw" id="anyw" hidden><span class="lbl">Any time while you work</span><div class="anyg" id="any"></div></div>
     </section>
 
     <section class="card focus" id="focus" aria-labelledby="focush">
@@ -212,18 +284,7 @@ a{color:inherit}
       <div id="bottom"></div>
     </section>
 
-    <section class="col" aria-label="The rooms at a glance">
-      <div class="card ledger" id="ledger">
-        <div class="head"><h2>The Daily Ledger</h2><span id="ledgerN"></span></div>
-        <div class="habits" id="habits"></div>
-      </div>
-      <div class="card errands" id="errands"></div>
-      <div class="card week" id="week">
-        <div><div class="big" id="wk-ticks">0</div><div class="sm">habit ticks</div></div>
-        <div><div class="big" id="wk-focus">0</div><div class="sm">focus minutes</div></div>
-        <div><div class="big" id="wk-sun">–</div><div class="sm">last shutdown</div></div>
-      </div>
-    </section>
+    <section class="card outside" id="outside" aria-labelledby="outh"></section>
   </div>
   <nav class="rooms" id="rooms" aria-label="The rooms"></nav>
 </div>
@@ -235,14 +296,14 @@ import { mountShell } from "./js/shell.js";
 import { openStore, STATUS_TEXT } from "./js/sync.js";
 import { iconSvg } from "./js/icons.js";
 import { ROOMS, CONSOLE_ORDER } from "./js/registry.js";
-import { ymd, mondayOf, activeHabits, openTasks, todoBucket, todoTasks, workoutsOf, KIND, openIlkwim, nextPost, radioScripts, linkWritingToLedger } from "./js/rooms.js";
-import { tickables, isTicked } from "./js/calendar.js";
-import { tickJob } from "./js/calendar-ticks.js";
+import { ymd, mondayOf, activeHabits, openTasks, todoBucket, todoTasks, openIlkwim, nextPost, radioScripts, linkWritingToLedger, mirrorSoon } from "./js/rooms.js";
+import { tickables, isTicked, cleanTitle, habitsOnCalendar } from "./js/calendar.js";
+import { tickJob, tickTask, untickTask } from "./js/calendar-ticks.js";
+import { isEveningHabit, isOutdoor, sky, hourAt, localIso, blockWeather, whatToWear, nextTrip, daysAway, nextDeskDate } from "./js/console-day.js";
 import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
-import { pad } from "./js/dates.js";
-import { mountSky } from "./js/fx-sky.js";
-import { mountPlum } from "./js/fx-plum.js";
+import { pad, addDays } from "./js/dates.js";
+import { mountAquarium } from "./js/fx-aquarium.js";
 mountShell(null);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -255,7 +316,6 @@ const QS = new URLSearchParams(location.search);
 const OFFSET = QS.get("at") ? new Date(QS.get("at")).getTime() - Date.now() : 0;
 const now = () => new Date(Date.now() + (OFFSET || 0));
 const nowMs = () => Date.now() + (OFFSET || 0);
-mountSky($("#sky"), { now });
 const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + pad(s % 60); };
 const fmtM = (m) => { m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} m` : `${h} h`; };
@@ -295,6 +355,7 @@ function applyTheme() {
     document.querySelector('meta[name="theme-color"]').content = look === "light" ? "#eef1ec" : "#111a16";
   }
   $("#night").hidden = !night;
+  try { tank.pause(night); } catch { /* not mounted yet */ }
 }
 $("#night").addEventListener("click", () => { wakeUntil = nowMs() + 30000; applyTheme(); });
 
@@ -313,25 +374,18 @@ function renderClock() {
 }
 function renderGreet() {
   if (run.running && cur().k === "break") { $("#greet").textContent = "Nice block. Step away for a few minutes."; return; }
-  const left = todaysBlocks(), hs = plan.hardStops[ymd(now())];
-  const base = greeting(st.study, now());
-  if (!left.length) { $("#greet").textContent = base; return; }
-  const first = base.split(/[.?]/)[0].replace(/,.*$/, "") + ".";
-  const n = left.length;
-  $("#greet").textContent = `${first} ${n < 10 ? WORDS[n] : n} focus block${n === 1 ? "" : "s"} left today${hs ? `, hard stop ${hs}` : ""}.`;
+  const base = greeting(st.study, now()), nx = nextEvent();
+  if (!nx) { $("#greet").textContent = base; return; }
+  const first = base.split(/[.?]/)[0] + ".";
+  $("#greet").textContent = `${first} ${nx.title} ${nx.live ? "is on now" : "is next"}.`;
 }
 function renderNote() {
   $("#notes").innerHTML = todaysNote(st, now()).map((n) => `<li>${n}</li>`).join("");
 }
+// The Focus Plan isn't shown any more (work is meetings only), but its hard stops still set the theme, and its
+// blocks still offer themselves when a break ends.
 function renderPlan() {
   plan = weekPlan(st.shutdown, now());
-  const m = now().getHours() * 60 + now().getMinutes(), t = ymd(now());
-  const next = plan.blocks.filter((b) => b.day > t || (b.day === t && mins(b.end) > m)).slice(0, 2);
-  $("#plan").innerHTML = next.length ? next.map((b) => {
-    const live = b.day === t && mins(b.start) <= m;
-    const day = b.day === t ? "" : DAYS[new Date(b.day + "T12:00").getDay()].slice(0, 3) + " ";
-    return `<div class="row${live ? " now" : ""}"><span class="id">${esc(b.id)}${b.overflow ? '<span class="ov">overflow</span>' : ""}</span><span class="t num">${live ? "now · until " + esc(b.end) : day + esc(b.start) + "–" + esc(b.end)}</span></div>`;
-  }).join("") : `<div class="empty">${st.shutdown.get("plans/" + mondayOf(t)) ? "Nothing else planned this week." : "No Focus Plan filed this week."}</div>`;
   renderGreet(); applyTheme();
 }
 
@@ -379,9 +433,9 @@ function scheduleChime() {
   chime = AU.ring(AU.ctx.currentTime + (run.endAt - nowMs()) / 1000, last ? "final" : ph.k === "focus" ? "focus" : "break");
 }
 function enter(i, at) {
-  run.i = i; run.start = at; run.endAt = at + cur().s * 1000;
+  run.i = i; run.start = at; run.endAt = at + cur().s * 1000; peek = false;
   AU.setDuck(cur().k === "break"); stopBreath(); idea = null;
-  saveRun(); scheduleChime(); renderFocus(true); renderGreet(); renderRooms(); applyTheme();
+  saveRun(); scheduleChime(); renderFocus(true); renderGreet(); renderRooms(); applyTheme(); renderToday(); renderUpNext();
 }
 function begin(p = S.plan, label = S.label) {
   AU.ac();
@@ -408,7 +462,7 @@ function complete() {
   if (chime) { chime.cancel(true); chime = null; }
   const total = run.focusSecs, label = run.label;
   run = { running: false, paused: false, phases: [], i: -1, start: 0, endAt: 0, pausedAt: 0, focusSecs: 0, label: "", done: { m: Math.round(total / 60), label, at: nowMs() } };
-  AU.setDuck(false); stopBreath(); saveRun(); renderFocus(true); renderGreet(); renderRooms(); applyTheme();
+  AU.setDuck(false); stopBreath(); saveRun(); renderFocus(true); renderGreet(); renderRooms(); applyTheme(); renderToday();
 }
 function togglePause() {
   AU.ac();
@@ -453,12 +507,34 @@ function renderSound() {
   return `<div class="sound"><span class="eyebrow">Soundscape</span><div class="chips">${SOUNDSCAPES.map(([id, n]) =>
     `<button class="chip" data-snd="${id}" aria-pressed="${!!AU.active[id]}">${n}</button>`).join("")}</div></div>`;
 }
+// The layout follows the timer: idle, the day has the centre and the timer is one row on the left; running, the dial
+// takes the centre and "Next today" stands in for the row. On a break, "Tick a habit" brings Today back for a moment.
+let peek = false, picking = false;
+function syncLayout() {
+  const c = $("#console");
+  if (!run.running) peek = false;
+  c.classList.toggle("timing", run.running);
+  c.classList.toggle("running", run.running && !peek);
+}
+function renderTimerCard() {
+  const recent = run.done && nowMs() - run.done.at < 3 * 3600e3 && run.done.m;
+  const lab = recent ? `${run.done.m} min of ${run.done.label || "focus"} logged` : `${S.label || "No label"} · ${S.plan.focus}${S.plan.brk ? " + " + S.plan.brk : ""}${S.plan.rounds > 1 ? " × " + S.plan.rounds : ""}`;
+  const soon = nextBlockSoon(15);
+  $("#timer").innerHTML = `<div class="trow">
+      <svg class="tring" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="19" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="19" fill="none" stroke="var(--green)" stroke-width="5"/></svg>
+      <button class="tinfo" data-a="pick" aria-expanded="${picking}" aria-label="Focus timer settings"><span class="t">${mmss(S.plan.focus * 60)}</span><span class="lab">${esc(lab)}</span></button>
+      <button class="go" data-a="begin">Begin</button>
+    </div>${picking ? `<div class="chips">${(S.labels || []).map((l) => `<button class="chip" data-label="${esc(l)}" aria-pressed="${l === S.label}">${esc(l)}</button>`).join("")}</div>
+    <div class="chips">${PRESETS.map(([n, p], i) => `<button class="chip num" data-preset="${i}" aria-pressed="${p.focus === S.plan.focus && p.brk === S.plan.brk && p.rounds === S.plan.rounds}">${n}</button>`).join("")}${soon ? `<button class="chip" data-plan="1">Plan: ${esc(soon.id)}</button>` : ""}</div>` : ""}`;
+}
 function renderFocus(full) {
+  syncLayout();
   const box = $("#focus"), ph = run.running ? cur() : null, k = ph ? ph.k : "idle";
   box.classList.toggle("break", k === "break");
   if (full || mode !== k + run.paused + !!breath + !!idea) {
     mode = k + run.paused + !!breath + !!idea;
     if (k === "idle") {
+      renderTimerCard();
       const soon = nextBlockSoon(15);
       $("#focush").textContent = "The Focus Room";
       $("#badge").textContent = run.done && nowMs() - run.done.at < 3 * 3600e3 && run.done.m ? `${run.done.m} min of ${run.done.label || "focus"} logged` : "Ready";
@@ -501,153 +577,352 @@ function renderFocus(full) {
   document.title = `${mmss(left)} · ${k === "break" ? "Break" : "Focus"}`;
 }
 
-$("#focus").addEventListener("click", (e) => {
+function onTimerClick(e) {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.snd) { AU.ac(); const id = b.dataset.snd; const on = !!AU.active[id]; SOUNDSCAPES.forEach(([s]) => AU.stopSound(s)); if (!on) AU.startSound(id); if (run.running && cur().k === "break") AU.setDuck(true); renderFocus(true); return; }
   if (b.dataset.label) { settingsWrite({ label: b.dataset.label }); renderFocus(true); return; }
-  if (b.dataset.preset) { settingsWrite({ plan: { ...PRESETS[+b.dataset.preset][1] } }); renderFocus(true); return; }
+  if (b.dataset.preset) { settingsWrite({ plan: { ...PRESETS[+b.dataset.preset][1] } }); picking = false; renderFocus(true); return; }
   if (b.dataset.plan) { const s = nextBlockSoon(15); if (s) begin({ focus: mins(s.end) - mins(s.start), brk: S.plan.brk, rounds: 1 }, "Work"); return; }
   const a = b.dataset.a;
-  if (a === "begin") begin();
+  if (a === "pick") { picking = !picking; renderTimerCard(); return; }
+  if (a === "begin") { picking = false; begin(); }
   if (a === "pause") togglePause();
   if (a === "finish") finishEarly();
   if (a === "next") { stopBreath(); upNext().go(); }
   if (a === "breathe") { breath ? stopBreath() : startBreath(); renderFocus(true); }
   if (a === "stretch") { const ok = IDEAS.map((_, i) => i).filter((i) => i !== idea && (!IDEAS[i].min || cur().s / 60 >= IDEAS[i].min)); idea = ok[Math.floor(Math.random() * ok.length)]; renderFocus(true); }
-  if (a === "tick") { const l = $("#ledger"); l.classList.add("flash"); setTimeout(() => l.classList.remove("flash"), 1600); }
-});
+  if (a === "tick") { peek = true; syncLayout(); renderToday(); const l = $("#today"); l.classList.add("flash"); setTimeout(() => l.classList.remove("flash"), 1600); }
+}
+$("#focus").addEventListener("click", onTimerClick);
+$("#timer").addEventListener("click", onTimerClick);
 
-// ---------- right: the Ledger, errands, the week ----------
+// ---------- centre: Today, the calendar with every tick on it ----------
 const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "weekly");
+const weeklyHabits = () => activeHabits(st.ledger).filter((h) => h.kind === "weekly");
 const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
-let choosing = null, justTicked = null;
-// The calendar and the Ledger as one (js/calendar.js): a habit booked on today's calendar shows its time and ticks
-// with the kind the block names (a "Strength" block ticks Workout as strength); errands and chores booked today
-// tick from the errands card, writing the same records as the Ledger does.
+const dayRec = () => st.ledger.get(`days/${ymd(now())}`) || {};
+const tasksById = () => Object.fromEntries(todoTasks(st.todo).map((x) => [x.id, x]));
+const calDoc = (d) => { const doc = st.alfred.get(`calendar/${d}`); return doc && Array.isArray(doc.events) ? doc : null; };
+// The calendar and the Ledger as one (js/calendar.js): a habit booked on today's calendar ticks on its block, with the
+// kind the block names (a "Strength" block ticks Workout as strength); errands and chores booked today tick on theirs,
+// writing the same records as the Ledger does.
 const calToday = () => {
-  const doc = st.alfred.get(`calendar/${ymd(now())}`);
-  if (!doc || !Array.isArray(doc.events)) return [];
+  const doc = calDoc(ymd(now()));
+  if (!doc) return [];
   return tickables({ events: doc.events, habits: activeHabits(st.ledger), tasks: todoTasks(st.todo),
     hidden: st.ledger.get("settings/main")?.calHidden || [], now: now() });
 };
-const hm12 = (iso) => { const d = new Date(iso); let h = d.getHours(); const m = d.getMinutes(), ap = h < 12 ? "am" : "pm"; h = h % 12 || 12; return m ? `${h}:${pad(m)}` : `${h} ${ap}`; };
-const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-const plum = mountPlum({ mini: true });
-function renderLedger() {
-  const hs = dailyHabits(), done = todayDone();
-  const booked = Object.fromEntries(calToday().filter((i) => i.kind === "habit").map((i) => [i.habit.id, i]));
-  // A small plum branch under the habits: one blossom per habit ticked, as in the Ledger.
-  if (hs.length) { if (!plum.el.isConnected) $("#ledger").append(plum.el); plum.set(hs.filter((h) => done[h.id]).length, hs.length); }
-  else plum.el.remove();
-  $("#ledgerN").textContent = hs.length ? `${hs.filter((h) => done[h.id]).length} of ${hs.length} today` : "";
-  $("#habits").innerHTML = hs.length ? hs.map((h) => {
-    const v = done[h.id], on = !!v;
-    let hint = "";
-    if (h.variants && typeof v === "string") hint = (h.variants.find((x) => x.key === v) || {}).label || "";
-    if (h.minutes && typeof v === "number") hint = v + " min";
-    if (!on && booked[h.id]) hint = booked[h.id].allDay ? "On the calendar" : hm12(booked[h.id].start);
-    let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box${on && justTicked === h.id ? " fx-pop" : ""}">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
-    if (choosing === h.id) {
-      const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
-      row += `<div class="variants">${opts.map(([val, lab]) => `<button class="chip" data-for="${esc(h.id)}" data-val='${esc(JSON.stringify(val))}'>${esc(lab)}</button>`).join("")}</div>`;
-    }
-    return row;
-  }).join("") : `<p style="color:var(--muted);margin:4px 0">${st.ledger.status === "signed-out" ? "Sign in to see today's habits." : "No habits yet. Add them in the Ledger."}</p>`;
+const isUnplanned = (e) => /^unplanned\b/i.test(cleanTitle(e.title).display);
+const timedOf = (doc) => (doc?.events || []).filter((e) => !e.allDay && e.start).sort((a, b) => a.start.localeCompare(b.start));
+const tm = (iso) => { const d = new Date(iso); return `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`; };
+const tmAp = (iso) => { const d = new Date(iso); return `${tm(iso)} ${d.getHours() < 12 ? "am" : "pm"}`; };
+const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtDay = (d) => { const x = new Date(d + "T12:00"); return `${DAY3[x.getDay()]} ${x.getDate()} ${MON3[x.getMonth()]}`; };
+/** The calendar's next block today, or the one under way: { title, start, end, live, outdoor }. */
+function nextEvent() {
+  const n = now();
+  const e = timedOf(calDoc(ymd(n))).find((x) => !isUnplanned(x) && new Date(x.end || x.start) > n);
+  if (!e) return null;
+  const title = cleanTitle(e.title).display;
+  return { id: e.id, title, start: e.start, end: e.end, live: new Date(e.start) <= n, outdoor: isOutdoor(e.title) };
 }
+
+const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const tank = mountAquarium({ mini: true });
+let choosing = null, justTicked = null, tNote = "", tlTouched = 0;
+$("#tl").addEventListener("scroll", () => { if (!tlAuto) tlTouched = Date.now(); tlAuto = false; }, { passive: true });
+let tlAuto = false;
+const anyTicked = {}; // errands ticked from "Any time" today: task id -> the repeat it made, so an untick can undo it
+function say(m) { tNote = m; renderToday(); setTimeout(() => { if (tNote === m) { tNote = ""; renderToday(); } }, 4000); }
+function pop(id) { justTicked = id; setTimeout(() => { if (justTicked === id) justTicked = null; }, 500); }
+
+function renderToday() {
+  const t = ymd(now()), n = now(), doc = calDoc(t), rec = dayRec(), tmap = tasksById();
+  const items = calToday(), byEv = Object.fromEntries(items.map((i) => [i.eventId, i]));
+  const hs = dailyHabits(), done = rec.done || {};
+
+  // The aquarium: a fish or a plant for each habit and each of today's calendar jobs ticked, as in the Ledger.
+  const jobs = items.filter((i) => i.kind !== "habit");
+  const total = hs.length + jobs.length, ticked = hs.filter((h) => done[h.id]).length + jobs.filter((i) => isTicked(i, rec, tmap)).length;
+  if (total) { if (!tank.el.isConnected) $("#todayh").after(tank.el); tank.set(ticked, total); } else tank.el.remove();
+  $("#todayN").innerHTML = run.running ? `<button class="back" data-a="back">Back to the timer</button>` : total ? `${ticked} of ${total} done` : "";
+
+  // The next block, with a countdown.
+  const nx = nextEvent(), nb = $("#next");
+  nb.hidden = !nx;
+  if (nx) {
+    const m = Math.round((new Date(nx.start) - n) / 60e3);
+    const w = nx.outdoor ? outdoorLine(new Date(nx.start)) : "";
+    nb.innerHTML = `<div class="in">${nx.live ? "Now" : fmtM(Math.max(1, m))}</div><div><div class="what">${esc(nx.title)}</div><div class="when">${nx.live ? "until " + tm(nx.end) : tm(nx.start) + (nx.end ? " to " + tm(nx.end) : "")}${w ? " · " + esc(w) : ""}</div></div>`;
+  }
+  $("#tnote").hidden = !tNote; $("#tnote").textContent = tNote;
+
+  // The timeline. Ticked or skipped blocks that are over fold into one "Earlier" line; the evening folds into one
+  // line at the foot until the working day's done.
+  let html = "";
+  if (!doc) {
+    const why = st.alfred.get("gtasks/state")?.calendar;
+    html = `<p class="empty">${why?.needsPermission ? "Today's calendar isn't reaching the console yet: Google needs reconnecting once to allow it." : st.alfred.status === "signed-out" ? "Sign in to see today." : "Today's calendar isn't here yet. It syncs every five minutes."}</p>`;
+  } else {
+    const foldEve = n.getHours() < 17, earlier = [], eve = [];
+    let rows = "", nowDone = false;
+    const evs = [...doc.events.filter((e) => e.allDay), ...timedOf(doc)];
+    for (const e of evs) {
+      const it = byEv[e.id], title = cleanTitle(e.title).display;
+      const ended = !e.allDay && e.end && new Date(e.end) <= n;
+      const on = it ? isTicked(it, rec, tmap) : false, ans = (rec.cal || {})[e.id];
+      if (ended && (!it || isUnplanned(e))) continue;                    // plain calendar that's over: gone
+      if (ended && (on || ans === "skip")) { if (choosing?.where !== e.id) { earlier.push(on ? `✓ ${title} ${tm(e.start)}` : `Skipped ${title}`); continue; } }
+      if (foldEve && !e.allDay && new Date(e.start).getHours() >= 18) { eve.push(`${title} ${tm(e.start)}`); continue; }
+      if (!nowDone && !e.allDay && new Date(e.start) > n) { rows += `<div class="nowline">${hm(n)}</div>`; nowDone = true; }
+      rows += evRow(e, it, { title, ended, on, ans, live: !e.allDay && new Date(e.start) <= n && !ended });
+    }
+    if (!nowDone && rows) rows += `<div class="nowline">${hm(n)}</div>`;
+    html = (earlier.length ? `<div class="earlier">Earlier: ${esc(earlier.join(" · "))}</div>` : "") + rows
+      + (eve.length ? `<div class="later">This evening: ${esc(eve.join(" · "))}</div>` : "");
+    if (!rows && !earlier.length && !eve.length) html = `<p class="empty">Nothing on the calendar today.</p>`;
+  }
+  const tl = $("#tl"); tl.innerHTML = html;
+  // Keep now in view: the timeline scrolls itself so the block under way (or the now line) sits near the top, unless
+  // it was scrolled by hand in the last minute. Blocks still waiting for an answer are just above.
+  if (Date.now() - tlTouched > 60e3) { const at = tl.querySelector(".ev.cur") || tl.querySelector(".nowline"); if (at) { const y = Math.max(0, at.offsetTop - tl.offsetTop - 44); if (Math.abs(tl.scrollTop - y) > 1) { tlAuto = true; tl.scrollTop = y; } } }
+
+  // Any time while you work: habits with no slot today (not the evening ones), the weekly habit, and errands due
+  // that aren't on the calendar.
+  const booked = doc ? habitsOnCalendar(items) : new Set();
+  const anyH = hs.filter((h) => !booked.has(h.id) && !isEveningHabit(h));
+  const week = weekCounts();
+  const anyW = weeklyHabits().filter((h) => !booked.has(h.id)).map((h) => ({ h, hint: `${week[h.id] || 0} of ${h.weeklyTarget || 1} this week` }));
+  const covered = new Set(jobs.flatMap((i) => i.taskIds));
+  const errands = todoTasks(st.todo).filter((x) => !covered.has(x.id) && (anyTicked[x.id] !== undefined
+    || (x.status !== "done" && !(x.snoozeUntil > t) && (todoBucket(x, t) === "today" || (x.status === "waiting" && x.due && x.due <= t)))))
+    .sort((a, b) => (a.due || "9").localeCompare(b.due || "9"));
+  const ROOM = 6, shownE = errands.slice(0, Math.max(2, ROOM - anyH.length - anyW.length)), moreE = errands.length - shownE.length;
+  const cells = [
+    ...anyH.map((h) => habRow(h, done[h.id], h.minutes && typeof done[h.id] === "number" ? done[h.id] + " min" : h.variants && typeof done[h.id] === "string" ? (h.variants.find((x) => x.key === done[h.id]) || {}).label : "")),
+    ...anyW.map(({ h, hint }) => habRow(h, done[h.id], hint)),
+    ...shownE.map((x) => {
+      const on = x.status === "done", wait = x.status === "waiting";
+      const hint = wait ? "Waiting on" : on ? "Done" : x.due && x.due < t ? "Overdue" : "Today";
+      return `<button class="hab${on ? " on" : ""}${wait ? " wait" : ""}" data-task="${esc(x.id)}" aria-pressed="${on}"${wait ? ' aria-disabled="true"' : ""}><span class="box${on && justTicked === x.id ? " fx-pop" : ""}">${CHECK}</span><span class="nm">${esc(x.title)}</span><span class="hint${hint === "Overdue" || wait ? " late" : ""}">${hint}</span></button>`;
+    }),
+  ];
+  $("#anyw").hidden = !cells.length;
+  $("#any").innerHTML = cells.join("") + (moreE > 0 ? `<a class="more" href="todo.html">+${moreE} more in the Errand Book</a>` : "");
+}
+
+function habRow(h, v, hint) {
+  const on = !!v;
+  let row = `<button class="hab${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box${on && justTicked === h.id ? " fx-pop" : ""}">${CHECK}</span><span class="nm">${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
+  if (choosing?.id === h.id && choosing.where === "any") row += chooser(h);
+  return row;
+}
+function chooser(h) {
+  const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
+  return `<div class="variants">${opts.map(([val, lab]) => `<button class="chip" data-for="${esc(h.id)}" data-val='${esc(JSON.stringify(val))}'>${esc(lab)}</button>`).join("")}</div>`;
+}
+function evRow(e, it, { title, ended, on, ans, live }) {
+  const time = e.allDay ? "All day" : tm(e.start), out = isOutdoor(e.title) ? `<span class="tag out">Outside</span>` : "";
+  if (!it) return `<div class="ev plain${live ? " cur" : ""}"><span class="tm">${time}</span><span class="dot"></span><span class="nm">${esc(title)}</span><span class="meta">${out}</span></div>`;
+  const meta = out + (it.kind === "task" || it.kind === "plus" ? `<span class="tag job">${it.kind === "plus" ? "New errand" : "Errand Book"}</span>${it.points ? `<span class="pts">+${it.points}</span>` : ""}`
+    : `<span class="tag">${it.source === "alfred" ? "◆ Alfred" : it.kind === "habit" ? "Habit" : "Calendar"}</span>`);
+  const key = it.kind === "habit" ? it.habit.id : it.eventId;
+  let h = `<div class="ev${on ? " on" : ""}${live ? " cur" : ""}"><span class="tm">${time}</span><button class="box${on && justTicked === key ? " fx-pop" : ""}" data-ev="${esc(e.id)}" aria-pressed="${on}" aria-label="Tick ${esc(title)}">${CHECK}</button><span class="nm">${esc(title)}</span><span class="meta">${meta}</span>`;
+  if (it.kind === "habit" && choosing?.id === it.habit.id && choosing.where === e.id) h += `<div class="sub">${chooser(activeHabits(st.ledger).find((x) => x.id === it.habit.id) || {}).replace('class="variants"', 'class="variants" style="padding:0"')}</div>`;
+  else if (ended && !on && !ans) h += `<div class="sub">Over. Tap it if it happened, or <button class="chip" data-out="skip" data-ev="${esc(e.id)}">Skipped</button><button class="chip" data-out="later" data-ev="${esc(e.id)}">Later</button></div>`;
+  else if (ended && !on && ans === "later") h += `<div class="sub">Later. The Ledger will ask again tomorrow. <button class="undo" data-out="clear" data-ev="${esc(e.id)}">Undo</button></div>`;
+  return h + `</div>`;
+}
+function weekCounts() {
+  const t = ymd(now()), out = {};
+  for (let d = mondayOf(t); d <= t; d = addDays(d, 1)) for (const k of Object.keys(st.ledger.get("days/" + d)?.done || {})) out[k] = (out[k] || 0) + 1;
+  return out;
+}
+
 function setDone(id, val) {
-  // The tick pops on whichever renders follow in the next half second (the store echoes the change), then rests.
-  if (val != null) { justTicked = id; setTimeout(() => { if (justTicked === id) justTicked = null; }, 500); }
+  if (val != null) pop(id);
   const d = ymd(now()), r = st.ledger.get(`days/${d}`) || {};
   const done = { ...(r.done || {}) };
   if (val == null) delete done[id]; else done[id] = val;
   st.ledger.set(`days/${d}`, { ...r, done, rest: !!r.rest }); // keep jobs and calendar answers
 }
-$("#habits").addEventListener("click", (e) => {
-  const c = e.target.closest("[data-for]");
-  if (c) { setDone(c.dataset.for, JSON.parse(c.dataset.val)); choosing = null; renderLedger(); return; }
-  const b = e.target.closest("[data-h]"); if (!b) return;
-  const h = dailyHabits().find((x) => x.id === b.dataset.h); if (!h) return;
+/** A tick on a habit, from its block (it) or from Any time. Kinds and minutes come from the block when it names them. */
+function tickHabit(h, it, where) {
   const cur = todayDone()[h.id];
-  const it = cur ? null : calToday().find((i) => i.kind === "habit" && i.habit.id === h.id);
   if (cur) { setDone(h.id, null); choosing = null; }
   else if (it && it.habit.variant && h.variants?.some((x) => x.key === it.habit.variant)) { setDone(h.id, it.habit.variant); choosing = null; }
   else if (it && it.minutes && h.minutes?.length) { setDone(h.id, it.minutes); choosing = null; }
-  else if (h.variants?.length || h.minutes?.length) choosing = choosing === h.id ? null : h.id;
+  else if (h.variants?.length || h.minutes?.length) choosing = choosing?.id === h.id && choosing.where === where ? null : { id: h.id, where };
   else setDone(h.id, true);
-  renderLedger(); if (run.running && cur === undefined) mode = null;
-});
-
-// Errands due today; when there are none, the week's training takes the space.
-const TARGET = { strength: 4, cardio: 2, yoga: 1 };
-let jobNote = "", jobPop = null;
-function renderErrands() {
-  const t = ymd(now()), rec = st.ledger.get(`days/${t}`) || {};
-  const tm = Object.fromEntries(todoTasks(st.todo).map((x) => [x.id, x]));
-  const jobs = calToday().filter((i) => i.kind !== "habit");
-  const covered = new Set(jobs.flatMap((i) => i.taskIds));
-  const list = openTasks(st.todo, t).filter((x) => !covered.has(x.id) && (todoBucket(x, t) === "today" || (x.status === "waiting" && x.due && x.due <= t)))
-    .sort((a, b) => (a.due || "9").localeCompare(b.due || "9") || (a.booked?.start || "").localeCompare(b.booked?.start || ""));
-  const el = $("#errands");
-  if (jobs.length || list.length) {
-    const room = 5, shownJobs = jobs.slice(0, room), shownList = list.slice(0, Math.max(0, room - shownJobs.length));
-    const more = jobs.length + list.length - shownJobs.length - shownList.length;
-    const jrows = shownJobs.map((i) => {
-      const on = isTicked(i, rec, tm);
-      return `<button class="jrow${on ? " on" : ""}" data-job="${esc(i.eventId)}" aria-pressed="${on}"><span class="box${on && jobPop === i.eventId ? " fx-pop" : ""}">${CHECK}</span>
-        <span class="t">${esc(i.title)}</span><span class="w">${i.points ? `<b>+${i.points}</b>` : ""}${i.allDay ? "All day" : esc(hm12(i.start))}</span></button>`;
-    }).join("");
-    const rows = shownList.map((x) => {
-      const when = x.status === "waiting" ? '<span class="wait">Waiting on</span>'
-        : x.due && x.due < t ? '<span class="late">Overdue</span>'
-        : x.booked?.start && x.booked.start.slice(0, 10) === t ? `<span class="num">${hm(new Date(x.booked.start))}</span>` : "<span>Today</span>";
-      return `<div class="erow"><span>${esc(x.title)}</span>${when}</div>`;
-    }).join("");
-    el.innerHTML = `<div class="head"><h2>${jobs.length ? "Today's jobs" : "Errands due today"}</h2>${more > 0 ? `<a class="more" href="todo.html">+${more} more</a>` : ""}</div>${jobNote ? `<div class="note">${esc(jobNote)}</div>` : ""}${jrows}${rows}`;
-    return;
-  }
-  const from = mondayOf(t), wk = workoutsOf(st.training).filter((w) => { const d = ymd(new Date(w.start)); return d >= from && d <= t; });
-  const n = { strength: 0, cardio: 0, yoga: 0 }; wk.forEach((w) => { const k = KIND(w.discipline); if (k in n) n[k]++; });
-  const todayW = wk.find((w) => ymd(new Date(w.start)) === t);
-  el.innerHTML = `<div class="head"><h2>Training this week</h2></div>
-    ${[["strength", "Strength"], ["cardio", "Cardio"], ["yoga", "Yoga or stretch"]].map(([k, l]) => `<div class="erow"><span>${l}</span><span class="num">${n[k]} of ${TARGET[k]}</span></div>`).join("")}
-    <div class="erow"><span style="color:var(--muted)">${todayW ? "Today: " + esc(todayW.title || "a class") : "No errands today, and no class yet."}</span><span></span></div>`;
+  renderToday(); if (run.running && cur === undefined) mode = null;
 }
-
-// A tick here writes what the Ledger's tick writes: the job and its points on the day, the task done in the Errand Book.
-$("#errands").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-job]"); if (!b) return;
-  const t = ymd(now()), it = calToday().find((i) => i.eventId === b.dataset.job); if (!it) return;
-  const r0 = st.ledger.get(`days/${t}`) || {}, body = { ...r0, done: { ...(r0.done || {}) }, rest: !!r0.rest };
-  const tm = Object.fromEntries(todoTasks(st.todo).map((x) => [x.id, x]));
-  const on = isTicked(it, body, tm);
-  const say = (m) => { jobNote = m; renderErrands(); setTimeout(() => { if (jobNote === m) { jobNote = ""; renderErrands(); } }, 4000); };
+/** A tick on a calendar job writes what the Ledger's tick writes: the job and its points on the day, the task done. */
+function tickCal(it) {
+  const t = ymd(now()), r0 = dayRec(), body = { ...r0, done: { ...(r0.done || {}) }, rest: !!r0.rest };
+  const tmap = tasksById(), on = isTicked(it, body, tmap);
   if (it.kind === "block") { body.cal = { ...(body.cal || {}) }; if (on) delete body.cal[it.eventId]; else body.cal[it.eventId] = "done"; }
   else {
     if (st.todo.status === "starting") return say("The Errand Book is still opening. Try again in a moment.");
-    const r = tickJob({ item: it, body, todo: st.todo, tasksById: tm, day: t, on });
+    const r = tickJob({ item: it, body, todo: st.todo, tasksById: tmap, day: t, on });
     if (r.error) return say("That one was ticked in the Errand Book. Untick it there.");
     if (r.left) say("Ticked. The rest of it has another block later.");
+    mirrorSoon("todo");
   }
-  if (!on) { jobPop = it.eventId; setTimeout(() => { if (jobPop === it.eventId) jobPop = null; }, 500); }
+  if (!on) pop(it.eventId);
   st.ledger.set(`days/${t}`, body);
-  renderErrands(); renderWeek();
+  renderToday();
+}
+function answer(eventId, val) {
+  const t = ymd(now()), r0 = dayRec(), body = { ...r0, cal: { ...(r0.cal || {}) } };
+  if (val === "clear") delete body.cal[eventId]; else body.cal[eventId] = val;
+  st.ledger.set(`days/${t}`, body);
+  if (val === "skip") say("Skipped. It happens.");
+  renderToday();
+}
+$("#today").addEventListener("click", (e) => {
+  const c = e.target.closest("[data-for]");
+  if (c) { setDone(c.dataset.for, JSON.parse(c.dataset.val)); choosing = null; renderToday(); return; }
+  const back = e.target.closest('[data-a="back"]'); if (back) { peek = false; syncLayout(); renderToday(); return; }
+  const o = e.target.closest("[data-out]"); if (o) { answer(o.dataset.ev, o.dataset.out); return; }
+  const ev = e.target.closest("[data-ev]");
+  if (ev) {
+    const it = calToday().find((i) => i.eventId === ev.dataset.ev); if (!it) return;
+    if (it.kind === "habit") { const h = activeHabits(st.ledger).find((x) => x.id === it.habit.id); if (h) tickHabit(h, it, it.eventId); }
+    else tickCal(it);
+    return;
+  }
+  const hb = e.target.closest("[data-h]");
+  if (hb) { const h = activeHabits(st.ledger).find((x) => x.id === hb.dataset.h); if (h) tickHabit(h, null, "any"); return; }
+  const tb = e.target.closest("[data-task]");
+  if (tb) {
+    const x = tasksById()[tb.dataset.task]; if (!x || x.status === "waiting") return;
+    if (st.todo.status === "starting") return say("The Errand Book is still opening. Try again in a moment.");
+    if (x.status === "done") { untickTask({ todo: st.todo, task: x, next: anyTicked[x.id] }); delete anyTicked[x.id]; }
+    else { anyTicked[x.id] = tickTask({ todo: st.todo, task: x, day: ymd(now()) }).next; pop(x.id); say(anyTicked[x.id] ? "Done, and the next one's in the Errand Book." : "Done in the Errand Book."); }
+    mirrorSoon("todo"); renderToday();
+  }
 });
 
-function renderWeek() {
-  const t = ymd(now()), monday = mondayOf(t);
-  let ticks = 0; for (let d = new Date(monday + "T12:00"); ymd(d) <= t; d.setDate(d.getDate() + 1)) ticks += Object.keys(st.ledger.get("days/" + ymd(d))?.done || {}).length;
-  const since = new Date(monday + "T00:00").getTime();
-  const m = st.focus.list("log/").map((x) => x.value).filter((e) => e.k === "focus" && e.t >= since).reduce((a, e) => a + (e.m || 0), 0);
-  const last = st.shutdown.list("shutdowns/").map((x) => x.value).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-  $("#wk-ticks").textContent = ticks;
-  $("#wk-focus").textContent = m;
-  $("#wk-sun").textContent = last ? new Date(last.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "–";
+// The mini list that stands in for the timer row while a session runs.
+function renderUpNext() {
+  const n = now(), rows = timedOf(calDoc(ymd(n))).filter((e) => !isUnplanned(e) && new Date(e.end || e.start) > n).slice(0, 3);
+  $("#unrows").innerHTML = rows.length ? rows.map((e) => `<div class="erow"><span>${esc(cleanTitle(e.title).display)}</span><span class="num">${tm(e.start)}</span></div>`).join("")
+    : `<p class="empty" style="color:var(--muted);margin:4px 0">Nothing else on the calendar today.</p>`;
+}
+
+// ---------- left: Coming up ----------
+// The next trip, tomorrow's first block, the next Writing Desk date and errands due in the next two weeks.
+function renderSoon() {
+  const t = ymd(now()), docs = [];
+  for (let i = 0; i <= 14; i++) { const d = calDoc(addDays(t, i)); if (d) docs.push({ ...d, day: d.day || addDays(t, i) }); }
+  let h = `<div class="head"><h2 id="soonh">Coming up</h2><span>next two weeks</span></div>`;
+  const trip = nextTrip(docs, now());
+  if (trip) {
+    const when = daysAway(t, trip.day), dayWord = when === "Today" ? "today" : when === "Tomorrow" ? "tomorrow" : DAY3[new Date(trip.day + "T12:00").getDay()];
+    const near = when === "Today" || when === "Tomorrow", on = near ? "" : ` ${dayWord}`;
+    const how = trip.leave ? `${trip.leave.title}${on} ${tmAp(trip.leave.start)}` : `Flight${on} ${tmAp(trip.start)}`;
+    h += `<div class="trip"><div class="big">${when}</div><div><b>${esc(trip.where)}</b><span>${esc(how)}${trip.back ? " · back " + fmtDay(trip.back) : ""}</span></div></div>`;
+  }
+  const tom = calDoc(addDays(t, 1));
+  if (tom) {
+    const evs = timedOf(tom).filter((e) => !isUnplanned(e));
+    if (evs.length) {
+      const [first, ...rest] = evs, pick = rest.filter((e) => cleanTitle(e.title).alfred).slice(-2);
+      h += `<div class="srow"><span class="w">Tomorrow</span><span>${esc(cleanTitle(first.title).display)} ${tm(first.start)} is first${pick.length ? `<small>${esc(pick.map((e) => cleanTitle(e.title).display + " " + tm(e.start)).join(" · "))}</small>` : ""}</span></div>`;
+    } else h += `<div class="srow"><span class="w">Tomorrow</span><span>Nothing booked yet</span></div>`;
+  }
+  const desk = nextDeskDate(st.desk.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value })), t);
+  if (desk) h += `<div class="srow"><span class="w">${fmtDay(desk.day)}</span><span>${desk.label}: ${esc(desk.title)}<small>Writing Desk</small></span></div>`;
+  const due = openTasks(st.todo, t).filter((x) => x.due && x.due > t && x.due <= addDays(t, 14)).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 4);
+  h += due.map((x) => `<div class="srow"><span class="w">${fmtDay(x.due)}</span><span>${esc(x.title)}<small>Errand Book${x.area ? " · " + esc(x.area) : ""}</small></span></div>`).join("");
+  if (!trip && !tom && !desk && !due.length) h += `<p class="empty">Nothing in the next two weeks.</p>`;
+  $("#soon").innerHTML = h;
+}
+
+// ---------- right: Outside ----------
+// Today's weather by the hour from Open-Meteo (free, no key), for the town set in the Wardrobe, cached for half an
+// hour. Outdoor blocks (Walk Mara, yard jobs) are marked on it with a line each. It suggests a drier hour but never
+// moves a block. What to wear: Alfred's outfit from the Wardrobe if one was picked today, else a plain rule.
+const WXKEY = "alfred:console:wx";
+let wx = lsGet(WXKEY, null);
+const wxLoc = () => st.wardrobe.get("settings")?.location || null;
+async function loadWx(force) {
+  const loc = wxLoc(); if (!loc) return;
+  const key = `${loc.lat},${loc.lon}`;
+  if (!force && wx && wx.key === key && Date.now() - wx.at < 30 * 60e3) return;
+  if (!navigator.onLine) return;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=temperature_2m,precipitation_probability,weather_code&daily=sunset,temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto&forecast_days=2`;
+    const j = await (await fetch(u)).json();
+    if (!j.hourly) return;
+    wx = { key, at: Date.now(), hourly: j.hourly, daily: j.daily, current: j.current };
+    lsSet(WXKEY, wx); renderOutside(); renderToday();
+  } catch { /* keep the old one */ }
+}
+const sunsetOf = (day) => { const i = wx?.daily?.time?.indexOf(day) ?? -1; return i >= 0 && wx.daily.sunset?.[i] ? new Date(wx.daily.sunset[i]) : null; };
+/** "dry, 41°" for an outdoor block's moment, for the Today card. */
+function outdoorLine(at) {
+  const w = blockWeather({ start: at, hourly: wx?.hourly, sunset: sunsetOf(ymd(at)), now: now() });
+  return w ? `${w.text.replace(/ \(\d+%\)/, "").toLowerCase()}, ${w.temp}°` : "";
+}
+function renderOutside() {
+  const box = $("#outside"), loc = wxLoc(), t = ymd(now()), n = now();
+  let h = `<div class="head"><h2 id="outh">Outside</h2><span>${loc ? esc(loc.name || "") : ""}</span></div>`;
+  if (!loc) { box.innerHTML = h + `<p class="empty">Choose your town in the <a href="wardrobe.html">Wardrobe</a> and the weather shows here.</p>`; return; }
+  if (!wx?.hourly || wx.key !== `${loc.lat},${loc.lon}`) { box.innerHTML = h + `<p class="empty">Fetching the forecast…</p>`; return; }
+  const H = wx.hourly, at = (hr) => { const d = new Date(n); d.setHours(hr, 0, 0, 0); return hourAt(H, localIso(d)); };
+  const nowW = hourAt(H, localIso(n)) || {}, cur = wx.current && Date.now() - wx.at < 3 * 3600e3 ? { temp: Math.round(wx.current.temperature_2m), code: wx.current.weather_code } : nowW;
+  const di = wx.daily?.time?.indexOf(t) ?? -1, hi = di >= 0 ? Math.round(wx.daily.temperature_2m_max[di]) : null, sunset = sunsetOf(t);
+  let rainFrom = null; for (let hr = n.getHours(); hr <= 21; hr++) { const w = at(hr); if (w && w.rain >= 50) { rainFrom = hr; break; } }
+  const hr12 = (hr) => `${hr % 12 || 12}${hr < 12 ? " am" : " pm"}`;
+  h += `<div class="wnow"><div class="deg">${cur.temp ?? "–"}°</div><div class="cond">${sky(cur.code ?? 0)}, ${rainFrom == null ? "dry for the rest of the day" : rainFrom === n.getHours() ? "rain likely now" : "rain likely from " + hr12(rainFrom)}<span>${hi != null ? `High ${hi}°` : ""}${sunset ? ` · sunset ${tm(sunset.toISOString())}` : ""}</span></div></div>`;
+
+  // The chart: 7 am to 7 pm, temperature as a line, chance of rain as bars, dark after sunset, outdoor blocks pinned.
+  const doc = calDoc(t), outs = timedOf(doc).filter((e) => isOutdoor(e.title));
+  const W = 268, x0 = 10, x1 = 258, X = (hr) => x0 + ((hr - 7) / 12) * (x1 - x0);
+  const pts = []; for (let hr = 7; hr <= 19; hr++) { const w = at(hr); if (w) pts.push([hr, w]); }
+  if (pts.length > 1) {
+    const temps = pts.map(([, w]) => w.temp), lo = Math.min(...temps) - 2, top = Math.max(...temps) + 2, Y = (v) => 76 - ((v - lo) / Math.max(1, top - lo)) * 46;
+    let s = `<svg viewBox="0 0 ${W} 132" role="img" aria-label="Temperature and chance of rain by the hour, 7 am to 7 pm">`;
+    if (sunset) { const sx = X(Math.min(19.4, sunset.getHours() + sunset.getMinutes() / 60)); if (sx < x1) s += `<rect class="darkr" x="${sx}" y="0" width="${x1 - sx + 6}" height="114" rx="6"/><text x="${x1 - 2}" y="26" text-anchor="end">dark</text>`; }
+    for (const [hr, w] of pts) { const hg = (w.rain / 100) * 30; if (hg > 0) s += `<rect class="rain" x="${X(hr) - 6}" y="${112 - hg}" width="12" height="${hg}" rx="2"/>`; }
+    s += `<polyline class="tline" points="${pts.map(([hr, w]) => `${X(hr).toFixed(1)},${Y(w.temp).toFixed(1)}`).join(" ")}"/>`;
+    const peak = pts.reduce((a, b) => (b[1].temp > a[1].temp ? b : a));
+    for (const [hr, w] of [pts[0], peak, pts[pts.length - 1]]) s += `<text x="${X(hr)}" y="${Y(w.temp) - 6}" text-anchor="middle">${w.temp}°</text>`;
+    let lastLab = -99;
+    for (const e of outs.slice(0, 4)) { const d = new Date(e.start), hr = d.getHours() + d.getMinutes() / 60; if (hr < 7 || hr > 19) continue;
+      s += `<line class="pin" x1="${X(hr)}" x2="${X(hr)}" y1="15" y2="114"/>`;
+      if (X(hr) - lastLab > 46) { lastLab = X(hr); s += `<text class="pinl" x="${Math.min(x1 - 20, Math.max(x0 + 14, X(hr)))}" y="10" text-anchor="middle">${esc(cleanTitle(e.title).display.split(/[\s:]/)[0])}</text>`; } }
+    const nh = n.getHours() + n.getMinutes() / 60; if (nh >= 7 && nh <= 19) s += `<line class="nowl" x1="${X(nh)}" x2="${X(nh)}" y1="80" y2="114"/>`;
+    [8, 10, 12, 14, 16, 18].forEach((hr) => { s += `<text x="${X(hr)}" y="128" text-anchor="middle">${hr % 12 || 12}</text>`; });
+    h += `<div class="wx">${s}</svg></div><div class="wkey"><span><i style="background:var(--brass)"></i>Temperature</span><span><i style="background:#4f86b8"></i>Chance of rain</span></div>`;
+  }
+
+  // A line for each outdoor block still to come today, then tomorrow's first.
+  const ahead = outs.filter((e) => new Date(e.end || e.start) > n).slice(0, 2);
+  for (const e of ahead) {
+    const w = blockWeather({ start: new Date(e.start), hourly: H, sunset, now: n }); if (!w) continue;
+    const better = w.better ? ` Drier around ${tm(w.better.toISOString())}.` : "";
+    h += `<div class="blk"><div class="t">${esc(cleanTitle(e.title).display)}<span>${tm(e.start)} · ${w.temp}°</span></div><p${w.warn ? ' class="warn"' : ""}>${esc(w.text)}.${esc(better)}</p></div>`;
+  }
+  if (!ahead.length && doc) h += `<div class="blk"><p>No outdoor blocks left today.</p></div>`;
+  const tmr = timedOf(calDoc(addDays(t, 1))).find((e) => isOutdoor(e.title));
+  if (tmr) { const w = blockWeather({ start: new Date(tmr.start), hourly: H, sunset: sunsetOf(addDays(t, 1)), now: n });
+    if (w) h += `<div class="blk"><div class="t">Tomorrow<span>${esc(cleanTitle(tmr.title).display)} ${tm(tmr.start)} · ${w.temp}°</span></div><p${w.warn ? ' class="warn"' : ""}>${esc(w.text)}.</p></div>`; }
+
+  // What to wear, for the next outdoor block (or now).
+  const ref = ahead[0] ? hourAt(H, localIso(new Date(ahead[0].start))) : nowW;
+  const pieces = st.wardrobe.list("pieces/").map((x) => ({ id: x.key.slice(7), ...x.value }));
+  const wear = whatToWear({ outfit: st.wardrobe.get(`outfits/${t}`), pieces, temp: ref?.temp, rain: ref?.rain || 0 });
+  if (wear) h += `<div class="wear"><b>Wear</b>${esc(wear.lead)}${wear.pieces.length ? ": " + esc(wear.pieces.join(", ")) : ""}.</div>`;
+  box.innerHTML = h;
 }
 
 // ---------- the rooms ----------
 const BAR = [...ROOMS].sort((a, b) => ((CONSOLE_ORDER.indexOf(a.id) + 1) || 99) - ((CONSOLE_ORDER.indexOf(b.id) + 1) || 99));
 function renderRooms() {
   const active = run.running ? "focus" : now().getDay() === 0 ? "shutdown" : "ledger";
+  $("#rooms").style.gridTemplateColumns = `repeat(${BAR.length},minmax(0,1fr))`;
   $("#rooms").innerHTML = BAR.map(({ id, short, href }) => `<a class="room${id === active ? " active" : ""}" href="${href}">${iconSvg(id)}<span>${short}</span></a>`).join("");
 }
 
@@ -656,16 +931,17 @@ const queue = new Set(); let raf = 0;
 const later = (fn) => { queue.add(fn); if (!raf) raf = requestAnimationFrame(() => { raf = 0; const fns = [...queue]; queue.clear(); fns.forEach((f) => f()); }); };
 [st.study, st.desk, st.wardrobe, st.todo].forEach((s) => s.subscribe(() => later(renderNote)));
 st.study.subscribe(() => later(renderGreet));
-st.shutdown.subscribe(() => { later(renderPlan); later(renderWeek); });
-st.ledger.subscribe(() => { later(renderLedger); later(renderWeek); if (run.running && cur().k === "break") { mode = null; later(() => renderFocus()); } });
-st.todo.subscribe(() => { later(renderErrands); later(renderLedger); });
-st.alfred.subscribe(() => { later(renderErrands); later(renderLedger); });
-st.training.subscribe(() => later(renderErrands));
-st.focus.subscribe(() => { loadSettings(); later(renderWeek); if (!run.running) later(() => renderFocus(true)); });
+st.shutdown.subscribe(() => later(renderPlan));
+st.ledger.subscribe(() => { later(renderToday); if (run.running && cur().k === "break") { mode = null; later(() => renderFocus()); } });
+st.todo.subscribe(() => { later(renderToday); later(renderSoon); });
+st.alfred.subscribe(() => { later(renderToday); later(renderSoon); later(renderOutside); later(renderGreet); later(renderUpNext); });
+st.desk.subscribe(() => later(renderSoon));
+st.wardrobe.subscribe(() => { later(renderOutside); later(() => loadWx()); });
+st.focus.subscribe(() => { loadSettings(); if (!run.running) later(() => renderFocus(true)); });
 
 // Catch up a session left running across a reload: phases that ended while away are logged as finished.
 if (run.running) { let g = 0; while (run.running && !run.paused && nowMs() >= run.endAt && g++ < 50) finishPhase(run.endAt); }
-renderClock(); renderRooms(); renderPlan(); renderFocus(true);
+renderClock(); renderRooms(); renderPlan(); renderFocus(true); renderToday(); renderSoon(); renderOutside(); renderUpNext(); loadWx();
 
 let lastMinute = -1;
 setInterval(() => {
@@ -673,8 +949,9 @@ setInterval(() => {
   renderFocus();
   const m = now().getMinutes();
   if (m !== lastMinute) { // once a minute: the clock, the plan, the theme; the day's lists at midnight
-    lastMinute = m; renderClock(); renderPlan();
-    if (now().getHours() === 0 && m === 0) { renderNote(); renderLedger(); renderErrands(); renderWeek(); renderRooms(); }
+    lastMinute = m; renderClock(); renderPlan(); renderToday(); renderUpNext();
+    if (m % 10 === 0) { renderOutside(); loadWx(); }
+    if (now().getHours() === 0 && m === 0) { renderNote(); renderSoon(); renderRooms(); }
   }
   if (!$("#night").hidden !== (themeNow() === "night" && !run.running && nowMs() > wakeUntil)) applyTheme();
 }, 500);
