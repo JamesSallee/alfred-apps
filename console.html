@@ -536,7 +536,7 @@ function setDone(id, val) {
   const d = ymd(now()), r = st.ledger.get(`days/${d}`) || {};
   const done = { ...(r.done || {}) };
   if (val == null) delete done[id]; else done[id] = val;
-  st.ledger.set(`days/${d}`, { done, rest: !!r.rest });
+  st.ledger.set(`days/${d}`, { ...r, done, rest: !!r.rest }); // keep jobs and calendar answers
 }
 $("#habits").addEventListener("click", (e) => {
   const c = e.target.closest("[data-for]");

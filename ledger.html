@@ -146,6 +146,30 @@ input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid
 .mara .scale .chip.hi b{color:var(--danger)}
 .mara .fields{display:grid;grid-template-columns:110px 1fr;gap:8px}
 .mara .care{font-size:13px;background:var(--brass-soft);border:1px solid var(--brass);border-radius:10px;padding:8px 12px}
+/* The calendar and the Ledger as one (js/calendar.js): today's blocks in time order, then the plain list. */
+.sec{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px}
+.sec h3{font-size:16px}
+.calrow{display:flex;flex-direction:column;gap:6px}
+.habit .time{font-family:var(--display);font-size:14px;color:var(--muted);width:46px;flex:none;text-align:right}
+.habit.on .time{color:var(--done-ink);opacity:.8}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:1px 7px;border-radius:999px;margin-right:4px;vertical-align:1px}
+.tag.alf{background:var(--green-soft);color:var(--green)}
+.tag.own{background:var(--brass-soft);color:var(--brass-ink)}
+.tag.job{background:var(--rust-soft);color:var(--rust)}
+.habit.on .tag{background:rgb(255 255 255 / .18);color:var(--done-ink)}
+.outcome{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 0 2px 58px}
+.outcome .chip.skip[aria-pressed="true"]{background:var(--rust);border-color:var(--rust);color:var(--paper)}
+.calnote{font-size:12.5px;color:var(--muted);padding-left:58px}
+.desknote{margin-left:58px;font-size:13.5px;background:var(--brass-soft);border:1px solid var(--brass);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.desknote b{font-family:var(--display);font-weight:400;color:var(--brass-ink)}
+.notask{border:0;background:none;color:var(--muted);font-size:12px;text-decoration:underline;text-underline-offset:2px;padding:0 0 0 58px;align-self:flex-start;min-height:0}
+.suggest{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--paper);border:1px dashed var(--green);border-radius:14px;padding:12px 14px;font-size:14px}
+.suggest .who{font-family:var(--display);color:var(--green)}
+.suggest .acts{display:flex;gap:6px;flex:none;margin-left:auto}
+.yday{display:flex;flex-direction:column;gap:8px}
+.yday .yrow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;border-top:1px solid var(--line);padding-top:8px}
+.yday .yrow .acts{display:flex;gap:6px}
+@media (max-width:420px){.outcome,.calnote,.notask,.desknote{padding-left:0;margin-left:0}}
 @media (prefers-reduced-motion: reduce){.toast div{transition:none}}
 @media (max-width:420px){form.edit{grid-template-columns:1fr}.variants{padding-left:0}}
 </style>
@@ -185,6 +209,9 @@ import { pad, ymd, parse, addDays, today } from "./js/dates.js";
 import { mountPlum } from "./js/fx-plum.js";
 import { countTo } from "./js/fx-motion.js";
 import { TRIGGERS, QUIET, SCALE, PHASES, makeEntry, weekSummary, trend, recentBigReaction, phaseOf } from "./js/mara.js";
+import { openStore } from "./js/sync.js";
+import { todoTasks, nextRepeat, openIlkwim } from "./js/rooms.js";
+import { tickables, habitsOnCalendar, isTicked, unanswered, dayJobPoints, jobKey, tasksToFinish, deskSlip } from "./js/calendar.js";
 // The plum branch lives outside the re-rendered HTML so its blossoms keep their state between renders.
 const plum = mountPlum();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
@@ -253,6 +280,7 @@ function compute(){
     res.streak[h.id]=streak; res.best[h.id]=best;
     res.week[h.id]=weekCount[monday(S.sel)]||0;
   }
+  for (const d of dates){ const j = dayJobPoints(S.days[d]); if (j) res.byDate[d] = (res.byDate[d]||0) + j; }
   const W = allWeeks({ habits:S.habits, days:S.days, weekDocs:S.weekDocs, cfg, today:t });
   res.weeks = W.weeks; res.phoneNext = W.phoneNext;
   res.byWeek = Object.fromEntries(W.weeks.map(w=>[w.wk,w]));
@@ -265,7 +293,7 @@ function freezeWeeks(R){
   if (!db || !S.loaded.habits || !S.loaded.days || !S.loaded.weeks) return;
   for (const w of R.weeks){
     if (w.closed || !w.dueToFreeze) continue;
-    const frozen = { points:w.points, base:w.base, counted:w.counted, capPts:w.capPts, over:w.over, dollars:w.dollars, light:w.light, bonuses:w.bonuses, at:new Date().toISOString() };
+    const frozen = { points:w.points, base:w.base, jobs:w.jobs||0, counted:w.counted, capPts:w.capPts, over:w.over, dollars:w.dollars, light:w.light, bonuses:w.bonuses, at:new Date().toISOString() };
     S.weekDocs[w.wk] = { ...(S.weekDocs[w.wk]||{}), frozen };
     write("weeks/"+w.wk, ()=>db.doc("weeks/"+w.wk).set({ frozen }, { merge:true }));
   }
@@ -310,7 +338,13 @@ function renderToday(R){
   if (isRest) html += `<div class="restnote">Rest day. Streaks pause and this week's targets drop by a day. Anything you do still earns points.</div>`;
   if (!S.loaded.habits){ html += `<div class="empty">Opening the ledger…</div></div>`; $("#v-today").innerHTML = html; bindToday(); return; }
   if (!S.habits.length){ html += `<div class="empty">No habits yet. Add your first one under Habits.</div>`; }
-  const daily = S.habits.filter(x=>x.kind!=="weekly"), weekly = S.habits.filter(x=>x.kind==="weekly");
+  const items = calItems(sel);
+  const onCal = items ? habitsOnCalendar(items) : new Set();
+  if (sel===t) html += yesterdayPanel(t) + suggestPanel(t, rec);
+  if (items && items.length) html += `<div class="sec"><h3>On the calendar</h3><span class="small">one tap, every room</span></div><div class="list">${items.map(it=>calRow(it, sel, rec)).join("")}</div>`;
+  else if (sel===t) html += calStatusNote();
+  if (items && items.length && S.habits.some(x=>x.kind!=="weekly" && !onCal.has(x.id))) html += `<div class="sec"><h3>Not on the calendar</h3><span class="small">tick as usual</span></div>`;
+  const daily = S.habits.filter(x=>x.kind!=="weekly" && !onCal.has(x.id)), weekly = S.habits.filter(x=>x.kind==="weekly" && !onCal.has(x.id));
   const row = hb => {
     const v = rec.done && rec.done[hb.id]; const on = !!v;
     const st = R.streak[hb.id]||0;
@@ -356,6 +390,7 @@ function renderToday(R){
       <div class="kv"><span>Points${W.current?" so far":""}</span><span class="num">${W.points} of ${good} for a good week</span></div>
       <span class="bar"><i style="width:${Math.min(100,W.points/good*100)}%"></i></span>
       <div class="kv"><span>Fun money ${W.closed?"unlocked":W.current?"unlocked so far":"unlocked"}</span><span class="num">${fmtUsd(W.dollars)}</span></div>
+      ${W.jobsRaw||W.jobs?`<div class="kv"><span>Jobs from the calendar</span><span class="num">${W.jobs} of ${R.cfg.jobsCap} points${W.jobsRaw>W.jobs?" (capped)":""}</span></div>`:""}
       ${W.over>0?`<div class="small">${W.over} points over the weekly cap of ${W.capPts}. Splendid, but they don't convert.</div>`:""}
       ${mixHtml}${minutes}
       ${W.bonuses&&W.bonuses.length?`<div class="small">Bonuses: ${W.bonuses.map(b=>`${esc(b.habit)}, ${esc(b.why)} (+${b.amount})`).join("; ")}</div>`:""}
@@ -377,8 +412,179 @@ function renderToday(R){
   $("#v-today").innerHTML = html;
   // One blossom per daily habit ticked on the day shown (weekly habits aren't counted).
   const side = $("#v-today .tside");
-  if (side && S.habits.length){ side.prepend(plum.el); plum.set(daily.filter(hb => rec.done && rec.done[hb.id]).length, daily.length); }
+  if (side && S.habits.length){ side.prepend(plum.el); const allDaily = S.habits.filter(x=>x.kind!=="weekly"); plum.set(allDaily.filter(hb => rec.done && rec.done[hb.id]).length, allDaily.length); }
   bindToday();
+}
+
+// ---------- The calendar and the Ledger as one (js/calendar.js; agreed with James 28 Nov 2026) ----------
+// Today's calendar blocks show in time order. A block for a habit replaces that habit's plain row; a block for an
+// errand or chore ticks it in the Errand Book and earns job points; "+ …" events of his own add a done task.
+// Nothing is ticked without a tap, and nothing on the calendar is ever changed from here.
+const CAL = { alfred:null, todo:null, desk:null, focus:null };
+const ready = s => s && s.status !== "starting"; // the device copy is loaded; changes sync like any other edit
+const fmtTime = iso => { const d=new Date(iso); let h=d.getHours(), m=d.getMinutes(); const ap=h<12?"am":"pm"; h=h%12||12; return m?`${h}:${pad(m)}`:`${h} ${ap}`; };
+const taskMap = () => Object.fromEntries((CAL.todo ? todoTasks(CAL.todo) : []).map(x=>[x.id,x]));
+function calItems(day){
+  if (!CAL.alfred) return null;
+  const doc = CAL.alfred.get(`calendar/${day}`);
+  if (!doc || !Array.isArray(doc.events)) return null;
+  return tickables({ events:doc.events, habits:S.habits, tasks: CAL.todo ? todoTasks(CAL.todo) : [], hidden:S.settings.calHidden||[], now:new Date() });
+}
+function calStatusNote(){
+  const st = CAL.alfred && CAL.alfred.get("gtasks/state");
+  if (st && st.calendar && st.calendar.needsPermission) return `<div class="small">The calendar isn't linked yet: reconnect Google once from the watch guide to let the Ledger see today's blocks.</div>`;
+  return "";
+}
+const newTaskId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function itemInfo(it){
+  const tag = it.source==="alfred" ? `<span class="tag alf">◆ Alfred</span>` : `<span class="tag own">+ Yours</span>`;
+  if (it.kind==="habit"){
+    const hb = S.habits.find(x=>x.id===it.habit.id);
+    let extra = hb ? esc(hb.name) : "";
+    if (it.habit.id==="write" && CAL.desk){ const sl = deskSlip(openIlkwim(CAL.desk), S.sel, today()); const p = sl ? sl.piece : null; if (p) extra += ` · ${esc(p.title)} (${sl.field})`; }
+    return tag + extra;
+  }
+  if (it.kind==="task"){ const tm=taskMap(); const names = it.taskIds.map(id=>tm[id]?.title).filter(Boolean); return tag+`<span class="tag job">Errand Book</span>`+esc(names.join(" + "))+(it.minutes?` · ${it.minutes} min`:""); }
+  if (it.kind==="plus") return tag+`<span class="tag job">Errand Book</span>Adds a done task when ticked`;
+  return tag+"Calendar only";
+}
+function itemPoints(it){
+  if (it.kind==="habit"){ const hb=S.habits.find(x=>x.id===it.habit.id); return Number(hb&&hb.points)||0; }
+  return it.points||0;
+}
+function calRow(it, day, rec){
+  const tm = taskMap(), on = isTicked(it, rec, tm), ans = (rec.cal||{})[it.eventId];
+  const pts = itemPoints(it), id = esc(it.eventId);
+  let h = `<div class="calrow"><button class="habit${on?" on":""}" data-cal="${id}" aria-pressed="${on}">
+    <span class="time num">${it.allDay?"All day":esc(fmtTime(it.start))}</span>
+    <span class="tick">${on?"✓":""}</span>
+    <span class="meta"><span class="name">${esc(it.title)}</span><span class="info">${itemInfo(it)}</span></span>
+    <span class="right">${pts?`<span class="pv num">+${pts}</span>`:""}</span></button>`;
+  const hb = it.kind==="habit" && S.habits.find(x=>x.id===it.habit.id);
+  if (hb && hb.variants && hb.variants.length && S.choosing===hb.id && !on){
+    h += `<div class="variants">${hb.variants.map(x=>`<button class="chip" data-variant="${esc(x.key)}" data-for="${esc(hb.id)}">${esc(x.label)}</button>`).join("")}</div>`;
+  }
+  if (it.ended && !on){
+    if (!ans) h += `<div class="outcome"><span class="small">Over. Tap it if it happened, or:</span><button class="chip skip" data-out="skip" data-ev="${id}">Skipped</button><button class="chip" data-out="later" data-ev="${id}">Later</button></div>`;
+    else if (ans==="skip") h += `<div class="calnote">Skipped. No harm done. <button class="iconbtn" data-out="clear" data-ev="${id}">Undo</button></div>` + (it.kind==="habit" && it.habit.id==="write" ? deskNote(it, day, rec) : "");
+    else if (ans==="later") h += `<div class="calnote">Fine. It'll ask again tomorrow. <button class="iconbtn" data-out="clear" data-ev="${id}">Undo</button></div>`;
+  }
+  if (it.source==="own" && !on) h += `<button class="notask" data-hide="${esc(it.key)}">Not a task</button>`;
+  return h + `</div>`;
+}
+// A skipped writing block: the Desk checks whether the piece's dates still hold, and offers one move.
+function deskNote(it, day, rec){
+  if (!CAL.desk) return "";
+  const done = (rec.desk||{})[it.eventId];
+  if (done) return `<div class="calnote">${done==="moved"?"The Desk date moved.":"Desk dates left as they were."}</div>`;
+  const sl = deskSlip(openIlkwim(CAL.desk), day, today());
+  if (!sl) return `<div class="calnote">Nothing on the Writing Desk depended on this block.</div>`;
+  const what = sl.field==="draft" ? "draft" : "gather";
+  if (!sl.to) return `<div class="desknote"><span><b>The Writing Desk</b> checked “${esc(sl.piece.title)}”. ${sl.why==="once"?`Its ${what} date has already moved once, so Alfred lets it go and picks it up at the Sunday plan.`:`There's no room before it's due, so Alfred will re-plan it with you at the Sunday plan.`}</span></div>`;
+  return `<div class="desknote"><span><b>The Writing Desk</b> checked “${esc(sl.piece.title)}”. Today was its ${what} day, so that slips to <b>${esc(fmtLong(sl.to))}</b>. The publish date (${esc(fmtShort(sl.piece.publish))}) still holds.</span>
+    <div class="row"><button class="btn" data-desk="move" data-ev="${esc(it.eventId)}">Move the ${what}</button><button class="btn ghost" data-desk="leave" data-ev="${esc(it.eventId)}">Leave it</button></div>
+    <span class="small">Moved once only. Your calendar keeps the old block; Alfred tidies it at the Sunday plan.</span></div>`;
+}
+// Yesterday's blocks that ended without a tick or an answer.
+function yesterdayPanel(t){
+  const y = addDays(t,-1), items = calItems(y); if (!items) return "";
+  const list = unanswered(items, S.days[y]||{}, taskMap()); if (!list.length) return "";
+  return `<div class="panel yday"><h3>Yesterday: did these happen?</h3>${list.map(it=>`<div class="yrow"><span>${it.allDay?"":esc(fmtTime(it.start))+" · "}${esc(it.title)}</span>
+    <span class="acts"><button class="chip" data-yday="done" data-ev="${esc(it.eventId)}">Done</button><button class="chip" data-yday="skip" data-ev="${esc(it.eventId)}">Didn't happen</button></span></div>`).join("")}
+    <div class="small">No answer is fine too: a missing tick is never counted as a miss.</div></div>`;
+}
+// Other rooms suggest ticks; nothing is ticked until you say so. (Writing sessions already tick Write on their own.)
+function suggestPanel(t, rec){
+  if (!CAL.focus) return "";
+  const med = S.habits.find(x=>x.id==="meditate");
+  if (!med || (rec.done||{}).meditate || (rec.dismissed||[]).includes("meditate")) return "";
+  const t0 = parse(t).getTime(), t1 = parse(addDays(t,1)).getTime();
+  const m = CAL.focus.list("log/").map(x=>x.value).filter(e=>e && e.k==="focus" && e.label==="Meditating" && e.t>=t0 && e.t<t1).reduce((a,e)=>a+(e.m||0),0);
+  if (!m) return "";
+  return `<div class="suggest"><span style="flex:1;min-width:12em"><span class="who">Focus Room</span> logged ${m} minute${m===1?"":"s"} of Meditating today. Tick Meditate?</span>
+    <span class="acts"><button class="btn" data-sugg="meditate" data-min="${m}">Tick it</button><button class="btn ghost" data-sugg="no">No</button></span></div>`;
+}
+function itemFor(day, eventId){ return (calItems(day)||[]).find(i=>i.eventId===eventId); }
+function setAnswer(day, eventId, val){ const body = dayDoc(day); body.cal = { ...(body.cal||{}) }; if (val) body.cal[eventId]=val; else delete body.cal[eventId]; saveDay(day, body); }
+// One tap, every room.
+function tickItem(it, day){
+  const rec = S.days[day]||{}, tm = taskMap();
+  const on = isTicked(it, rec, tm);
+  if (it.kind==="habit"){
+    const hb = S.habits.find(x=>x.id===it.habit.id); if (!hb) return;
+    if (on) return setDone(hb.id, null, day);
+    if (hb.variants && hb.variants.length){
+      if (it.habit.variant && hb.variants.some(v=>v.key===it.habit.variant)) return setDone(hb.id, it.habit.variant, day);
+      if (day!==S.sel) return setDone(hb.id, true, day);
+      S.choosing = S.choosing===hb.id ? null : hb.id; return render();
+    }
+    if (hb.minutes && hb.minutes.length) return setDone(hb.id, it.minutes || Number(hb.minutes[0]) || true, day);
+    S.justTicked = hb.id; setTimeout(()=>{ if (S.justTicked===hb.id) S.justTicked=null; }, 500);
+    return setDone(hb.id, true, day);
+  }
+  if (it.kind==="block"){ setAnswer(day, it.eventId, on ? null : "done"); return say(on ? pick(LINES.undo) : pick(LINES.done)); }
+  if (!ready(CAL.todo)) return say("The Errand Book is still opening. Try again in a moment.");
+  const body = dayDoc(day); body.jobs = { ...(body.jobs||{}) }; const k = jobKey(it);
+  if (on){
+    const job = body.jobs[k];
+    if (!job) return say("That one was ticked in the Errand Book. Untick it there.");
+    for (const t of job.tasks||[]){
+      if (t.made) CAL.todo.remove("tasks/"+t.id);
+      else { const x = tm[t.id]; if (x) CAL.todo.set("tasks/"+t.id, { ...x, status:"todo", doneAt:null, calEvent:null }); }
+      if (t.next) CAL.todo.remove("tasks/"+t.next);
+    }
+    delete body.jobs[k]; saveDay(day, body); return say(pick(LINES.undo));
+  }
+  const at = new Date().toISOString(), tasks = [];
+  if (it.kind==="plus"){
+    const id = newTaskId();
+    CAL.todo.set("tasks/"+id, { id, title:it.title, area:"", priority:"Normal", status:"done", doneAt:at, created:at, size:it.minutes||null, source:"calendar", calEvent:it.eventId });
+    tasks.push({ id, made:true });
+  } else {
+    for (const id of tasksToFinish(it, body)){
+      const x = tm[id]; if (!x || x.status==="done") continue;
+      CAL.todo.set("tasks/"+id, { ...x, status:"done", doneAt:at, wantsSlot:false, calEvent:it.eventId });
+      const next = nextRepeat(x, day); let nid = null;
+      if (next){ nid = newTaskId(); CAL.todo.set("tasks/"+nid, { id:nid, ...next }); }
+      tasks.push({ id, next:nid });
+    }
+  }
+  body.jobs[k] = { pts:it.points, title:it.title, event:it.eventId, tasks, at };
+  if (body.cal) { body.cal = { ...body.cal }; delete body.cal[it.eventId]; }
+  saveDay(day, body);
+  const left = it.kind==="task" && !tasks.length;
+  say(it.kind==="plus" ? `Ticked, and “${it.title}” is in the Errand Book as done. +${it.points}.` : left ? `Ticked. The rest of it has another block later. +${it.points}.` : `Ticked, and done in the Errand Book. +${it.points}.`);
+}
+function bindCal(v){
+  v.querySelectorAll("[data-cal]").forEach(b=>b.onclick=()=>{ const it=itemFor(S.sel, b.dataset.cal); if (it) tickItem(it, S.sel); });
+  v.querySelectorAll("[data-out]").forEach(b=>b.onclick=()=>{
+    const it=itemFor(S.sel, b.dataset.ev); if (!it) return;
+    const o=b.dataset.out;
+    if (o==="done") return tickItem(it, S.sel);
+    setAnswer(S.sel, it.eventId, o==="clear" ? null : o);
+    if (o==="skip") say(it.kind==="habit" && it.habit.id==="write" ? "Skipped. Let me ask the Desk." : "Skipped. It happens.");
+  });
+  v.querySelectorAll("[data-yday]").forEach(b=>b.onclick=()=>{
+    const y=addDays(today(),-1), it=itemFor(y, b.dataset.ev); if (!it) return;
+    if (b.dataset.yday==="done") tickItem(it, y); else { setAnswer(y, it.eventId, "skip"); say("Noted. Let it go."); }
+  });
+  v.querySelectorAll("[data-hide]").forEach(b=>b.onclick=()=>{ const k=b.dataset.hide; saveSettings({ calHidden:[...new Set([...(S.settings.calHidden||[]), k])] }, "Hidden. That one won't show here again."); });
+  v.querySelectorAll("[data-sugg]").forEach(b=>b.onclick=()=>{
+    if (b.dataset.sugg==="meditate") return setDone("meditate", Number(b.dataset.min)||true, today());
+    const body=dayDoc(today()); body.dismissed=[...new Set([...(body.dismissed||[]),"meditate"])]; saveDay(today(), body);
+  });
+  v.querySelectorAll("[data-desk]").forEach(b=>b.onclick=()=>{
+    const day=S.sel, ev=b.dataset.ev, body=dayDoc(day); body.desk={ ...(body.desk||{}) };
+    if (b.dataset.desk==="move"){
+      if (!ready(CAL.desk)) return say("The Writing Desk is still opening. Try again in a moment.");
+      const sl = deskSlip(openIlkwim(CAL.desk), day, today()); if (!sl || !sl.to) return;
+      const cur = CAL.desk.get("pieces/"+sl.piece.id) || {};
+      const patch = { [sl.field]:sl.to, auto:{ ...(cur.auto||{}), [sl.field]:false }, slips:{ ...(cur.slips||{}), [sl.field]:((cur.slips||{})[sl.field]||0)+1 } };
+      if (sl.field==="gather" && Array.isArray(cur.gathers)) patch.gathers = cur.gathers.map(g=>g===sl.from?sl.to:g);
+      CAL.desk.set("pieces/"+sl.piece.id, { ...cur, ...patch });
+      body.desk[ev]="moved"; saveDay(day, body); say(`Moved. The ${sl.field} is now ${fmtLong(sl.to)}.`);
+    } else { body.desk[ev]="left"; saveDay(day, body); say("Left as it is."); }
+  });
 }
 
 // Mara: a quick log of what she met and how she took it, for her reactivity training (js/mara.js).
@@ -426,6 +632,7 @@ function bindMara(v){
 function bindToday(){
   const v = $("#v-today");
   bindMara(v);
+  bindCal(v);
   v.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{ S.sel=b.dataset.day; S.choosing=null; render(); });
   const p=$("#prevWeek"), n=$("#nextWeek");
   if (p) p.onclick=()=>{ S.weekStart=addDays(S.weekStart,-7); S.sel=addDays(S.weekStart,6); render(); };
@@ -444,7 +651,7 @@ function bindToday(){
   }
 }
 
-function dayDoc(d){ const r = S.days[d]||{}; return { done:{...(r.done||{})}, rest:!!r.rest }; }
+function dayDoc(d){ const r = S.days[d]||{}; return { ...r, done:{...(r.done||{})}, rest:!!r.rest }; }
 function saveDay(d, body){
   S.days[d] = body; render();
   if (!db) return;
@@ -460,12 +667,12 @@ function tapHabit(id){
   if (!cur) { S.justTicked = id; setTimeout(() => { if (S.justTicked === id) S.justTicked = null; }, 500); }   // pops once, even if the store re-renders
   setDone(id, cur ? null : true);
 }
-function setDone(id, val){
+function setDone(id, val, day = S.sel){
   const before = compute();
-  const body = dayDoc(S.sel);
-  if (val==null || body.done[id]===val) { delete body.done[id]; S.choosing=null; saveDay(S.sel, body); return say(pick(LINES.undo)); }
-  body.done[id] = val; S.choosing=null; saveDay(S.sel, body);
-  const after = compute(), wk = monday(S.sel);
+  const body = dayDoc(day);
+  if (val==null || body.done[id]===val) { delete body.done[id]; S.choosing=null; saveDay(day, body); return say(pick(LINES.undo)); }
+  body.done[id] = val; S.choosing=null; saveDay(day, body);
+  const after = compute(), wk = monday(day);
   const b0 = (before.byWeek[wk]?.bonuses||[]).length, b1 = after.byWeek[wk]?.bonuses||[];
   if (b1.length > b0) { const nb = b1[b1.length-1]; say(`${nb.habit==="Good week"?"A good week":"Target met"}: +${nb.amount} points. The purse is heavier.`); }
   else say(pick([...(LINES[id]||LINES[id.split("-")[0]]||[]), ...LINES.done]));
@@ -722,6 +929,12 @@ render();
   linkWritingToLedger(ticked => say(ticked.length===1 && ticked[0].day===today()
     ? `Write ticked from the Focus Room: ${ticked[0].minutes} min at the desk.` : `Write ticked for ${ticked.length} day${ticked.length===1?"":"s"} from the Focus Room.`));
   setTimeout(() => fetchPelotonIfStale(training).catch(()=>{}), 1500);
+  // The calendar, the Errand Book, the Desk and the Focus Room, for the calendar list (see above).
+  CAL.alfred = openStore("alfred"); CAL.todo = openStore("todo"); CAL.desk = openStore("desk"); CAL.focus = openStore("focus");
+  let calTimer; const calRender = () => { clearTimeout(calTimer); calTimer = setTimeout(render, 60); };
+  for (const st of Object.values(CAL)) st.subscribe(calRender);
+  setInterval(render, 5*60e3); // blocks that end while the page is open get their "how did it go?"
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { for (const st of Object.values(CAL)) st.sync?.(); render(); } });
   db.doc("settings/main").onSnapshot(s=>{ if (s.exists) S.settings={streakMode:"grace",...s.data()}; render(); }, fail);
 })();
 })();

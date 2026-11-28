@@ -9,6 +9,12 @@
 //              new in the default "My Tasks" list, where Gemini often files things.
 //   "Ideas"    Anything added here ("add ... to my Ideas list") moves to the Writing Desk idea shelf
 //              (ILKWIM, stage Idea) and is cleared from Tasks.
+// It also reads the primary Google Calendar (read-only) for yesterday, today and tomorrow, so the Daily Ledger can
+// treat a calendar block and its habit or errand as one item (js/calendar.js). Only events James created himself are
+// kept (Alfred's ◆ blocks are made under his account); invitations and events anyone else created are dropped.
+// They're written to app "alfred", key "calendar/<YYYY-MM-DD>": { day, events: [{ id, rid, title, start, end,
+// allDay, alfred }], at }. Days older than 14 are cleared. Calendar access was added on 28 Nov 2026: until the owner
+// reconnects (?a=start) to grant it, the calendar step records "needs permission" and the Tasks sync carries on.
 //
 // GET  ?a=start&t=<watch token>     Sends you to Google to connect (once). Comes back to this function.
 // GET  ?code=...&state=...           Google's return trip: stores the refresh token in the vault.
@@ -24,7 +30,9 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const TZ = "America/New_York";
 const SELF = "https://llirhlpsfylhbvogjutj.supabase.co/functions/v1/alfred-gtasks";
-const SCOPE = "https://www.googleapis.com/auth/tasks";
+const SCOPE = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.events.readonly";
+const CAL_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const CAL_KEEP_DAYS = 14;
 const API = "https://tasks.googleapis.com/tasks/v1";
 const LISTS = { errands: "Errands", ideas: "Ideas" };
 // Items in the default list ("My Tasks") changed after this are swept into the Errand Book.
@@ -139,7 +147,7 @@ async function callback(c: Ctx, code: string, state: string) {
   const st = (await row(c, "alfred", "gtasks/state")) || {};
   await put(c, "alfred", "gtasks/state", { ...st, connectedAt: new Date().toISOString(), lastError: null });
   const first = await sync(c).catch((e) => ({ error: String(e?.message || e) }));
-  return "Connected. Alfred will keep your Errands and Ideas lists in Google Tasks in step with the rooms.\n\n"
+  return "Connected. Alfred will keep your Errands and Ideas lists in Google Tasks in step with the rooms, and the Ledger will see today's calendar.\n\n"
     + `First sync: ${JSON.stringify(first)}\n\nYou can close this page.`;
 }
 
@@ -164,7 +172,7 @@ async function status(c: Ctx) {
   const st = (await row(c, "alfred", "gtasks/state")) || {};
   const { data: refresh } = await c.db.rpc("alfred_secret_get", { secret_name: "alfred_gtasks_refresh" });
   return { connected: !!refresh, connectedAt: st.connectedAt ?? null, lastSync: st.lastSync ?? null,
-    lastError: st.lastError ?? null, onWatch: Object.keys(st.map || {}).length };
+    lastError: st.lastError ?? null, onWatch: Object.keys(st.map || {}).length, calendar: st.calendar ?? null };
 }
 
 // ---------- Google Tasks calls ----------
@@ -215,7 +223,8 @@ async function listTasks(call: Call, list: string): Promise<GTask[]> {
 async function sync(c: Ctx) {
   const st = (await row(c, "alfred", "gtasks/state")) || {};
   try {
-    const call = api(await accessToken(c));
+    const token = await accessToken(c);
+    const call = api(token);
     const errandsList = await ensureList(call, LISTS.errands, st.errandsList);
     const ideasList = await ensureList(call, LISTS.ideas, st.ideasList);
     const map: Record<string, string> = errandsList === st.errandsList ? { ...(st.map || {}) } : {};
@@ -338,12 +347,81 @@ async function sync(c: Ctx) {
       await call("DELETE", `/lists/${ideasList}/tasks/${g.id}`);
     }
 
-    await put(c, "alfred", "gtasks/state", { ...st, defaultSince: since, errandsList, ideasList, map, lastSync: new Date().toISOString(), lastError: null });
-    return { ok: true, ...n, onWatch: Object.keys(map).length, inMyTasks: seenDefault };
+    // The calendar, for the Ledger. Its own try: a calendar problem never stops the errands reaching the watch.
+    let calendar: Record<string, unknown>;
+    try { calendar = await syncCalendar(c, token); }
+    catch (e) { calendar = { ok: false, error: e instanceof Error ? e.message : String(e), at: new Date().toISOString() }; }
+
+    await put(c, "alfred", "gtasks/state", { ...st, defaultSince: since, errandsList, ideasList, map, calendar, lastSync: new Date().toISOString(), lastError: null });
+    return { ok: true, ...n, onWatch: Object.keys(map).length, inMyTasks: seenDefault, calendar };
   } catch (e) {
     if (e instanceof HttpError && e.status === 409) return { ok: false, connected: false };
     const msg = e instanceof Error ? e.message : String(e);
     await put(c, "alfred", "gtasks/state", { ...st, lastError: msg, lastErrorAt: new Date().toISOString() });
     throw e;
   }
+}
+
+// ---------- The calendar, for the Ledger ----------
+
+type GEvent = {
+  id: string; status?: string; summary?: string; description?: string; recurringEventId?: string;
+  start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string };
+  creator?: { self?: boolean }; organizer?: { self?: boolean };
+  attendees?: { self?: boolean; responseStatus?: string }[]; eventType?: string;
+};
+const dayOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
+
+async function syncCalendar(c: Ctx, token: string) {
+  const t = today(), days = [plusDays(t, -1), t, plusDays(t, 1)];
+  const p = new URLSearchParams({
+    singleEvents: "true", orderBy: "startTime", maxResults: "250",
+    // A day either side, so every New York day is whole whatever the offset; events are bucketed by their local day.
+    timeMin: `${plusDays(t, -2)}T12:00:00Z`, timeMax: `${plusDays(t, 3)}T12:00:00Z`,
+    fields: "items(id,status,summary,description,recurringEventId,start,end,creator(self),organizer(self),attendees(self,responseStatus),eventType)",
+  });
+  const res = await fetch(`${CAL_API}?${p}`, { headers: { Authorization: `Bearer ${token}` } });
+  const out = await res.json().catch(() => ({}));
+  if (res.status === 403 || res.status === 401) {
+    return { ok: false, needsPermission: true, at: new Date().toISOString(),
+      error: "The Google connection doesn't include the calendar yet. Reconnect once (the watch guide's start link) to allow it." };
+  }
+  if (!res.ok) throw new Error(`Google Calendar: ${res.status} ${out.error?.message || ""}`);
+
+  const byDay: Record<string, unknown[]> = Object.fromEntries(days.map((d) => [d, []]));
+  for (const e of (out.items || []) as GEvent[]) {
+    if (e.status === "cancelled" || !e.start) continue;
+    if (e.eventType && !["default", "fromGmail"].includes(e.eventType)) continue; // no out-of-office or working-location blocks
+    const mine = !!(e.creator?.self || e.organizer?.self);
+    const declined = (e.attendees || []).some((a) => a.self && a.responseStatus === "declined");
+    if (!mine || declined) continue; // Maggie's events, invitations and anything declined never count
+    const title = clean(e.summary);
+    if (!title) continue;
+    const allDay = !!e.start.date;
+    const day = allDay ? e.start.date! : dayOf(e.start.dateTime!);
+    if (!byDay[day]) continue;
+    byDay[day].push({
+      id: e.id, rid: e.recurringEventId || null, title, allDay,
+      start: e.start.dateTime || e.start.date || null, end: e.end?.dateTime || e.end?.date || null,
+      alfred: title.startsWith("◆") || /scheduled by alfred/i.test(e.description || ""),
+    });
+  }
+  const at = new Date().toISOString();
+  // Rewrite a day only when its events changed, so the rooms aren't sent the same day every 5 minutes.
+  for (const d of days) {
+    const was = await row(c, "alfred", `calendar/${d}`);
+    if (!was || JSON.stringify(was.events) !== JSON.stringify(byDay[d])) await put(c, "alfred", `calendar/${d}`, { day: d, events: byDay[d], at });
+  }
+
+  // Clear days older than two weeks.
+  const { data } = await c.db.from("app_data").select("key")
+    .eq("user_id", c.owner).eq("app", "alfred").like("key", "calendar/%").eq("deleted", false);
+  const cutoff = plusDays(t, -CAL_KEEP_DAYS);
+  for (const r of data || []) {
+    const d = r.key.slice(9);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d < cutoff) {
+      await c.db.from("app_data").update({ deleted: true, value: null }).eq("user_id", c.owner).eq("app", "alfred").eq("key", r.key);
+    }
+  }
+  return { ok: true, at, events: days.map((d) => byDay[d].length) };
 }
