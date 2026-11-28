@@ -18,6 +18,7 @@ export const MONEY_DEFAULTS = {
   holdOver: 100,       // things over $100 wait...
   holdHours: 48,       // ...this long once you decide you want them
   phone: { start: 6, step: 0.5, floor: 4, every: 2, hit: 20, beat: 35 },
+  jobsCap: 20,         // most points errands and chores ticked from the calendar can add in a week (28 Nov 2026)
 };
 
 import { ymd, parse, addDays, mondayOf } from "./dates.js";
@@ -48,7 +49,9 @@ export function targetFor(h, cfg, light, restDays) {
 /**
  * Score one week (Monday `wk`) from the day log.
  * habits: active habits [{id, name, points, kind, bonusAt, bonus, created}]
- * days: { "YYYY-MM-DD": { done: {habitId: truthy}, rest: bool } }
+ * days: { "YYYY-MM-DD": { done: {habitId: truthy}, rest: bool, jobs: {"e:<event id>": {pts}} } }
+ *   jobs are Errand Book jobs ticked from the calendar: they add points (capped at cfg.jobsCap a week) but never
+ *   count as habits, so they don't open gated treats, meet targets or make a day "active".
  * meta: this week's doc { light, phone } ; prevPoints: last week's points, or null
  * upTo: last day to count (today), so a week in progress scores what has happened so far.
  */
@@ -76,7 +79,9 @@ export function scoreWeek({ habits, days, wk, meta = {}, prevPoints = null, phon
     if (p <= phoneTarget - 1) lines.push({ habit: "Phone", amount: cfg.phone.beat, why: `${p} h a day, an hour under ${phoneTarget}` });
     else if (p <= phoneTarget) lines.push({ habit: "Phone", amount: cfg.phone.hit, why: `${p} h a day, under ${phoneTarget}` });
   }
-  let points = base + lines.reduce((a, l) => a + l.amount, 0);
+  const jobsRaw = dates.reduce((a, d) => a + Object.values((days[d] && days[d].jobs) || {}).reduce((b, j) => b + (Number(j && j.pts) || 0), 0), 0);
+  const jobs = Math.min(jobsRaw, cfg.jobsCap ?? 20);
+  let points = base + jobs + lines.reduce((a, l) => a + l.amount, 0);
   const comebackAt = light ? Math.round(cfg.comebackAt * cfg.lightFactor) : cfg.comebackAt;
   if (prevPoints != null && prevPoints < cfg.comebackBelow && points >= comebackAt) {
     lines.push({ habit: "Comeback", amount: cfg.comebackBonus, why: `back after a ${prevPoints}-point week` });
@@ -84,7 +89,7 @@ export function scoreWeek({ habits, days, wk, meta = {}, prevPoints = null, phon
   }
   const capPts = Math.round(cfg.cap * (light ? cfg.lightFactor : 1));
   const counted = Math.min(points, capPts);
-  return { wk, light, points, base, bonuses: lines, counts, capPts, counted, over: points - counted, dollars: round2(counted * rateFor(cfg, light)) };
+  return { wk, light, points, base, jobs, jobsRaw, bonuses: lines, counts, capPts, counted, over: points - counted, dollars: round2(counted * rateFor(cfg, light)) };
 }
 
 /** Phone targets week by week: start at 6, down half an hour after every two weeks hit, never below 4. */
