@@ -42,3 +42,19 @@ export function tickJob({ item, body, todo, tasksById, day, on }) {
   if (body.cal) { body.cal = { ...body.cal }; delete body.cal[item.eventId]; }
   return { tasks, left: item.kind === "task" && !tasks.length };
 }
+
+/** Tick an errand that has no calendar block (the console's "Any time" list): done in the Errand Book, and the
+ *  next copy made if it repeats. Returns { next } so the caller can undo with untickTask. */
+export function tickTask({ todo, task, day }) {
+  const at = new Date().toISOString();
+  todo.set("tasks/" + task.id, { ...stripId(task), status: "done", doneAt: at, wantsSlot: false });
+  const next = nextRepeat(task, day); let nid = null;
+  if (next) { nid = newTaskId(); todo.set("tasks/" + nid, { id: nid, ...next }); }
+  return { next: nid };
+}
+/** Undo tickTask: the errand open again, and the repeat it made removed. */
+export function untickTask({ todo, task, next }) {
+  todo.set("tasks/" + task.id, { ...stripId(task), status: "todo", doneAt: null });
+  if (next) todo.remove("tasks/" + next);
+}
+const stripId = ({ id, ...rest }) => rest;

@@ -206,15 +206,15 @@ import { openDb } from "./js/compat-db.js";
 import { linkWorkoutsToLedger, linkWritingToLedger, fetchPelotonIfStale } from "./js/rooms.js";
 import { settingsOf, allWeeks, wallet, hourPrice, gateOpen, ticksOn, fmtUsd, round2, targetFor, rateFor, phoneVerdict } from "./js/money.js";
 import { pad, ymd, parse, addDays, today } from "./js/dates.js";
-import { mountVine } from "./js/fx-vine.js";
+import { mountAquarium } from "./js/fx-aquarium.js";
 import { countTo } from "./js/fx-motion.js";
 import { TRIGGERS, QUIET, SCALE, PHASES, makeEntry, weekSummary, trend, recentBigReaction, phaseOf } from "./js/mara.js";
 import { openStore } from "./js/sync.js";
 import { todoTasks, nextRepeat, openIlkwim } from "./js/rooms.js";
 import { tickables, habitsOnCalendar, isTicked, unanswered, dayJobPoints, deskSlip } from "./js/calendar.js";
 import { tickJob } from "./js/calendar-ticks.js";
-// The vine lives outside the re-rendered HTML so it keeps its growth between renders.
-const vine = mountVine();
+// The aquarium lives outside the re-rendered HTML so it keeps its fish between renders.
+const tank = mountAquarium();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
 const worth = (pts, cfg, light) => { const v = pts * rateFor(cfg, light); return v < 1 ? Math.round(v*100)+"¢" : "$"+v.toFixed(2); };
 mountShell('ledger');
@@ -411,12 +411,12 @@ function renderToday(R){
   }
   html += `</div>`;
   $("#v-today").innerHTML = html;
-  // One leaf per daily habit and calendar job ticked on the day shown (weekly habits aren't counted).
+  // A fish or a plant for each daily habit and calendar job ticked on the day shown (weekly habits aren't counted).
   const side = $("#v-today .tside");
   if (side && S.habits.length){
-    side.prepend(vine.el);
+    side.prepend(tank.el);
     const allDaily = S.habits.filter(x=>x.kind!=="weekly"), jobs = (calItems(S.sel)||[]).filter(i=>i.kind!=="habit"), tm = taskMap();
-    vine.set(allDaily.filter(hb => rec.done && rec.done[hb.id]).length + jobs.filter(i=>isTicked(i, rec, tm)).length, allDaily.length + jobs.length);
+    tank.set(allDaily.filter(hb => rec.done && rec.done[hb.id]).length + jobs.filter(i=>isTicked(i, rec, tm)).length, allDaily.length + jobs.length);
   }
   bindToday();
 }
