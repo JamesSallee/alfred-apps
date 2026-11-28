@@ -211,7 +211,8 @@ import { countTo } from "./js/fx-motion.js";
 import { TRIGGERS, QUIET, SCALE, PHASES, makeEntry, weekSummary, trend, recentBigReaction, phaseOf } from "./js/mara.js";
 import { openStore } from "./js/sync.js";
 import { todoTasks, nextRepeat, openIlkwim } from "./js/rooms.js";
-import { tickables, habitsOnCalendar, isTicked, unanswered, dayJobPoints, jobKey, tasksToFinish, deskSlip } from "./js/calendar.js";
+import { tickables, habitsOnCalendar, isTicked, unanswered, dayJobPoints, deskSlip } from "./js/calendar.js";
+import { tickJob } from "./js/calendar-ticks.js";
 // The plum branch lives outside the re-rendered HTML so its blossoms keep their state between renders.
 const plum = mountPlum();
 // Rough dollar value of some points, at the given week's rate: "38¢" or "$6.15".
@@ -435,7 +436,6 @@ function calStatusNote(){
   if (st && st.calendar && st.calendar.needsPermission) return `<div class="small">The calendar isn't linked yet: reconnect Google once from the watch guide to let the Ledger see today's blocks.</div>`;
   return "";
 }
-const newTaskId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function itemInfo(it){
   const tag = it.source==="alfred" ? `<span class="tag alf">◆ Alfred</span>` : `<span class="tag own">+ Yours</span>`;
   if (it.kind==="habit"){
@@ -524,36 +524,12 @@ function tickItem(it, day){
   }
   if (it.kind==="block"){ setAnswer(day, it.eventId, on ? null : "done"); return say(on ? pick(LINES.undo) : pick(LINES.done)); }
   if (!ready(CAL.todo)) return say("The Errand Book is still opening. Try again in a moment.");
-  const body = dayDoc(day); body.jobs = { ...(body.jobs||{}) }; const k = jobKey(it);
-  if (on){
-    const job = body.jobs[k];
-    if (!job) return say("That one was ticked in the Errand Book. Untick it there.");
-    for (const t of job.tasks||[]){
-      if (t.made) CAL.todo.remove("tasks/"+t.id);
-      else { const x = tm[t.id]; if (x) CAL.todo.set("tasks/"+t.id, { ...x, status:"todo", doneAt:null, calEvent:null }); }
-      if (t.next) CAL.todo.remove("tasks/"+t.next);
-    }
-    delete body.jobs[k]; saveDay(day, body); return say(pick(LINES.undo));
-  }
-  const at = new Date().toISOString(), tasks = [];
-  if (it.kind==="plus"){
-    const id = newTaskId();
-    CAL.todo.set("tasks/"+id, { id, title:it.title, area:"", priority:"Normal", status:"done", doneAt:at, created:at, size:it.minutes||null, source:"calendar", calEvent:it.eventId });
-    tasks.push({ id, made:true });
-  } else {
-    for (const id of tasksToFinish(it, body)){
-      const x = tm[id]; if (!x || x.status==="done") continue;
-      CAL.todo.set("tasks/"+id, { ...x, status:"done", doneAt:at, wantsSlot:false, calEvent:it.eventId });
-      const next = nextRepeat(x, day); let nid = null;
-      if (next){ nid = newTaskId(); CAL.todo.set("tasks/"+nid, { id:nid, ...next }); }
-      tasks.push({ id, next:nid });
-    }
-  }
-  body.jobs[k] = { pts:it.points, title:it.title, event:it.eventId, tasks, at };
-  if (body.cal) { body.cal = { ...body.cal }; delete body.cal[it.eventId]; }
+  const body = dayDoc(day);
+  const r = tickJob({ item:it, body, todo:CAL.todo, tasksById:tm, day, on });
+  if (r.error) return say("That one was ticked in the Errand Book. Untick it there.");
   saveDay(day, body);
-  const left = it.kind==="task" && !tasks.length;
-  say(it.kind==="plus" ? `Ticked, and “${it.title}” is in the Errand Book as done. +${it.points}.` : left ? `Ticked. The rest of it has another block later. +${it.points}.` : `Ticked, and done in the Errand Book. +${it.points}.`);
+  if (r.undone) return say(pick(LINES.undo));
+  say(it.kind==="plus" ? `Ticked, and “${it.title}” is in the Errand Book as done. +${it.points}.` : r.left ? `Ticked. The rest of it has another block later. +${it.points}.` : `Ticked, and done in the Errand Book. +${it.points}.`);
 }
 function bindCal(v){
   v.querySelectorAll("[data-cal]").forEach(b=>b.onclick=()=>{ const it=itemFor(S.sel, b.dataset.cal); if (it) tickItem(it, S.sel); });

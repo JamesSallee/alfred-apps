@@ -131,6 +131,16 @@ a{color:inherit}
 .erow .wait{color:var(--brass-ink)!important}
 .erow .late{color:var(--brass-ink)!important;font-weight:600}
 .errands .more{font-size:14px;color:var(--muted);text-decoration:none}
+.jrow{display:flex;align-items:center;gap:12px;min-height:40px;background:none;border:0;padding:2px 0;text-align:left;font-size:16px;width:100%;color:inherit}
+.jrow .box{width:24px;height:24px;border-radius:5px}
+.jrow .box svg{width:16px;height:16px}
+.jrow.on .box{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.jrow.on .box svg{opacity:1}
+.jrow.on .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
+.jrow .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jrow .w{color:var(--muted);white-space:nowrap;font-size:14px}
+.jrow .w b{color:var(--green);font-weight:600;margin-right:6px}
+.errands .note{font-size:13px;color:var(--brass-ink)}
 .week{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .week .big{font-family:var(--display);font-size:30px;color:var(--green);line-height:1.15;font-variant-numeric:tabular-nums}
 .week .sm{font-size:13.5px;color:var(--muted)}
@@ -225,7 +235,9 @@ import { mountShell } from "./js/shell.js";
 import { openStore, STATUS_TEXT } from "./js/sync.js";
 import { iconSvg } from "./js/icons.js";
 import { ROOMS, CONSOLE_ORDER } from "./js/registry.js";
-import { ymd, mondayOf, activeHabits, openTasks, todoBucket, workoutsOf, KIND, openIlkwim, nextPost, radioScripts, linkWritingToLedger } from "./js/rooms.js";
+import { ymd, mondayOf, activeHabits, openTasks, todoBucket, todoTasks, workoutsOf, KIND, openIlkwim, nextPost, radioScripts, linkWritingToLedger } from "./js/rooms.js";
+import { tickables, isTicked } from "./js/calendar.js";
+import { tickJob } from "./js/calendar-ticks.js";
 import { greeting, todaysNote, weekPlan, mins } from "./js/study.js";
 import { createAudio, IDEAS } from "./js/focus-core.js";
 import { pad } from "./js/dates.js";
@@ -249,7 +261,7 @@ const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) +
 const fmtM = (m) => { m = Math.round(m); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} m` : `${h} h`; };
 const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
 
-const S_ = { study: "study", ledger: "ledger", focus: "focus", todo: "todo", shutdown: "shutdown", desk: "desk", wardrobe: "wardrobe", training: "training", podcast: "podcast" };
+const S_ = { study: "study", ledger: "ledger", focus: "focus", todo: "todo", shutdown: "shutdown", desk: "desk", wardrobe: "wardrobe", training: "training", podcast: "podcast", alfred: "alfred" };
 const st = Object.fromEntries(Object.entries(S_).map(([k, v]) => [k, openStore(v)]));
 
 // ---------- the sync pill: quiet when all's well, and says since when when it isn't ----------
@@ -509,10 +521,21 @@ $("#focus").addEventListener("click", (e) => {
 const dailyHabits = () => activeHabits(st.ledger).filter((h) => h.kind !== "weekly");
 const todayDone = () => st.ledger.get(`days/${ymd(now())}`)?.done || {};
 let choosing = null, justTicked = null;
+// The calendar and the Ledger as one (js/calendar.js): a habit booked on today's calendar shows its time and ticks
+// with the kind the block names (a "Strength" block ticks Workout as strength); errands and chores booked today
+// tick from the errands card, writing the same records as the Ledger does.
+const calToday = () => {
+  const doc = st.alfred.get(`calendar/${ymd(now())}`);
+  if (!doc || !Array.isArray(doc.events)) return [];
+  return tickables({ events: doc.events, habits: activeHabits(st.ledger), tasks: todoTasks(st.todo),
+    hidden: st.ledger.get("settings/main")?.calHidden || [], now: now() });
+};
+const hm12 = (iso) => { const d = new Date(iso); let h = d.getHours(); const m = d.getMinutes(), ap = h < 12 ? "am" : "pm"; h = h % 12 || 12; return m ? `${h}:${pad(m)}` : `${h} ${ap}`; };
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const plum = mountPlum({ mini: true });
 function renderLedger() {
   const hs = dailyHabits(), done = todayDone();
+  const booked = Object.fromEntries(calToday().filter((i) => i.kind === "habit").map((i) => [i.habit.id, i]));
   // A small plum branch under the habits: one blossom per habit ticked, as in the Ledger.
   if (hs.length) { if (!plum.el.isConnected) $("#ledger").append(plum.el); plum.set(hs.filter((h) => done[h.id]).length, hs.length); }
   else plum.el.remove();
@@ -522,6 +545,7 @@ function renderLedger() {
     let hint = "";
     if (h.variants && typeof v === "string") hint = (h.variants.find((x) => x.key === v) || {}).label || "";
     if (h.minutes && typeof v === "number") hint = v + " min";
+    if (!on && booked[h.id]) hint = booked[h.id].allDay ? "On the calendar" : hm12(booked[h.id].start);
     let row = `<button class="habit${on ? " on" : ""}" data-h="${esc(h.id)}" aria-pressed="${on}"><span class="box${on && justTicked === h.id ? " fx-pop" : ""}">${CHECK}</span><span>${esc(h.name || "Habit")}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</button>`;
     if (choosing === h.id) {
       const opts = h.variants?.length ? h.variants.map((x) => [x.key, x.label]) : (h.minutes || []).map((m) => [Number(m), m + " min"]);
@@ -544,7 +568,10 @@ $("#habits").addEventListener("click", (e) => {
   const b = e.target.closest("[data-h]"); if (!b) return;
   const h = dailyHabits().find((x) => x.id === b.dataset.h); if (!h) return;
   const cur = todayDone()[h.id];
+  const it = cur ? null : calToday().find((i) => i.kind === "habit" && i.habit.id === h.id);
   if (cur) { setDone(h.id, null); choosing = null; }
+  else if (it && it.habit.variant && h.variants?.some((x) => x.key === it.habit.variant)) { setDone(h.id, it.habit.variant); choosing = null; }
+  else if (it && it.minutes && h.minutes?.length) { setDone(h.id, it.minutes); choosing = null; }
   else if (h.variants?.length || h.minutes?.length) choosing = choosing === h.id ? null : h.id;
   else setDone(h.id, true);
   renderLedger(); if (run.running && cur === undefined) mode = null;
@@ -552,19 +579,30 @@ $("#habits").addEventListener("click", (e) => {
 
 // Errands due today; when there are none, the week's training takes the space.
 const TARGET = { strength: 4, cardio: 2, yoga: 1 };
+let jobNote = "", jobPop = null;
 function renderErrands() {
-  const t = ymd(now());
-  const list = openTasks(st.todo, t).filter((x) => todoBucket(x, t) === "today" || (x.status === "waiting" && x.due && x.due <= t))
+  const t = ymd(now()), rec = st.ledger.get(`days/${t}`) || {};
+  const tm = Object.fromEntries(todoTasks(st.todo).map((x) => [x.id, x]));
+  const jobs = calToday().filter((i) => i.kind !== "habit");
+  const covered = new Set(jobs.flatMap((i) => i.taskIds));
+  const list = openTasks(st.todo, t).filter((x) => !covered.has(x.id) && (todoBucket(x, t) === "today" || (x.status === "waiting" && x.due && x.due <= t)))
     .sort((a, b) => (a.due || "9").localeCompare(b.due || "9") || (a.booked?.start || "").localeCompare(b.booked?.start || ""));
   const el = $("#errands");
-  if (list.length) {
-    const rows = list.slice(0, 4).map((x) => {
+  if (jobs.length || list.length) {
+    const room = 5, shownJobs = jobs.slice(0, room), shownList = list.slice(0, Math.max(0, room - shownJobs.length));
+    const more = jobs.length + list.length - shownJobs.length - shownList.length;
+    const jrows = shownJobs.map((i) => {
+      const on = isTicked(i, rec, tm);
+      return `<button class="jrow${on ? " on" : ""}" data-job="${esc(i.eventId)}" aria-pressed="${on}"><span class="box${on && jobPop === i.eventId ? " fx-pop" : ""}">${CHECK}</span>
+        <span class="t">${esc(i.title)}</span><span class="w">${i.points ? `<b>+${i.points}</b>` : ""}${i.allDay ? "All day" : esc(hm12(i.start))}</span></button>`;
+    }).join("");
+    const rows = shownList.map((x) => {
       const when = x.status === "waiting" ? '<span class="wait">Waiting on</span>'
         : x.due && x.due < t ? '<span class="late">Overdue</span>'
         : x.booked?.start && x.booked.start.slice(0, 10) === t ? `<span class="num">${hm(new Date(x.booked.start))}</span>` : "<span>Today</span>";
       return `<div class="erow"><span>${esc(x.title)}</span>${when}</div>`;
     }).join("");
-    el.innerHTML = `<div class="head"><h2>Errands due today</h2>${list.length > 4 ? `<a class="more" href="todo.html">+${list.length - 4} more</a>` : ""}</div>${rows}`;
+    el.innerHTML = `<div class="head"><h2>${jobs.length ? "Today's jobs" : "Errands due today"}</h2>${more > 0 ? `<a class="more" href="todo.html">+${more} more</a>` : ""}</div>${jobNote ? `<div class="note">${esc(jobNote)}</div>` : ""}${jrows}${rows}`;
     return;
   }
   const from = mondayOf(t), wk = workoutsOf(st.training).filter((w) => { const d = ymd(new Date(w.start)); return d >= from && d <= t; });
@@ -574,6 +612,26 @@ function renderErrands() {
     ${[["strength", "Strength"], ["cardio", "Cardio"], ["yoga", "Yoga or stretch"]].map(([k, l]) => `<div class="erow"><span>${l}</span><span class="num">${n[k]} of ${TARGET[k]}</span></div>`).join("")}
     <div class="erow"><span style="color:var(--muted)">${todayW ? "Today: " + esc(todayW.title || "a class") : "No errands today, and no class yet."}</span><span></span></div>`;
 }
+
+// A tick here writes what the Ledger's tick writes: the job and its points on the day, the task done in the Errand Book.
+$("#errands").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-job]"); if (!b) return;
+  const t = ymd(now()), it = calToday().find((i) => i.eventId === b.dataset.job); if (!it) return;
+  const r0 = st.ledger.get(`days/${t}`) || {}, body = { ...r0, done: { ...(r0.done || {}) }, rest: !!r0.rest };
+  const tm = Object.fromEntries(todoTasks(st.todo).map((x) => [x.id, x]));
+  const on = isTicked(it, body, tm);
+  const say = (m) => { jobNote = m; renderErrands(); setTimeout(() => { if (jobNote === m) { jobNote = ""; renderErrands(); } }, 4000); };
+  if (it.kind === "block") { body.cal = { ...(body.cal || {}) }; if (on) delete body.cal[it.eventId]; else body.cal[it.eventId] = "done"; }
+  else {
+    if (st.todo.status === "starting") return say("The Errand Book is still opening. Try again in a moment.");
+    const r = tickJob({ item: it, body, todo: st.todo, tasksById: tm, day: t, on });
+    if (r.error) return say("That one was ticked in the Errand Book. Untick it there.");
+    if (r.left) say("Ticked. The rest of it has another block later.");
+  }
+  if (!on) { jobPop = it.eventId; setTimeout(() => { if (jobPop === it.eventId) jobPop = null; }, 500); }
+  st.ledger.set(`days/${t}`, body);
+  renderErrands(); renderWeek();
+});
 
 function renderWeek() {
   const t = ymd(now()), monday = mondayOf(t);
@@ -600,7 +658,8 @@ const later = (fn) => { queue.add(fn); if (!raf) raf = requestAnimationFrame(() 
 st.study.subscribe(() => later(renderGreet));
 st.shutdown.subscribe(() => { later(renderPlan); later(renderWeek); });
 st.ledger.subscribe(() => { later(renderLedger); later(renderWeek); if (run.running && cur().k === "break") { mode = null; later(() => renderFocus()); } });
-st.todo.subscribe(() => later(renderErrands));
+st.todo.subscribe(() => { later(renderErrands); later(renderLedger); });
+st.alfred.subscribe(() => { later(renderErrands); later(renderLedger); });
 st.training.subscribe(() => later(renderErrands));
 st.focus.subscribe(() => { loadSettings(); later(renderWeek); if (!run.running) later(() => renderFocus(true)); });
 
