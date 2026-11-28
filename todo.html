@@ -97,6 +97,22 @@ header .t{display:flex;flex-direction:column;gap:4px}
 .ask{display:flex;flex-direction:column;gap:6px;background:var(--brass-soft);border-radius:10px;padding:8px 10px;font-size:13.5px;grid-column:3 / -1}
 .ask .who{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--brass-ink)}
 
+/* Search: a box above the lists; while it holds anything, the matches stand in for the lists. */
+.search{display:flex;gap:8px;align-items:center;position:relative}
+.search input{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:9px 36px 9px 34px;font-size:15px;-webkit-appearance:none;appearance:none}
+.search input::-webkit-search-cancel-button{display:none}
+.search .glass{position:absolute;left:11px;top:50%;width:13px;height:13px;border:1.8px solid var(--muted);border-radius:50%;transform:translateY(-60%);pointer-events:none}
+.search .glass::after{content:"";position:absolute;width:6px;height:1.8px;background:var(--muted);right:-5px;bottom:-3px;transform:rotate(45deg)}
+.search .clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);font-size:18px;width:32px;line-height:1}
+.search kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 11px var(--body);color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px;pointer-events:none}
+@media (hover:none){.search kbd{display:none}}
+.found .grip{display:none} .found .task{grid-template-columns:22px minmax(0,1fr) auto}
+.found h3{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 0 0}
+.found .where{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.filt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+.filt .tag{background:var(--green-soft);color:var(--green)}
+mark{background:var(--brass-soft);color:inherit;border-radius:3px;padding:0 1px}
+
 /* Side lists */
 .mini{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
 .mini li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:14px;align-items:center}
@@ -149,6 +165,13 @@ dialog{border:0;padding:0;background:transparent;max-width:min(480px,calc(100% -
         <span class="saved" id="capSaved" aria-live="polite">Or just tell Alfred in chat; he'll suggest a time.</span>
       </article>
 
+      <form class="search" id="searchForm" role="search">
+        <span class="glass" aria-hidden="true"></span>
+        <label class="label" for="q" hidden>Search the Errand Book</label>
+        <input id="q" type="search" autocomplete="off" enterkeyhint="search" placeholder="Search everything, done too…">
+        <kbd id="qKey" title="Press / to search">/</kbd>
+        <button class="clear" type="button" id="qClear" aria-label="Clear the search" hidden>×</button>
+      </form>
       <div class="chips views" role="group" aria-label="View" id="views">
         <button class="chip" type="button" data-view="lists" aria-pressed="true">Lists</button>
         <button class="chip" type="button" data-view="months" aria-pressed="false">By month</button>
@@ -233,6 +256,7 @@ import { openStore } from "./js/sync.js";
 import { todoTasks, todoBucket, planWeek, planLabel, repeatLabel, nextRepeat, ymd, addDays, mondayOf, mirrorSoon as nudge } from "./js/rooms.js";
 import { today } from "./js/dates.js";
 import { findUrl, siteOf, suggestDrawer, DRAWERS } from "./js/reading.js";
+import { parseQuery, searchTasks, highlight, snippet, fold } from "./js/search.js";
 mountShell("todo");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
@@ -305,7 +329,10 @@ function render() {
   $("areaFilter").innerHTML = ["all", ...used].map((a) => `<button class="chip" type="button" data-area="${esc(a)}" aria-pressed="${a === areaFilter}">${a === "all" ? "All" : esc(a)}</button>`).join("");
   $("areaList").innerHTML = areas().map((a) => `<option value="${esc(a)}">`).join("");
 
-  // Groups, or the months
+  // Search results, the months, or the lists
+  const q = $("q").value.trim();
+  $("views").hidden = !!q;
+  if (q) { $("groups").innerHTML = foundView(all.filter((x) => areaFilter === "all" || (x.area || "Other") === areaFilter), q, t); renderSide(all, shown, t); return; }
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
   if (view === "months") { $("groups").innerHTML = monthsView(shown.filter((x) => x.status !== "waiting"), t); renderSide(all, shown, t); return; }
   const by = Object.fromEntries(GROUPS.map(([k]) => [k, []]));
@@ -315,7 +342,7 @@ function render() {
     if (!list.length && k !== "today") return "";
     return `<section class="card group" aria-labelledby="g-${k}">
       <h2 id="g-${k}">${name} <span class="n">${list.length || ""}</span></h2>
-      ${list.length ? `<ul class="tasks" data-group="${k}">${list.map(row).join("")}</ul>`
+      ${list.length ? `<ul class="tasks" data-group="${k}">${list.map((x) => row(x)).join("")}</ul>`
         : `<p class="empty">${open.length ? "Nothing for today. A rare and pleasant state." : "Nothing on the list. Add something above, or tell Alfred."}</p>`}
     </section>`;
   }).join("");
@@ -346,6 +373,47 @@ function renderSide(all, shown, t) {
     <button class="btn sm quiet" type="button" data-undo="${x.id}">Undo</button></li>`).join("")
     : `<li><span class="muted">Nothing ticked off yet. It'll fill up.</span></li>`;
 }
+
+// ---------- Search ----------
+// Everything in the book, done included, matched on title, notes, area and "waiting on". Shortcut words
+// (high, overdue, booked, waiting, a month…) filter instead; they're shown as tags above the results.
+const FOUND_DONE_MAX = 30;
+function foundView(list, q, t) {
+  const { words, filters } = parseQuery(q, t);
+  const hits = searchTasks(list, q, t);
+  const open = hits.filter((x) => x.status !== "done"), done = hits.filter((x) => x.status === "done");
+  const where = (x) => {
+    const bits = [];
+    if (x.status === "waiting") bits.push(x.waitingOn ? "Waiting on " + highlight(x.waitingOn, words) : "Waiting");
+    else if (x.snoozeUntil > t) bits.push("Snoozed until " + short(x.snoozeUntil));
+    if (x.someday) bits.push("Someday");
+    const titleHasAll = words.every((w) => fold(x.title).includes(w));
+    if (words.length && !titleHasAll && x.notes && words.some((w) => fold(x.notes).includes(w))) bits.push("Notes: " + highlight(snippet(x.notes, words), words));
+    return bits.length ? `<span class="where">${bits.join(" · ")}</span>` : "";
+  };
+  const filt = filters.length ? `<p class="filt">Only${filters.map((f) => ` <span class="tag">${esc(f.label)}</span>`).join("")}${words.length ? " matching the rest" : ""}</p>` : "";
+  const area = areaFilter !== "all" ? `<p class="filt">In ${esc(areaFilter)} only. <button class="link" type="button" data-area="all">Search every area</button></p>` : "";
+  if (!hits.length) return `<section class="card group found" aria-labelledby="g-found"><h2 id="g-found">Nothing found</h2>${filt}${area}
+    <p class="empty">Nothing in the book matches “${esc(q)}”.${words.length && !filters.length ? ` <button class="link" type="button" data-addfound="1">Add it as a task</button>` : ""}</p></section>`;
+  const doneRows = done.slice(0, FOUND_DONE_MAX).map((x) => `<li><span><s>${highlight(x.title, words)}</s><span class="sub">Done ${x.doneAt ? short(ymd(new Date(x.doneAt))) : ""}${x.area ? " · " + highlight(x.area, words) : ""}</span>${where(x)}</span>
+    <button class="btn sm quiet" type="button" data-undo="${x.id}">Undo</button></li>`).join("");
+  return `<section class="card group found" aria-labelledby="g-found">
+    <h2 id="g-found">Found <span class="n">${hits.length}</span></h2>${filt}${area}
+    ${open.length ? `<ul class="tasks">${open.map((x) => row(x, words, where(x))).join("")}</ul>` : ""}
+    ${done.length ? `<h3>Done${done.length > FOUND_DONE_MAX ? ` · newest ${FOUND_DONE_MAX} of ${done.length}` : ""}</h3><ul class="mini">${doneRows}</ul>` : ""}
+  </section>`;
+}
+const runSearch = () => { $("qClear").hidden = !$("q").value; $("qKey").hidden = !!$("q").value; render(); };
+$("q").addEventListener("input", runSearch);
+$("searchForm").addEventListener("submit", (e) => { e.preventDefault(); $("q").blur(); });
+$("qClear").onclick = () => { $("q").value = ""; runSearch(); $("q").focus(); };
+$("q").addEventListener("keydown", (e) => { if (e.key === "Escape" && $("q").value) { e.stopPropagation(); $("q").value = ""; runSearch(); } });
+// "/" jumps to the search box on a keyboard (the laptop, the console), unless you're typing somewhere.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.closest?.("input,textarea,select,[contenteditable]") || document.querySelector("dialog[open]")) return;
+  e.preventDefault(); $("q").focus(); $("q").select();
+});
 
 // The month ahead: this month and the next two, week by week. A task sits in the week it's planned for,
 // booked in, or due in; a task planned only to a month waits under "Sometime in <month>".
@@ -391,11 +459,11 @@ function monthsView(list, t) {
 const sorter = (a, b) => (a.order ?? 1e15) - (b.order ?? 1e15) || PRI[a.priority || "Normal"] - PRI[b.priority || "Normal"]
   || (a.due || "9999").localeCompare(b.due || "9999") || (a.created || "").localeCompare(b.created || "");
 
-function row(x) {
+function row(x, words = [], extra = "") {
   const t = today();
   const tags = [];
   if (x.triage) tags.push(`<span class="tag new">new: Alfred will size it</span>`);
-  if (x.area) tags.push(`<span class="tag">${esc(x.area)}</span>`);
+  if (x.area) tags.push(`<span class="tag">${highlight(x.area, words)}</span>`);
   if (x.priority === "High") tags.push(`<span class="tag high">High</span>`);
   if (x.due) tags.push(x.due < t ? `<span class="tag late">due ${short(x.due)}</span>` : `<span class="tag">${x.due === t ? "due today" : "due " + short(x.due)}</span>`);
   if (x.booked?.start) tags.push(`<span class="tag booked">booked ${bookedTxt(x.booked)}</span>`);
@@ -418,7 +486,7 @@ function row(x) {
   return `<li class="task" data-id="${x.id}">
     <button class="grip" type="button" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button>
     <input class="tick" type="checkbox" aria-label="Done: ${esc(x.title)}" data-tick="${x.id}">
-    <button class="body" type="button" data-edit="${x.id}"><span class="title">${esc(x.title)}</span><span class="meta">${tags.join("")}</span></button>
+    <button class="body" type="button" data-edit="${x.id}"><span class="title">${highlight(x.title, words)}</span><span class="meta">${tags.join("")}</span>${extra}</button>
     <span class="acts">
       <button class="pri ${esc(x.priority || "Normal")}" type="button" data-pri="${x.id}" aria-label="Priority ${esc(x.priority || "Normal")}: tap to change" title="Priority: ${esc(x.priority || "Normal")}"></button>
       <button class="btn sm quiet" type="button" data-menu="${x.id}" aria-label="More for ${esc(x.title)}">⋯</button>
@@ -471,6 +539,7 @@ document.addEventListener("click", (e) => {
   if (d.drop) { const x = find(d.drop); const before = { ...x }; store.remove("tasks/" + x.id); mirrorSoon(); toast("Let go. No hard feelings.", () => save(before)); return; }
   if (d.unwait) { const x = find(d.unwait); save({ ...x, status: "todo" }); return; }
   if (d.wake) { const x = find(d.wake); save({ ...x, snoozeUntil: null }); return; }
+  if (d.addfound) { $("capText").value = $("q").value.trim(); $("q").value = ""; runSearch(); $("capText").focus(); return; }
   if (d.undo) { const x = find(d.undo); save({ ...x, status: "todo", doneAt: null }); return; }
 });
 document.addEventListener("change", (e) => { if (e.target.dataset?.tick) complete(e.target.dataset.tick); });
